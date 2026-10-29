@@ -1,0 +1,20 @@
+name: Unzip patch
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip over repo
+        run: |
+          unzip -o repair.zip -x '.github/*'
+          rm repair.zip
+      - name: Commit
+        run: |
+          git config user.name "patch-bot"
+          git config user.email "patch-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Aplicar parche del reparador"
+          git push
