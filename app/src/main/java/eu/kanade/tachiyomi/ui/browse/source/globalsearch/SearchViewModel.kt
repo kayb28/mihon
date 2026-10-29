@@ -7,8 +7,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
+import eu.kanade.tachiyomi.data.source.SourceHealthStore
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.applyEnabledContentFilters
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -36,6 +39,7 @@ abstract class SearchViewModel(
     private val networkToLocalManga: NetworkToLocalManga,
     private val getManga: GetManga,
     private val preferences: SourcePreferences,
+    private val sourceHealthStore: SourceHealthStore,
 ) : ViewModel() {
 
     val state: StateFlow<State>
@@ -166,15 +170,22 @@ abstract class SearchViewModel(
                             source.getSearchManga(1, query, source.getFilterList())
                         }
 
-                        val titles = page.mangas
+                        val searchResults = source.applyEnabledContentFilters(
+                            page.mangas,
+                            preferences.enabledContentFilterIds(source.id),
+                        )
+
+                        val titles = searchResults
                             .map { it.toDomainManga(source.id) }
                             .distinctBy { it.url }
                             .let { networkToLocalManga(it) }
+                        sourceHealthStore.recordSuccess(source.id)
 
                         if (isActive) {
                             updateItem(source, SearchItemResult.Success(titles))
                         }
                     } catch (e: Exception) {
+                        if (e !is CancellationException) sourceHealthStore.recordFailure(source.id, e)
                         if (isActive) {
                             updateItem(source, SearchItemResult.Error(e))
                         }

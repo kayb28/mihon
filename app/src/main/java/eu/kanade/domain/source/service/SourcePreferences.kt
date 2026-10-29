@@ -13,6 +13,12 @@ import tachiyomi.core.common.preference.getEnum
 import tachiyomi.core.common.preference.getEnumSet
 import tachiyomi.core.common.preference.getLongArray
 import tachiyomi.domain.library.model.LibraryDisplayMode
+import tachiyomi.domain.source.model.SourceClassification
+import tachiyomi.domain.source.model.SourceClassificationEntry
+import tachiyomi.domain.source.model.SourceContentFilterEntry
+import tachiyomi.domain.source.model.sourceClassificationFor
+import tachiyomi.domain.source.model.filterSourceIdsByClassification
+import tachiyomi.core.common.preference.getAndSet
 
 @Inject
 @SingleIn(AppScope::class)
@@ -81,6 +87,34 @@ class SourcePreferences(
 
     val migrationSources: Preference<List<Long>> = preferenceStore.getLongArray("migration_sources", emptyList())
 
+    /** Missing entries default to MIXED: unknown sources are never implicitly classified as GENERAL. */
+    val sourceClassifications: Preference<Set<SourceClassificationEntry>> = preferenceStore.getObjectSetFromStringSet(
+        key = "source_classifications_by_id",
+        defaultValue = emptySet(),
+        serializer = SourceClassificationEntry::serialize,
+        deserializer = SourceClassificationEntry::deserialize,
+    )
+
+    /** Empty means no category filter in the source catalog. */
+    val sourceClassificationFilter: Preference<Set<SourceClassification>> = preferenceStore.getEnumSet(
+        "source_classification_filter",
+        emptySet(),
+    )
+
+    val enabledSourceContentFilters: Preference<Set<SourceContentFilterEntry>> =
+        preferenceStore.getObjectSetFromStringSet(
+            key = "enabled_source_content_filters",
+            defaultValue = emptySet(),
+            serializer = SourceContentFilterEntry::serialize,
+            deserializer = SourceContentFilterEntry::deserialize,
+        )
+
+    /** All enabled by default to preserve migration behavior for existing users. */
+    val migrationAllowedClassifications: Preference<Set<SourceClassification>> = preferenceStore.getEnumSet(
+        "migration_allowed_source_classifications",
+        SourceClassification.entries.toSet(),
+    )
+
     val migrationFlags: Preference<Set<MigrationFlag>> = preferenceStore.getObjectFromInt(
         key = "migration_flags",
         defaultValue = MigrationFlag.entries.toSet(),
@@ -101,4 +135,32 @@ class SourcePreferences(
         "migration_hide_without_updates",
         false,
     )
+
+    fun sourceClassification(sourceId: Long): SourceClassification =
+        sourceClassificationFor(sourceId, sourceClassifications.get())
+
+    fun setSourceClassification(sourceId: Long, classification: SourceClassification) {
+        sourceClassifications.getAndSet { current ->
+            current.filterNot { it.sourceId == sourceId } + SourceClassificationEntry(sourceId, classification)
+        }
+    }
+
+    fun isMigrationClassificationAllowed(sourceId: Long): Boolean =
+        sourceClassification(sourceId) in migrationAllowedClassifications.get()
+
+    fun eligibleMigrationSourceIds(sourceIds: List<Long>): List<Long> {
+        val allowed = migrationAllowedClassifications.get()
+        return filterSourceIdsByClassification(sourceIds, sourceClassifications.get(), allowed)
+    }
+
+    fun enabledContentFilterIds(sourceId: Long): Set<String> =
+        enabledSourceContentFilters.get().filter { it.sourceId == sourceId }.mapTo(mutableSetOf()) { it.filterId }
+
+    fun setContentFilterEnabled(sourceId: Long, filterId: String, enabled: Boolean) {
+        if (filterId.isBlank() || '|' in filterId) return
+        enabledSourceContentFilters.getAndSet { current ->
+            val entry = SourceContentFilterEntry(sourceId, filterId)
+            if (enabled) current + entry else current - entry
+        }
+    }
 }

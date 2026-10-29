@@ -11,7 +11,10 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.domain.source.interactor.GetEnabledSources
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.interactor.ToggleSourcePin
+import eu.kanade.tachiyomi.data.source.SourceHealthRecord
+import eu.kanade.tachiyomi.data.source.SourceHealthStore
 import eu.kanade.presentation.browse.SourceUiModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,10 +28,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.Pin
 import tachiyomi.domain.source.model.Source
+import tachiyomi.domain.source.service.SourceManager
 import java.util.TreeMap
 import kotlin.time.Duration.Companion.seconds
 
@@ -39,6 +44,8 @@ class SourcesViewModel(
     private val getEnabledSources: GetEnabledSources,
     private val toggleSource: ToggleSource,
     private val toggleSourcePin: ToggleSourcePin,
+    private val sourceManager: SourceManager,
+    private val sourceHealthStore: SourceHealthStore,
 ) : ViewModel() {
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
@@ -56,8 +63,9 @@ class SourcesViewModel(
     val state: StateFlow<State> = combine(
         enabledSources,
         dialog,
-    ) { items, dialog ->
-        State(dialog = dialog, isLoading = false, items = items)
+        sourceHealthStore.records.changes(),
+    ) { items, dialog, healthRecords ->
+        State(dialog = dialog, isLoading = false, items = items, healthRecords = healthRecords)
     }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), State())
@@ -109,8 +117,33 @@ class SourcesViewModel(
         dialog.update { null }
     }
 
+    fun checkSource(source: Source) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val installed = sourceManager.get(source.id)
+                if (installed == null) {
+                    sourceHealthStore.recordNeedsVerification(source.id)
+                } else if (installed.supportsLatest) {
+                    installed.getLatestUpdates(1)
+                    sourceHealthStore.recordSuccess(source.id)
+                } else {
+                    installed.getPopularManga(1)
+                    sourceHealthStore.recordSuccess(source.id)
+                }
+                _events.send(Event.SourceCheckCompleted)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                sourceHealthStore.recordFailure(source.id, e)
+                _events.send(Event.SourceCheckFailed)
+            }
+        }
+    }
+
     sealed interface Event {
         data object FailedFetchingSources : Event
+        data object SourceCheckCompleted : Event
+        data object SourceCheckFailed : Event
     }
 
     data class Dialog(val source: Source)
@@ -120,6 +153,7 @@ class SourcesViewModel(
         val dialog: Dialog? = null,
         val isLoading: Boolean = true,
         val items: List<SourceUiModel> = listOf(),
+        val healthRecords: Set<SourceHealthRecord> = emptySet(),
     ) {
         val isEmpty = items.isEmpty()
     }

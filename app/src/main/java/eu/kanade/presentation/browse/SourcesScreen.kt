@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.browse.components.BaseSourceItem
+import eu.kanade.tachiyomi.data.source.SourceHealthRecord
+import eu.kanade.tachiyomi.data.source.SourceHealthStatus
 import eu.kanade.tachiyomi.ui.browse.source.SourcesViewModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
 import eu.kanade.tachiyomi.util.system.LocaleHelper
@@ -37,6 +39,8 @@ import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.theme.header
 import tachiyomi.presentation.core.util.plus
 import tachiyomi.source.local.isLocal
+import java.text.DateFormat
+import java.util.Date
 
 @Composable
 fun SourcesScreen(
@@ -164,8 +168,11 @@ private fun SourcePinButton(
 @Composable
 fun SourceOptionsDialog(
     source: Source,
+    healthRecord: SourceHealthRecord?,
     onClickPin: () -> Unit,
     onClickDisable: () -> Unit,
+    onClickCheckHealth: () -> Unit,
+    onClickUpdateLibrary: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -174,6 +181,60 @@ fun SourceOptionsDialog(
         },
         text = {
             Column {
+                val statusRes = when (healthRecord?.status) {
+                    SourceHealthStatus.AVAILABLE -> MR.strings.source_health_available
+                    SourceHealthStatus.NETWORK_ERROR -> MR.strings.source_health_network_error
+                    SourceHealthStatus.NEEDS_VERIFICATION -> MR.strings.source_health_requires_verification
+                    SourceHealthStatus.SOURCE_ERROR -> MR.strings.source_health_error
+                    null -> MR.strings.source_health_unknown
+                }
+                Text(
+                    text = stringResource(statusRes),
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+                healthRecord?.let {
+                    Text(
+                        text = stringResource(
+                            MR.strings.source_health_checked_at,
+                            DateFormat.getDateTimeInstance().format(Date(it.checkedAt)),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    it.lastSuccessAt?.let { timestamp ->
+                        Text(
+                            text = stringResource(
+                                MR.strings.source_health_last_success,
+                                DateFormat.getDateTimeInstance().format(Date(timestamp)),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    it.lastErrorAt?.let { timestamp ->
+                        Text(
+                            text = stringResource(
+                                MR.strings.source_health_last_error,
+                                DateFormat.getDateTimeInstance().format(Date(timestamp)),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                if (!source.isLocal()) {
+                    Text(
+                        text = stringResource(MR.strings.source_action_check_health),
+                        modifier = Modifier
+                            .clickable(onClick = onClickCheckHealth)
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                    )
+                    Text(
+                        text = stringResource(MR.strings.source_action_update_library),
+                        modifier = Modifier
+                            .clickable(onClick = onClickUpdateLibrary)
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                    )
+                }
                 val textId = if (Pin.Pinned in source.pin) MR.strings.action_unpin else MR.strings.action_pin
                 Text(
                     text = stringResource(textId),

@@ -58,6 +58,7 @@ class MigrationListScreen(private val mangaIds: Collection<Long>, private val ex
             items = state.items,
             migrationComplete = state.migrationComplete,
             finishedCount = state.finishedCount,
+            noEligibleSources = state.noEligibleSources,
             onItemClick = {
                 navigator.push(MangaScreen(it.id, true))
             },

@@ -39,6 +39,7 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.i18n.MR
+import tachiyomi.domain.source.model.SourceClassification
 import tachiyomi.presentation.core.components.material.Button
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
@@ -105,6 +106,46 @@ fun MigrationConfigScreenSheet(
                                 },
                             )
                         }
+                }
+                val allowedClassifications by preferences.migrationAllowedClassifications.collectAsState()
+                Text(
+                    text = stringResource(MR.strings.source_classification_migration_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.extraSmall),
+                )
+                Text(
+                    text = stringResource(MR.strings.source_classification_migration_summary),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MaterialTheme.padding.medium),
+                )
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MaterialTheme.padding.medium)
+                        .padding(bottom = MaterialTheme.padding.extraSmall),
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                ) {
+                    SourceClassification.entries.forEach { classification ->
+                        val selected = classification in allowedClassifications
+                        val label = when (classification) {
+                            SourceClassification.GENERAL -> MR.strings.source_classification_general
+                            SourceClassification.ADULT -> MR.strings.source_classification_adult
+                            SourceClassification.MIXED -> MR.strings.source_classification_mixed
+                        }
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                preferences.migrationAllowedClassifications.getAndSet { current ->
+                                    if (selected) current - classification else current + classification
+                                }
+                            },
+                            label = { Text(stringResource(label)) },
+                        )
+                    }
                 }
                 val removeDownloads = MigrationFlag.REMOVE_DOWNLOAD in migrationFlags
                 MigrationSheetSwitchItem(

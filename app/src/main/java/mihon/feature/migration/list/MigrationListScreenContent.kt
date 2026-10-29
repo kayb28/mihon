@@ -71,6 +71,7 @@ fun MigrationListScreenContent(
     items: List<MigratingManga>,
     migrationComplete: Boolean,
     finishedCount: Int,
+    noEligibleSources: Boolean,
     onItemClick: (Manga) -> Unit,
     onSearchManually: (MigratingManga) -> Unit,
     onSkip: (Long) -> Unit,
@@ -121,6 +122,15 @@ fun MigrationListScreenContent(
         },
     ) { contentPadding ->
         FastScrollLazyColumn(contentPadding = contentPadding + topSmallPaddingValues) {
+            if (noEligibleSources) {
+                item(key = "no-eligible-migration-sources") {
+                    Text(
+                        text = stringResource(MR.strings.migration_no_eligible_sources),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(MaterialTheme.padding.medium),
+                    )
+                }
+            }
             items(items, key = { it.manga.id }) { item ->
                 Row(
                     Modifier

@@ -12,6 +12,7 @@ import eu.kanade.domain.source.interactor.GetLanguagesWithSources
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.source.ContentFilterableSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +20,16 @@ import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.domain.source.model.Source
+import tachiyomi.domain.source.model.SourceClassification
+import tachiyomi.domain.source.model.SourceClassificationEntry
+import tachiyomi.domain.source.model.SourceContentFilterEntry
+import tachiyomi.domain.source.service.SourceManager
 import java.util.SortedMap
+import java.util.TreeMap
 import kotlin.time.Duration.Companion.seconds
 
 @Inject
@@ -32,17 +40,46 @@ class SourcesFilterViewModel(
     private val getLanguagesWithSources: GetLanguagesWithSources,
     private val toggleSource: ToggleSource,
     private val toggleLanguage: ToggleLanguage,
+    private val sourceManager: SourceManager,
 ) : ViewModel() {
+
+    private val declaredContentFilters = sourceManager.sources.map { sources ->
+        sources.mapNotNull { source ->
+            val capability = source as? ContentFilterableSource ?: return@mapNotNull null
+            source.id to capability.getContentFilterOptions().filter { it.id.isNotBlank() && '|' !in it.id }
+        }.toMap()
+    }
 
     val state: StateFlow<State> = combine(
         getLanguagesWithSources.subscribe(),
         preferences.enabledLanguages.changes(),
         preferences.disabledSources.changes(),
-    ) { languagesWithSources, enabledLanguages, disabledSources ->
+        combine(
+            preferences.sourceClassifications.changes(),
+            preferences.sourceClassificationFilter.changes(),
+            preferences.enabledSourceContentFilters.changes(),
+            ::Triple,
+        ),
+        declaredContentFilters,
+    ) { languagesWithSources, enabledLanguages, disabledSources, categoryPreferences, contentFilterOptions ->
+        val (classifications, classificationFilter, enabledContentFilters) = categoryPreferences
+        val filteredItems = TreeMap<String, List<Source>>(languagesWithSources.comparator())
+        languagesWithSources.forEach { (language, sources) ->
+            val visibleSources = sources.filter { source ->
+                classificationFilter.isEmpty() ||
+                    (classifications.firstOrNull { it.sourceId == source.id }?.classification
+                        ?: SourceClassification.MIXED) in classificationFilter
+            }
+            if (visibleSources.isNotEmpty()) filteredItems[language] = visibleSources
+        }
         State.Success(
-            items = languagesWithSources,
+            items = filteredItems,
             enabledLanguages = enabledLanguages,
             disabledSources = disabledSources,
+            classifications = classifications,
+            classificationFilter = classificationFilter,
+            contentFilterOptions = contentFilterOptions,
+            enabledContentFilters = enabledContentFilters,
         )
     }
         .catch<State> { throwable -> emit(State.Error(throwable = throwable)) }
@@ -55,6 +92,25 @@ class SourcesFilterViewModel(
 
     fun toggleLanguage(language: String) {
         toggleLanguage.await(language)
+    }
+
+    fun setClassification(sourceId: Long, classification: SourceClassification) {
+        preferences.setSourceClassification(sourceId, classification)
+    }
+
+    fun toggleClassificationFilter(classification: SourceClassification) {
+        preferences.sourceClassificationFilter.getAndSet { current ->
+            if (classification in current) current - classification else current + classification
+        }
+    }
+
+    fun toggleContentFilter(sourceId: Long, filterId: String) {
+        val entry = SourceContentFilterEntry(sourceId, filterId)
+        preferences.setContentFilterEnabled(
+            sourceId = sourceId,
+            filterId = filterId,
+            enabled = entry !in preferences.enabledSourceContentFilters.get(),
+        )
     }
 
     sealed interface State {
@@ -72,6 +128,10 @@ class SourcesFilterViewModel(
             val items: SortedMap<String, List<Source>>,
             val enabledLanguages: Set<String>,
             val disabledSources: Set<String>,
+            val classifications: Set<SourceClassificationEntry>,
+            val classificationFilter: Set<SourceClassification>,
+            val contentFilterOptions: Map<Long, List<eu.kanade.tachiyomi.source.SourceContentFilterOption>>,
+            val enabledContentFilters: Set<SourceContentFilterEntry>,
         ) : State {
 
             val isEmpty: Boolean

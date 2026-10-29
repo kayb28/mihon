@@ -22,6 +22,7 @@ import androidx.work.workDataOf
 import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.notification.Notifications
+import eu.kanade.tachiyomi.data.source.SourceHealthStore
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.util.storage.getUriCompat
@@ -106,6 +107,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
     @Inject private lateinit var updateErrorStore: UpdateErrorStore
 
+    @Inject private lateinit var sourceHealthStore: SourceHealthStore
+
     private var mangaToUpdate: List<LibraryManga> = mutableListOf()
 
     override suspend fun doWork(): Result {
@@ -130,7 +133,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         libraryPreferences.lastUpdatedTimestamp.set(Clock.System.now().toEpochMilliseconds())
 
         val categoryId = inputData.getLong(KEY_CATEGORY, -1L)
-        addMangaToQueue(categoryId)
+        val sourceId = inputData.getLong(KEY_SOURCE_ID, -1L)
+        addMangaToQueue(categoryId, sourceId)
 
         return withContext(Dispatchers.IO) {
             try {
@@ -167,10 +171,12 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
      *
      * @param categoryId the ID of the category to update, or -1 if no category specified.
      */
-    private suspend fun addMangaToQueue(categoryId: Long) {
+    private suspend fun addMangaToQueue(categoryId: Long, sourceId: Long) {
         val libraryManga = getLibraryManga.await()
 
-        val listToUpdate = if (categoryId != -1L) {
+        val listToUpdate = if (sourceId != -1L) {
+            libraryManga.filter { it.manga.source == sourceId }
+        } else if (categoryId != -1L) {
             libraryManga.filter { categoryId in it.categories }
         } else {
             val includedCategories = libraryPreferences.updateCategories.get().map { it.toLong() }
@@ -267,6 +273,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                 .map { mangaInSource ->
                     async {
                         semaphore.withPermit {
+                            var attemptedUpdate = false
+                            var lastFailure: Throwable? = null
                             mangaInSource.forEach { libraryManga ->
                                 val manga = libraryManga.manga
                                 ensureActive()
@@ -282,6 +290,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                     manga,
                                 ) {
                                     try {
+                                        attemptedUpdate = true
                                         val newChapters = updateManga(manga, fetchWindow)
                                             .sortedByDescending { it.sourceOrder }
 
@@ -301,7 +310,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                             // Convert to the manga that contains new chapters
                                             newUpdates.add(manga to newChapters.toTypedArray())
                                         }
+                                        lastFailure = null
                                     } catch (e: Throwable) {
+                                        lastFailure = e
                                         val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
                                             ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
                                         val httpCode = httpException?.code
@@ -331,6 +342,14 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                             ),
                                         )
                                     }
+                                }
+                            }
+                            val sourceId = mangaInSource.firstOrNull()?.manga?.source
+                            if (attemptedUpdate && sourceId != null && lastFailure !is CancellationException) {
+                                if (lastFailure == null) {
+                                    sourceHealthStore.recordSuccess(sourceId)
+                                } else {
+                                    sourceHealthStore.recordFailure(sourceId, lastFailure!!)
                                 }
                             }
                         }
@@ -457,6 +476,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
          */
         private const val KEY_CATEGORY = "category"
 
+        /** Optional source ID for a source-only library update. */
+        private const val KEY_SOURCE_ID = "source_id"
+
         fun setupTask(
             context: Context,
             prefInterval: Int? = null,
@@ -512,7 +534,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         suspend fun startNow(
             workManager: WorkManager,
             category: Category? = null,
+            sourceId: Long? = null,
         ): Boolean {
+            require(category == null || sourceId == null) { "A library update cannot target both a category and a source" }
             if (workManager.isRunning(TAG)) {
                 // Already running either as a scheduled or manual job
                 return false
@@ -520,6 +544,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
             val inputData = workDataOf(
                 KEY_CATEGORY to category?.id,
+                KEY_SOURCE_ID to sourceId,
             )
             val request = OneTimeWorkRequestBuilder<LibraryUpdateWorker>()
                 .addTag(TAG)
