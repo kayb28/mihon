@@ -10,14 +10,19 @@ enum class SourceClassification {
 fun sourceClassificationFor(
     sourceId: Long,
     assignments: Set<SourceClassificationEntry>,
+    extensionClassifications: Map<Long, SourceClassification> = emptyMap(),
 ): SourceClassification = assignments.firstOrNull { it.sourceId == sourceId }?.classification
+    ?: extensionClassifications[sourceId]
     ?: SourceClassification.MIXED
 
 fun filterSourceIdsByClassification(
     sourceIds: List<Long>,
     assignments: Set<SourceClassificationEntry>,
     allowed: Set<SourceClassification>,
-): List<Long> = sourceIds.filter { sourceClassificationFor(it, assignments) in allowed }
+    extensionClassifications: Map<Long, SourceClassification> = emptyMap(),
+): List<Long> = sourceIds.filter {
+    sourceClassificationFor(it, assignments, extensionClassifications) in allowed
+}
 
 /** Stable preference record keyed by source ID rather than its mutable display name. */
 data class SourceClassificationEntry(

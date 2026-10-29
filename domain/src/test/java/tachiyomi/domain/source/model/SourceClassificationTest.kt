@@ -26,4 +26,15 @@ class SourceClassificationTest {
             allowed = setOf(SourceClassification.GENERAL, SourceClassification.MIXED),
         ) shouldBe listOf(1L, 3L, 4L)
     }
+
+    @Test
+    fun `extension metadata is the default while manual classification wins`() {
+        val extensionDefaults = mapOf(9L to SourceClassification.ADULT)
+        sourceClassificationFor(9L, emptySet(), extensionDefaults) shouldBe SourceClassification.ADULT
+        sourceClassificationFor(
+            9L,
+            setOf(SourceClassificationEntry(9L, SourceClassification.GENERAL)),
+            extensionDefaults,
+        ) shouldBe SourceClassification.GENERAL
+    }
 }

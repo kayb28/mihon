@@ -138,8 +138,7 @@ private fun SourcesFilterContent(
                     modifier = Modifier.animateItem(),
                     source = source,
                     enabled = "${source.id}" !in state.disabledSources,
-                    classification = state.classifications.firstOrNull { it.sourceId == source.id }
-                        ?.classification ?: SourceClassification.MIXED,
+                    classification = state.classifications[source.id] ?: SourceClassification.MIXED,
                     onClickItem = onClickSource,
                     onSetClassification = onSetClassification,
                     contentFilterOptions = state.contentFilterOptions[source.id].orEmpty(),

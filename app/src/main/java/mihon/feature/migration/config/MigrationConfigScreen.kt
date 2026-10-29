@@ -23,6 +23,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.source.SourceClassificationProvider
 import eu.kanade.presentation.browse.components.SourceIcon
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
@@ -85,6 +87,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
 
         val viewModel = metroViewModel<Model>()
         val state by viewModel.state.collectAsState()
@@ -220,14 +223,13 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
                 preferences = viewModel.sourcePreferences,
                 onDismissRequest = { migrationSheetOpen = false },
                 onStartMigration = { extraSearchQuery ->
-                    val eligible = viewModel.sourcePreferences.eligibleMigrationSourceIds(
-                        viewModel.sourcePreferences.migrationSources.get(),
-                    )
-                    if (eligible.isEmpty()) {
-                        context.toast(MR.strings.migration_no_eligible_sources)
-                    } else {
-                        migrationSheetOpen = false
-                        continueMigration(openSheet = false, extraSearchQuery = extraSearchQuery)
+                    scope.launch {
+                        if (!viewModel.hasEligibleMigrationSources()) {
+                            context.toast(MR.strings.migration_no_eligible_sources)
+                        } else {
+                            migrationSheetOpen = false
+                            continueMigration(openSheet = false, extraSearchQuery = extraSearchQuery)
+                        }
                     }
                 },
             )
@@ -330,7 +332,12 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
     class Model(
         val sourcePreferences: SourcePreferences,
         private val sourceManager: SourceManager,
+        private val sourceClassificationProvider: SourceClassificationProvider,
     ) : ViewModel() {
+
+        suspend fun hasEligibleMigrationSources(): Boolean = sourceClassificationProvider
+            .eligibleMigrationSourceIds(sourcePreferences.migrationSources.get())
+            .isNotEmpty()
 
         val state: StateFlow<Model.State>
             field = MutableStateFlow<Model.State>(State())

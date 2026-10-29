@@ -11,6 +11,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.source.SourceClassificationProvider
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import kotlinx.coroutines.CancellationException
@@ -50,6 +51,7 @@ class MigrationListViewModel(
     @Assisted extraSearchQuery: String?,
     private val preferences: SourcePreferences,
     private val sourceManager: SourceManager,
+    private val sourceClassificationProvider: SourceClassificationProvider,
     private val getManga: GetManga,
     private val networkToLocalManga: NetworkToLocalManga,
     private val getChapterSummaryByMangaId: GetChapterSummaryByMangaId,
@@ -125,7 +127,7 @@ class MigrationListViewModel(
         val prioritizeByChapters = preferences.migrationPrioritizeByChapters.get()
         val deepSearchMode = preferences.migrationDeepSearchMode.get()
 
-        val sourceIds = preferences.eligibleMigrationSourceIds(preferences.migrationSources.get())
+        val sourceIds = sourceClassificationProvider.eligibleMigrationSourceIds(preferences.migrationSources.get())
         val sources = sourceIds.mapNotNull { sourceManager.get(it) }
         if (sources.isEmpty()) {
             mangas.forEach { it.searchResult.value = SearchResult.NotFound }

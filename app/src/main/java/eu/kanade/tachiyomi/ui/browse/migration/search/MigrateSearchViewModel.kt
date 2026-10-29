@@ -9,6 +9,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.source.SourceClassificationProvider
 import eu.kanade.tachiyomi.data.source.SourceHealthStore
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.Source
@@ -29,6 +30,7 @@ class MigrateSearchViewModel(
     preferences: SourcePreferences,
     private val sourceManager: SourceManager,
     sourceHealthStore: SourceHealthStore,
+    private val sourceClassificationProvider: SourceClassificationProvider,
 ) : SearchViewModel(
     sourcePreferences = sourcePreferences,
     sourceManager = sourceManager,
@@ -68,7 +70,7 @@ class MigrateSearchViewModel(
     }
 
     override suspend fun getEnabledSources(): List<Source> {
-        return sourcePreferences.eligibleMigrationSourceIds(migrationSources)
+        return sourceClassificationProvider.eligibleMigrationSourceIds(migrationSources)
             .mapNotNull { sourceManager.get(it) }
     }
 }

@@ -136,8 +136,10 @@ class SourcePreferences(
         false,
     )
 
-    fun sourceClassification(sourceId: Long): SourceClassification =
-        sourceClassificationFor(sourceId, sourceClassifications.get())
+    fun sourceClassification(
+        sourceId: Long,
+        extensionClassifications: Map<Long, SourceClassification> = emptyMap(),
+    ): SourceClassification = sourceClassificationFor(sourceId, sourceClassifications.get(), extensionClassifications)
 
     fun setSourceClassification(sourceId: Long, classification: SourceClassification) {
         sourceClassifications.getAndSet { current ->
@@ -145,12 +147,17 @@ class SourcePreferences(
         }
     }
 
-    fun isMigrationClassificationAllowed(sourceId: Long): Boolean =
-        sourceClassification(sourceId) in migrationAllowedClassifications.get()
+    fun isMigrationClassificationAllowed(
+        sourceId: Long,
+        extensionClassifications: Map<Long, SourceClassification> = emptyMap(),
+    ): Boolean = sourceClassification(sourceId, extensionClassifications) in migrationAllowedClassifications.get()
 
-    fun eligibleMigrationSourceIds(sourceIds: List<Long>): List<Long> {
+    fun eligibleMigrationSourceIds(
+        sourceIds: List<Long>,
+        extensionClassifications: Map<Long, SourceClassification> = emptyMap(),
+    ): List<Long> {
         val allowed = migrationAllowedClassifications.get()
-        return filterSourceIdsByClassification(sourceIds, sourceClassifications.get(), allowed)
+        return filterSourceIdsByClassification(sourceIds, sourceClassifications.get(), allowed, extensionClassifications)
     }
 
     fun enabledContentFilterIds(sourceId: Long): Set<String> =

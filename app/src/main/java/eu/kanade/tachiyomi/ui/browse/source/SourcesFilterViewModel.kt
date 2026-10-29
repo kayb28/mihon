@@ -12,6 +12,7 @@ import eu.kanade.domain.source.interactor.GetLanguagesWithSources
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.source.SourceClassificationProvider
 import eu.kanade.tachiyomi.source.ContentFilterableSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.stateIn
 import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.model.SourceClassification
-import tachiyomi.domain.source.model.SourceClassificationEntry
 import tachiyomi.domain.source.model.SourceContentFilterEntry
 import tachiyomi.domain.source.service.SourceManager
 import java.util.SortedMap
@@ -41,6 +41,7 @@ class SourcesFilterViewModel(
     private val toggleSource: ToggleSource,
     private val toggleLanguage: ToggleLanguage,
     private val sourceManager: SourceManager,
+    private val sourceClassificationProvider: SourceClassificationProvider,
 ) : ViewModel() {
 
     private val declaredContentFilters = sourceManager.sources.map { sources ->
@@ -49,26 +50,26 @@ class SourcesFilterViewModel(
             source.id to capability.getContentFilterOptions().filter { it.id.isNotBlank() && '|' !in it.id }
         }.toMap()
     }
+    private val sourceMetadata = combine(declaredContentFilters, sourceClassificationProvider.classifications, ::Pair)
 
     val state: StateFlow<State> = combine(
         getLanguagesWithSources.subscribe(),
         preferences.enabledLanguages.changes(),
         preferences.disabledSources.changes(),
         combine(
-            preferences.sourceClassifications.changes(),
             preferences.sourceClassificationFilter.changes(),
             preferences.enabledSourceContentFilters.changes(),
-            ::Triple,
+            ::Pair,
         ),
-        declaredContentFilters,
-    ) { languagesWithSources, enabledLanguages, disabledSources, categoryPreferences, contentFilterOptions ->
-        val (classifications, classificationFilter, enabledContentFilters) = categoryPreferences
+        sourceMetadata,
+    ) { languagesWithSources, enabledLanguages, disabledSources, categoryPreferences, metadata ->
+        val (classificationFilter, enabledContentFilters) = categoryPreferences
+        val (contentFilterOptions, effectiveClassifications) = metadata
         val filteredItems = TreeMap<String, List<Source>>(languagesWithSources.comparator())
         languagesWithSources.forEach { (language, sources) ->
             val visibleSources = sources.filter { source ->
                 classificationFilter.isEmpty() ||
-                    (classifications.firstOrNull { it.sourceId == source.id }?.classification
-                        ?: SourceClassification.MIXED) in classificationFilter
+                    (effectiveClassifications[source.id] ?: SourceClassification.MIXED) in classificationFilter
             }
             if (visibleSources.isNotEmpty()) filteredItems[language] = visibleSources
         }
@@ -76,7 +77,7 @@ class SourcesFilterViewModel(
             items = filteredItems,
             enabledLanguages = enabledLanguages,
             disabledSources = disabledSources,
-            classifications = classifications,
+            classifications = effectiveClassifications,
             classificationFilter = classificationFilter,
             contentFilterOptions = contentFilterOptions,
             enabledContentFilters = enabledContentFilters,
@@ -128,7 +129,7 @@ class SourcesFilterViewModel(
             val items: SortedMap<String, List<Source>>,
             val enabledLanguages: Set<String>,
             val disabledSources: Set<String>,
-            val classifications: Set<SourceClassificationEntry>,
+            val classifications: Map<Long, SourceClassification>,
             val classificationFilter: Set<SourceClassification>,
             val contentFilterOptions: Map<Long, List<eu.kanade.tachiyomi.source.SourceContentFilterOption>>,
             val enabledContentFilters: Set<SourceContentFilterEntry>,
