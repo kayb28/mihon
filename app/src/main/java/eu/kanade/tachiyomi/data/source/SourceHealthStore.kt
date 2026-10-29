@@ -86,7 +86,7 @@ class SourceHealthStore(preferenceStore: PreferenceStore) {
                     lastSuccessAt = if (status == SourceHealthStatus.AVAILABLE) now else previous?.lastSuccessAt,
                     lastErrorAt = if (status == SourceHealthStatus.AVAILABLE) previous?.lastErrorAt else now,
                 )
-                current.filterNot { it.sourceId == sourceId } + record
+                (current.filterNot { it.sourceId == sourceId } + record).toSet()
             }
         }
     }

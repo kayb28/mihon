@@ -141,7 +141,7 @@ class SourcePreferences(
 
     fun setSourceClassification(sourceId: Long, classification: SourceClassification) {
         sourceClassifications.getAndSet { current ->
-            current.filterNot { it.sourceId == sourceId } + SourceClassificationEntry(sourceId, classification)
+            (current.filterNot { it.sourceId == sourceId } + SourceClassificationEntry(sourceId, classification)).toSet()
         }
     }
 
