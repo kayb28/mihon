@@ -87,3 +87,16 @@ D	mihonfix-phases-1-2.zip
 3. Las clases del lector (`DownloadStream`, `ReaderPage`, WebGPU) evolucionan rapido upstream: revisar las anotaciones `downloadStream`/health antes de portar.
 4. `LibraryUpdateWorker.kt` contiene ganchos de ambas funciones (UpdateErrorStore + SourceHealthStore + KEY_SOURCE_ID): es el archivo mas delicado de portar.
 5. `fix-0.21.3` es una rama obsoleta (puerto viejo sobre v0.21.3); no usarla como base nunca mas.
+
+
+### Agrupacion de biblioteca por fuente (añadido en integration)
+```
+A	domain/src/main/java/tachiyomi/domain/library/model/LibraryGroup.kt
+M	domain/src/main/java/tachiyomi/domain/library/service/LibraryPreferences.kt
+M	app/src/main/java/eu/kanade/tachiyomi/ui/library/LibraryViewModel.kt
+M	app/src/main/java/eu/kanade/presentation/library/LibrarySettingsDialog.kt
+M	app/src/main/java/eu/kanade/tachiyomi/ui/library/LibraryTab.kt
+M	i18n/src/commonMain/moko-resources/base/strings.xml
+M	i18n/src/commonMain/moko-resources/es/strings.xml
+```
+Tabs virtuales por sourceId; sort global cuando no es BY_DEFAULT; refresh usa sourceId del worker.

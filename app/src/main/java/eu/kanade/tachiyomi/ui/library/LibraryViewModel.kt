@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -64,6 +65,8 @@ import tachiyomi.domain.history.interactor.GetNextChapters
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
+import tachiyomi.domain.library.model.LibraryGroup
+import tachiyomi.source.local.LocalSource
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetLibraryManga
@@ -148,40 +151,54 @@ class LibraryViewModel(
     // Shared separately so search, selection and dialog changes still reach [state] before the
     // first query result
     private val library = combine(
-        searchQuery.debounce(0.25.seconds),
-        getCategories.subscribe(),
-        getFavoritesFlow(),
-        combine(tracks, getTrackingFiltersFlow(), ::Pair),
-        getLibraryItemPreferencesFlow(),
-    ) { searchQuery, categories, favorites, (tracksMap, trackingFilters), itemPreferences ->
-        val showSystemCategory = favorites.any { it.libraryManga.categories.contains(0) }
-        val filteredFavorites = favorites
-            .applyFilters(tracksMap, trackingFilters, itemPreferences)
-            .let { libraryItems ->
-                if (searchQuery.isNullOrEmpty()) {
-                    libraryItems
-                } else {
-                    val queryNode = QueryNode.from(searchQuery)
-                    libraryItems.filter { queryNode.matches(it) }
+        combine(
+            searchQuery.debounce(0.25.seconds),
+            getCategories.subscribe(),
+            getFavoritesFlow(),
+            combine(tracks, getTrackingFiltersFlow(), ::Pair),
+            getLibraryItemPreferencesFlow(),
+        ) { searchQuery, categories, favorites, (tracksMap, trackingFilters), itemPreferences ->
+            val showSystemCategory = favorites.any { it.libraryManga.categories.contains(0) }
+            val filteredFavorites = favorites
+                .applyFilters(tracksMap, trackingFilters, itemPreferences)
+                .let { libraryItems ->
+                    if (searchQuery.isNullOrEmpty()) {
+                        libraryItems
+                    } else {
+                        val queryNode = QueryNode.from(searchQuery)
+                        libraryItems.filter { queryNode.matches(it) }
+                    }
                 }
-            }
 
-        LibraryData(
-            isInitialized = true,
-            showSystemCategory = showSystemCategory,
-            categories = categories,
-            favorites = filteredFavorites,
-            tracksMap = tracksMap,
-            loggedInTrackerIds = trackingFilters.keys,
-        )
+            LibraryData(
+                isInitialized = true,
+                showSystemCategory = showSystemCategory,
+                categories = categories,
+                favorites = filteredFavorites,
+                tracksMap = tracksMap,
+                loggedInTrackerIds = trackingFilters.keys,
+            )
+        },
+        libraryPreferences.groupLibraryBy.changes(),
+        libraryPreferences.sortingMode.changes(),
+    ) { data, groupType, sortingMode ->
+        data.copy(groupType = groupType) to sortingMode
     }
         .distinctUntilChanged()
-        .map { data ->
+        .mapLatest { (data, sortingMode) ->
+            val grouped = when (data.groupType) {
+                LibraryGroup.BY_SOURCE -> data.favorites.applyGroupingBySource()
+                else -> data.favorites.applyGrouping(data.categories, data.showSystemCategory)
+            }
             Library(
                 data = data,
-                groupedFavorites = data.favorites
-                    .applyGrouping(data.categories, data.showSystemCategory)
-                    .applySort(data.favoritesById, data.tracksMap, data.loggedInTrackerIds),
+                groupedFavorites = grouped
+                    .applySort(
+                        data.favoritesById,
+                        data.tracksMap,
+                        data.loggedInTrackerIds,
+                        sortingMode = sortingMode.takeIf { data.groupType != LibraryGroup.BY_DEFAULT },
+                    ),
             )
         }
         .flowOn(Dispatchers.Default)
@@ -310,10 +327,41 @@ class LibraryViewModel(
             .associateWith { groupCache[it.id]?.toList().orEmpty() }
     }
 
+    /**
+     * Groups library items by source id into virtual [Category] tabs.
+     * Virtual category ids are source ids (including [LocalSource.ID]); they must not be
+     * written back as real category rows.
+     */
+    private suspend fun List<LibraryItem>.applyGroupingBySource(): Map<Category, List</* LibraryItem */ Long>> {
+        val bySource = groupBy { it.libraryManga.manga.source }
+        val orderedSourceIds = bySource.keys
+            .map { sourceId -> sourceId to sourceManager.getOrStub(sourceId) }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { (_, source) ->
+                source.name.ifBlank { source.id.toString() }
+            })
+            .map { it.first }
+        return orderedSourceIds.associate { sourceId ->
+            val source = sourceManager.getOrStub(sourceId)
+            val name = if (sourceId == LocalSource.ID) {
+                source.name.ifBlank { "Local" }
+            } else {
+                source.name.ifBlank { sourceId.toString() }
+            }
+            val category = Category(
+                id = sourceId,
+                name = name,
+                order = orderedSourceIds.indexOf(sourceId).toLong(),
+                flags = 0,
+            )
+            category to bySource[sourceId].orEmpty().map { it.id }
+        }
+    }
+
     private fun Map<Category, List</* LibraryItem */ Long>>.applySort(
         favoritesById: Map<Long, LibraryItem>,
         trackMap: Map<Long, List<Track>>,
         loggedInTrackerIds: Set<Long>,
+        sortingMode: LibrarySort? = null,
     ): Map<Category, List</* LibraryItem */ Long>> {
         // The collator already ignores case, and lowercasing on every comparison is slow on large libraries
         val sortAlphabetically: (LibraryItem, LibraryItem) -> Int = { manga1, manga2 ->
@@ -376,14 +424,17 @@ class LibraryViewModel(
         }
 
         return mapValues { (key, value) ->
-            if (key.sort.type == LibrarySort.Type.Random) {
+            // When grouped by source, tabs are virtual categories (flags=0). Use the
+            // global library sort instead of each tab's flags.
+            val sort = sortingMode ?: key.sort
+            if (sort.type == LibrarySort.Type.Random) {
                 return@mapValues value.shuffled(Random(libraryPreferences.randomSortSeed.get()))
             }
 
             val manga = value.mapNotNull { favoritesById[it] }
 
-            val comparator = key.sort.comparator()
-                .let { if (key.sort.isAscending) it else it.reversed() }
+            val comparator = sort.comparator()
+                .let { if (sort.isAscending) it else it.reversed() }
                 .thenComparator(sortAlphabetically)
 
             manga.sortedWith(comparator).map { it.id }
@@ -735,8 +786,8 @@ class LibraryViewModel(
             // Create a copy of selected manga
             val mangaList = selectedManga
 
-            // Hide the default category because it has a different behavior than the ones from db.
-            val categories = state.value.displayedCategories.filter { it.id != 0L }
+            // Always use persisted categories from DB, never virtual source tabs.
+            val categories = state.value.libraryData.categories.filter { it.id != 0L }
 
             val mangaCategoryIds = mangaList.map { getCategoryIds(it) }
             val common = mangaCategoryIds.reduceOrNull { set1, set2 -> set1 intersect set2 }.orEmpty()
@@ -799,6 +850,7 @@ class LibraryViewModel(
         val favorites: List<LibraryItem> = emptyList(),
         val tracksMap: Map</* Manga */ Long, List<Track>> = emptyMap(),
         val loggedInTrackerIds: Set<Long> = emptySet(),
+        val groupType: Int = LibraryGroup.BY_DEFAULT,
     ) {
         val favoritesById by lazy { favorites.associateBy { it.id } }
     }
@@ -818,6 +870,11 @@ class LibraryViewModel(
         private val activeCategoryIndex: Int = 0,
         private val groupedFavorites: Map<Category, List</* LibraryItem */ Long>> = emptyMap(),
     ) {
+        val groupType: Int get() = libraryData.groupType
+
+        /** True when tabs are virtual source groups, not persisted categories. */
+        val isGroupedBySource: Boolean get() = groupType == LibraryGroup.BY_SOURCE
+
         val displayedCategories: List<Category> = groupedFavorites.keys.toList()
 
         val coercedActiveCategoryIndex = activeCategoryIndex.coerceIn(

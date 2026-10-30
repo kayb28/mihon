@@ -942,4 +942,5 @@
     <string name="source_content_filter_unavailable">Esta fuente no declara filtros de contenido.</string>
     <string name="source_content_filter_none">Sin filtros de contenido declarados</string>
     <string name="source_content_filter_notice">El filtrado solo se aplica si la fuente declara un filtro compatible; no garantiza una clasificación completa del contenido.</string>
+    <string name="action_group">Grupo</string>
 </resources>

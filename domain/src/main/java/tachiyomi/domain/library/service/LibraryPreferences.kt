@@ -142,6 +142,12 @@ class LibraryPreferences(
 
     val categorizedDisplaySettings: Preference<Boolean> = preferenceStore.getBoolean("categorized_display", false)
 
+    /**
+     * How library tabs are grouped: [tachiyomi.domain.library.model.LibraryGroup.BY_DEFAULT]
+     * (categories) or [tachiyomi.domain.library.model.LibraryGroup.BY_SOURCE].
+     */
+    val groupLibraryBy: Preference<Int> = preferenceStore.getInt("group_library_by", tachiyomi.domain.library.model.LibraryGroup.BY_DEFAULT)
+
     val updateCategories: Preference<Set<String>> = preferenceStore.getStringSet(
         LIBRARY_UPDATE_CATEGORIES_PREF_KEY,
         emptySet(),

@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
@@ -24,6 +25,7 @@ import mihon.icons.materialsymbols.rounded.Refresh
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryDisplayMode
+import tachiyomi.domain.library.model.LibraryGroup
 import tachiyomi.domain.library.model.LibrarySort
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -50,6 +52,7 @@ fun LibrarySettingsDialog(
             stringResource(MR.strings.action_filter),
             stringResource(MR.strings.action_sort),
             stringResource(MR.strings.action_display),
+            stringResource(MR.strings.action_group),
         ),
     ) { page ->
         Column(
@@ -66,6 +69,9 @@ fun LibrarySettingsDialog(
                     viewModel = viewModel,
                 )
                 2 -> DisplayPage(
+                    viewModel = viewModel,
+                )
+                3 -> GroupPage(
                     viewModel = viewModel,
                 )
             }
@@ -166,8 +172,16 @@ private fun ColumnScope.SortPage(
     viewModel: LibrarySettingsViewModel,
 ) {
     val trackers by viewModel.trackersFlow.collectAsState()
-    val sortingMode = category.sort.type
-    val sortDescending = !category.sort.isAscending
+    val groupType by viewModel.libraryPreferences.groupLibraryBy.collectAsState()
+    val globalSort by viewModel.libraryPreferences.sortingMode.collectAsState()
+    // Virtual source tabs don't store sort flags; use the global library sort.
+    val activeSort = if (groupType == LibraryGroup.BY_DEFAULT) {
+        category.sort
+    } else {
+        globalSort
+    }
+    val sortingMode = activeSort.type
+    val sortDescending = !activeSort.isAscending
 
     val options = remember(trackers.isEmpty()) {
         val trackerMeanPair = if (trackers.isNotEmpty()) {
@@ -196,7 +210,7 @@ private fun ColumnScope.SortPage(
                 icon = MaterialSymbols.Rounded.Refresh
                     .takeIf { sortingMode == LibrarySort.Type.Random },
                 onClick = {
-                    viewModel.setSort(category, mode, LibrarySort.Direction.Ascending)
+                    viewModel.setSort(category.takeIf { groupType == LibraryGroup.BY_DEFAULT }, mode, LibrarySort.Direction.Ascending)
                 },
             )
             return@map
@@ -218,7 +232,7 @@ private fun ColumnScope.SortPage(
                         LibrarySort.Direction.Ascending
                     }
                 }
-                viewModel.setSort(category, mode, direction)
+                viewModel.setSort(category.takeIf { groupType == LibraryGroup.BY_DEFAULT }, mode, direction)
             },
         )
     }
@@ -302,4 +316,28 @@ private fun ColumnScope.DisplayPage(
         label = stringResource(MR.strings.action_display_show_number_of_items),
         pref = viewModel.libraryPreferences.categoryNumberOfItems,
     )
+}
+
+
+@Composable
+private fun ColumnScope.GroupPage(
+    viewModel: LibrarySettingsViewModel,
+) {
+    val groupType by viewModel.libraryPreferences.groupLibraryBy.collectAsState()
+    val modes = listOf(
+        LibraryGroup.BY_DEFAULT to MR.strings.categories,
+        LibraryGroup.BY_SOURCE to MR.strings.label_sources,
+    )
+    modes.forEach { (mode, titleRes) ->
+        val selected = groupType == mode
+        FilterChip(
+            selected = selected,
+            onClick = { viewModel.libraryPreferences.groupLibraryBy.set(mode) },
+            label = { Text(stringResource(titleRes)) },
+            modifier = Modifier.padding(
+                horizontal = TabbedDialogPaddings.Horizontal,
+                vertical = 4.dp,
+            ),
+        )
+    }
 }
