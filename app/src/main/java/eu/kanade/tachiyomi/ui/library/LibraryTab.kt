@@ -94,10 +94,16 @@ data object LibraryTab : Tab {
         val snackbarHostState = remember { SnackbarHostState() }
 
         val onClickRefresh: suspend (Category?) -> Boolean = { category ->
-            val started = LibraryUpdateWorker.startNow(context.workManager, category)
+            val started = if (category != null && state.isGroupedBySource) {
+                // Virtual source tab: update by source id, not category id
+                LibraryUpdateWorker.startNow(context.workManager, sourceId = category.id)
+            } else {
+                LibraryUpdateWorker.startNow(context.workManager, category)
+            }
             scope.launch {
                 val msgRes = when {
                     !started -> MR.strings.update_already_running
+                    category != null && state.isGroupedBySource -> MR.strings.updating_library
                     category != null -> MR.strings.updating_category
                     else -> MR.strings.updating_library
                 }
