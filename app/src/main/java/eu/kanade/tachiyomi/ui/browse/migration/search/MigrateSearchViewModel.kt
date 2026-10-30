@@ -9,6 +9,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.source.SourceHealthStore
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SearchItemResult
@@ -21,12 +22,13 @@ import tachiyomi.domain.source.service.SourceManager
 @AssistedInject
 class MigrateSearchViewModel(
     @Assisted val mangaId: Long,
-    sourcePreferences: SourcePreferences,
+    private val sourcePreferences: SourcePreferences,
     extensionManager: ExtensionManager,
     networkToLocalManga: NetworkToLocalManga,
     getManga: GetManga,
     preferences: SourcePreferences,
     private val sourceManager: SourceManager,
+    sourceHealthStore: SourceHealthStore,
 ) : SearchViewModel(
     sourcePreferences = sourcePreferences,
     sourceManager = sourceManager,
@@ -34,6 +36,7 @@ class MigrateSearchViewModel(
     networkToLocalManga = networkToLocalManga,
     getManga = getManga,
     preferences = preferences,
+    sourceHealthStore = sourceHealthStore,
 ) {
     @AssistedFactory
     @ManualViewModelAssistedFactoryKey
@@ -65,6 +68,7 @@ class MigrateSearchViewModel(
     }
 
     override suspend fun getEnabledSources(): List<Source> {
-        return migrationSources.mapNotNull { sourceManager.get(it) }
+        return sourcePreferences.eligibleMigrationSourceIds(migrationSources)
+            .mapNotNull { sourceManager.get(it) }
     }
 }

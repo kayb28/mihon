@@ -43,6 +43,9 @@ class SourcesFilterScreen : Screen() {
             state = successState,
             onClickLanguage = viewModel::toggleLanguage,
             onClickSource = viewModel::toggleSource,
+            onClickClassificationFilter = viewModel::toggleClassificationFilter,
+            onSetClassification = viewModel::setClassification,
+            onToggleContentFilter = viewModel::toggleContentFilter,
         )
     }
 }

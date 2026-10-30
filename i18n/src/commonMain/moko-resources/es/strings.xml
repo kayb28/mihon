@@ -917,4 +917,29 @@
     <string name="trust_all_dialog_title">¿Confiar en todas las extensiones pendientes?</string>
     <string name="trust_all_dialog_message">¿Deseas confiar en %d extensión(es) no confiable(s)? Confía solo en extensiones de fuentes seguras. Las extensiones que instales en el futuro seguirán requiriendo confirmación individual.</string>
 
+    <string name="source_classification_filter_title">Clasificación personal de fuentes</string>
+    <string name="source_classification_general">General</string>
+    <string name="source_classification_adult">Adulto</string>
+    <string name="source_classification_mixed">Mixto / sin clasificar</string>
+    <string name="source_classification_filter_empty">Ninguna fuente coincide con este filtro</string>
+    <string name="source_classification_warning">Estas etiquetas son personales y no garantizan el contenido de cada título.</string>
+    <string name="source_classification_migration_title">Categorías de fuente permitidas en migraciones</string>
+    <string name="source_classification_migration_summary">Las fuentes nuevas o sin clasificar se consideran Mixtas. Todas las categorías se permiten inicialmente para conservar el comportamiento existente.</string>
+    <string name="migration_no_eligible_sources">Ninguna fuente de migración coincide con las categorías seleccionadas. Cambia las opciones o elige otra fuente.</string>
+    <string name="source_action_update_library">Actualizar la biblioteca de esta fuente</string>
+    <string name="source_action_check_health">Comprobar fuente ahora</string>
+    <string name="source_health_unknown">Estado desconocido</string>
+    <string name="source_health_available">Disponible en la última comprobación</string>
+    <string name="source_health_network_error">Error de red en la última comprobación</string>
+    <string name="source_health_requires_verification">Requiere verificación según la última comprobación</string>
+    <string name="source_health_error">Error de fuente en la última comprobación</string>
+    <string name="source_health_check_complete">Comprobación de fuente completada</string>
+    <string name="source_health_check_failed">Falló la comprobación de fuente</string>
+    <string name="source_health_checked_at">Último resultado observado: %1$s</string>
+    <string name="source_health_last_success">Último éxito: %1$s</string>
+    <string name="source_health_last_error">Último error: %1$s</string>
+    <string name="source_content_filter_title">Filtros de contenido</string>
+    <string name="source_content_filter_unavailable">Esta fuente no declara filtros de contenido.</string>
+    <string name="source_content_filter_none">Sin filtros de contenido declarados</string>
+    <string name="source_content_filter_notice">El filtrado solo se aplica si la fuente declara un filtro compatible; no garantiza una clasificación completa del contenido.</string>
 </resources>

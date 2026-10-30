@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -49,6 +50,7 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.browse.migration.search.MigrateSearchScreen
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,6 +84,7 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val context = LocalContext.current
 
         val viewModel = metroViewModel<Model>()
         val state by viewModel.state.collectAsState()
@@ -217,8 +220,15 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
                 preferences = viewModel.sourcePreferences,
                 onDismissRequest = { migrationSheetOpen = false },
                 onStartMigration = { extraSearchQuery ->
-                    migrationSheetOpen = false
-                    continueMigration(openSheet = false, extraSearchQuery = extraSearchQuery)
+                    val eligible = viewModel.sourcePreferences.eligibleMigrationSourceIds(
+                        viewModel.sourcePreferences.migrationSources.get(),
+                    )
+                    if (eligible.isEmpty()) {
+                        context.toast(MR.strings.migration_no_eligible_sources)
+                    } else {
+                        migrationSheetOpen = false
+                        continueMigration(openSheet = false, extraSearchQuery = extraSearchQuery)
+                    }
                 },
             )
         }

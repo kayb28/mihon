@@ -1110,4 +1110,29 @@
     <string name="trust_all_dialog_title">Trust all pending extensions?</string>
     <string name="trust_all_dialog_message">Are you sure you want to trust %d untrusted extension(s)? Future extensions will still require individual confirmation.</string>
 
+    <string name="source_classification_filter_title">Personal source category</string>
+    <string name="source_classification_general">General</string>
+    <string name="source_classification_adult">Adult</string>
+    <string name="source_classification_mixed">Mixed / unclassified</string>
+    <string name="source_classification_filter_empty">No sources match this category filter</string>
+    <string name="source_classification_warning">These are your own source labels, not a guarantee about a title’s content.</string>
+    <string name="source_classification_migration_title">Sources allowed for migration</string>
+    <string name="source_classification_migration_summary">New and unclassified sources default to Mixed. All categories are allowed by default to preserve existing behavior.</string>
+    <string name="migration_no_eligible_sources">No migration sources match the selected source categories. Change the category options or choose another source.</string>
+    <string name="source_action_update_library">Update this source’s library</string>
+    <string name="source_action_check_health">Check source now</string>
+    <string name="source_health_unknown">Status unknown</string>
+    <string name="source_health_available">Available on last check</string>
+    <string name="source_health_network_error">Network error on last check</string>
+    <string name="source_health_requires_verification">Needs verification on last check</string>
+    <string name="source_health_error">Source error on last check</string>
+    <string name="source_health_check_complete">Source check completed</string>
+    <string name="source_health_check_failed">Source check failed</string>
+    <string name="source_health_checked_at">Last observed: %1$s</string>
+    <string name="source_health_last_success">Last success: %1$s</string>
+    <string name="source_health_last_error">Last error: %1$s</string>
+    <string name="source_content_filter_title">Content filters</string>
+    <string name="source_content_filter_unavailable">This source does not declare content filters.</string>
+    <string name="source_content_filter_none">No declared content filters</string>
+    <string name="source_content_filter_notice">Filtering only applies when the source declares a supported filter. It is not a complete content-safety guarantee.</string>
 </resources>

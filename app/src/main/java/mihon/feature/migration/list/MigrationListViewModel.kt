@@ -67,7 +67,7 @@ class MigrationListViewModel(
         fun create(mangaIds: Collection<Long>, extraSearchQuery: String?): MigrationListViewModel
     }
 
-    private val smartSearchEngine = SmartSourceSearchEngine(extraSearchQuery)
+    private val smartSearchEngine = SmartSourceSearchEngine(extraSearchQuery, preferences::enabledContentFilterIds)
 
     val items
         inline get() = state.value.items
@@ -125,8 +125,13 @@ class MigrationListViewModel(
         val prioritizeByChapters = preferences.migrationPrioritizeByChapters.get()
         val deepSearchMode = preferences.migrationDeepSearchMode.get()
 
-        val sources = preferences.migrationSources.get()
-            .mapNotNull { sourceManager.get(it) }
+        val sourceIds = preferences.eligibleMigrationSourceIds(preferences.migrationSources.get())
+        val sources = sourceIds.mapNotNull { sourceManager.get(it) }
+        if (sources.isEmpty()) {
+            mangas.forEach { it.searchResult.value = SearchResult.NotFound }
+            state.update { it.copy(finishedCount = mangas.size, noEligibleSources = true) }
+            return
+        }
 
         for (manga in mangas) {
             if (!currentCoroutineContext().isActive) break
@@ -374,6 +379,7 @@ class MigrationListViewModel(
         val items: List<MigratingManga> = listOf(),
         val finishedCount: Int = 0,
         val migrationComplete: Boolean = false,
+        val noEligibleSources: Boolean = false,
         val dialog: Dialog? = null,
     ) {
         val mangaIds: List<Long> = items.map { it.manga.id }
