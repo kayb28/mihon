@@ -88,6 +88,7 @@ fun ExtensionScreen(
     onTrustExtension: (Extension.NotLoaded) -> Unit,
     onOpenExtension: (Extension.Loaded) -> Unit,
     onClickUpdateAll: () -> Unit,
+    onClickTrustAll: () -> Unit = {},
     onRefresh: () -> Unit,
 ) {
     val navigator = LocalNavigator.currentOrThrow
@@ -130,6 +131,7 @@ fun ExtensionScreen(
                     onTrustExtension = onTrustExtension,
                     onOpenExtension = onOpenExtension,
                     onClickUpdateAll = onClickUpdateAll,
+                    onClickTrustAll = onClickTrustAll,
                 )
             }
         }
@@ -149,9 +151,11 @@ private fun ExtensionContent(
     onTrustExtension: (Extension.NotLoaded) -> Unit,
     onOpenExtension: (Extension.Loaded) -> Unit,
     onClickUpdateAll: () -> Unit,
+    onClickTrustAll: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var notLoadedState by remember { mutableStateOf<Extension.NotLoaded?>(null) }
+    var showTrustAllDialog by remember { mutableStateOf(false) }
     val installGranted = rememberRequestPackageInstallsPermissionState(initialValue = true)
 
     FastScrollLazyColumn(
@@ -175,8 +179,8 @@ private fun ExtensionContent(
             ) {
                 when (header) {
                     is ExtensionUiModel.Header.Resource -> {
-                        val action: @Composable RowScope.() -> Unit =
-                            if (header.textRes == MR.strings.ext_updates_pending) {
+                        val action: @Composable RowScope.() -> Unit = when (header.textRes) {
+                            MR.strings.ext_updates_pending -> {
                                 {
                                     Button(onClick = { onClickUpdateAll() }) {
                                         Text(
@@ -187,9 +191,27 @@ private fun ExtensionContent(
                                         )
                                     }
                                 }
-                            } else {
+                            }
+                            MR.strings.ext_not_loaded -> {
+                                if (state.untrustedCount > 0) {
+                                    {
+                                        Button(onClick = { showTrustAllDialog = true }) {
+                                            Text(
+                                                text = stringResource(MR.strings.action_trust_all_untrusted),
+                                                style = LocalTextStyle.current.copy(
+                                                    color = MaterialTheme.colorScheme.onPrimary,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    {}
+                                }
+                            }
+                            else -> {
                                 {}
                             }
+                        }
                         ExtensionHeader(
                             textRes = header.textRes,
                             modifier = Modifier.animateItem(),
@@ -286,6 +308,33 @@ private fun ExtensionContent(
                 onDismissRequest = dismiss,
             )
         }
+    }
+
+    if (showTrustAllDialog) {
+        AlertDialog(
+            title = {
+                Text(text = stringResource(MR.strings.trust_all_dialog_title))
+            },
+            text = {
+                Text(text = stringResource(MR.strings.trust_all_dialog_message, state.untrustedCount))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClickTrustAll()
+                        showTrustAllDialog = false
+                    },
+                ) {
+                    Text(text = stringResource(MR.strings.ext_trust))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTrustAllDialog = false }) {
+                    Text(text = stringResource(MR.strings.action_cancel))
+                }
+            },
+            onDismissRequest = { showTrustAllDialog = false },
+        )
     }
 }
 

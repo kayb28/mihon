@@ -35,13 +35,15 @@ android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "app.mihon"
+        applicationId = "app.mihonfix"
 
         versionCode = 39
         versionName = "0.21.3"
 
+        resValue("string", "app_name", "Mihon Fix")
+
         buildConfigField("boolean", "TELEMETRY_INCLUDED", "${Config.includeTelemetry}")
-        buildConfigField("boolean", "UPDATER_ENABLED", "${Config.enableUpdater}")
+        buildConfigField("boolean", "UPDATER_ENABLED", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -68,14 +70,16 @@ android {
         }
     }
 
+    val disableMinify = project.findProperty("disableMinify")?.toString()?.toBoolean() == true
+
     buildTypes {
         val debug = getByName("debug") {
             applicationIdSuffix = ".dev"
             isPseudoLocalesEnabled = true
         }
         val release = getByName("release") {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = !disableMinify
+            isShrinkResources = !disableMinify
 
             signingConfig = debug.signingConfig
 
@@ -169,6 +173,7 @@ android {
         viewBinding = true
         buildConfig = true
         aidl = true
+        resValues = true
     }
 
     lint {

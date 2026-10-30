@@ -1,0 +1,114 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests and checks'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build_release:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Setup Signing Keystore
+        id: setup_signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Keystore secret found. Configuring release signing."
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            echo "MIHON_GITHUB_RELEASE=true" >> $GITHUB_ENV
+            echo "storeFile=$GITHUB_WORKSPACE/release.keystore" >> $GITHUB_ENV
+            echo "storePassword=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "keyAlias=$KEY_ALIAS" >> $GITHUB_ENV
+            echo "keyPassword=$KEY_PASSWORD" >> $GITHUB_ENV
+          else
+            echo "No custom keystore found in secrets. Falling back to debug signing."
+          fi
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease -Pdist=ci
+
+      - name: Upload Release APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihon-release-apks-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+  build_unminified:
+    name: Build Unminified APK (No R8)
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Signing Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            echo "MIHON_GITHUB_RELEASE=true" >> $GITHUB_ENV
+            echo "storeFile=$GITHUB_WORKSPACE/release.keystore" >> $GITHUB_ENV
+            echo "storePassword=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "keyAlias=$KEY_ALIAS" >> $GITHUB_ENV
+            echo "keyPassword=$KEY_PASSWORD" >> $GITHUB_ENV
+          fi
+
+      - name: Build Unminified APK
+        run: ./gradlew assembleRelease -Pdist=ci -PdisableMinify=true
+
+      - name: Upload Unminified APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihon-unminified-apks-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+          retention-days: 30

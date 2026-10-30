@@ -611,6 +611,11 @@ class MainActivity : BaseActivity() {
                 navigator.popUntilRoot()
                 HomeScreen.Tab.More(toDownloads = true)
             }
+            Constants.SHORTCUT_UPDATE_ERRORS -> {
+                navigator.popUntilRoot()
+                navigator.push(mihon.feature.library.errors.UpdateErrorsScreen())
+                null
+            }
             Intent.ACTION_APPLICATION_PREFERENCES -> {
                 navigator.popUntilRoot()
                 navigator.push(SettingsScreen())

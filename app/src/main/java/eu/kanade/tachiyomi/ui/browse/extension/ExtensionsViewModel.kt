@@ -228,6 +228,17 @@ class ExtensionsViewModel(
         extensionManager.trust(extension)
     }
 
+    fun trustAllUntrusted() {
+        val untrusted = state.value.items.values.flatten()
+            .map { it.extension }
+            .filterIsInstance<Extension.NotLoaded>()
+            .filter { it.reason is Extension.NotLoaded.Reason.Untrusted }
+
+        untrusted.forEach { extension ->
+            extensionManager.trust(extension)
+        }
+    }
+
     @Immutable
     data class State(
         val isLoading: Boolean = true,
@@ -238,6 +249,11 @@ class ExtensionsViewModel(
         val searchQuery: String? = null,
     ) {
         val isEmpty = items.isEmpty()
+        val untrustedCount: Int
+            get() = items.values.flatten()
+                .map { it.extension }
+                .filterIsInstance<Extension.NotLoaded>()
+                .count { it.reason is Extension.NotLoaded.Reason.Untrusted }
     }
 }
 

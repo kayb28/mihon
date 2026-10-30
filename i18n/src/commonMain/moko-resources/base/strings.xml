@@ -1086,4 +1086,28 @@
     <string name="donationCampaign.paragraph3">Regardless, Mihon will continue to be maintained by me and the volunteers, and it will stay open source.</string>
     <string name="donationCampaign.contactPlatform">Discord</string>
     <string name="donationCampaign.dismiss">Dismiss</string>
+    <!-- Mihon Fix: link repairer / update errors -->
+    <string name="action_filter_update_error">Update error</string>
+    <string name="update_errors_title">Update errors</string>
+    <string name="update_errors_broken_links">Broken links (%d)</string>
+    <string name="update_errors_temporary">Temporary errors (%d)</string>
+    <string name="update_errors_action_repair">Repair links</string>
+    <string name="update_errors_empty">No update errors</string>
+    <string name="update_errors_view_log">View log (.txt)</string>
+    <string name="repair_links_title">Repair links</string>
+    <string name="repair_links_simulation_title">Simulation Mode</string>
+    <string name="repair_links_simulation_desc">Checking for exact matching titles in the same source. Matches will be auto-migrated.</string>
+    <string name="repair_links_action_simulate">Simulate</string>
+    <string name="repair_links_action_repair_10">Repair first 10</string>
+    <string name="repair_links_action_repair_all">Repair all</string>
+    <string name="repair_links_status_repaired">Repaired</string>
+    <string name="repair_links_status_pending">Pending review</string>
+    <string name="repair_links_status_no_match">No match</string>
+    <string name="repair_links_action_manual">Manual search</string>
+    <string name="repair_links_summary">%1$d repaired • %2$d pending • %3$d no match</string>
+    <string name="repair_links_running">Processing: %1$d / %2$d</string>
+    <string name="action_trust_all_untrusted">Trust all pending</string>
+    <string name="trust_all_dialog_title">Trust all pending extensions?</string>
+    <string name="trust_all_dialog_message">Are you sure you want to trust %d untrusted extension(s)? Future extensions will still require individual confirmation.</string>
+
 </resources>
