@@ -180,11 +180,12 @@ class LibraryViewModel(
             )
         },
         libraryPreferences.groupLibraryBy.changes(),
-    ) { data, groupType ->
-        data.copy(groupType = groupType)
+        libraryPreferences.sortingMode.changes(),
+    ) { data, groupType, sortingMode ->
+        data.copy(groupType = groupType) to sortingMode
     }
         .distinctUntilChanged()
-        .mapLatest { data ->
+        .mapLatest { (data, sortingMode) ->
             val grouped = when (data.groupType) {
                 LibraryGroup.BY_SOURCE -> data.favorites.applyGroupingBySource()
                 else -> data.favorites.applyGrouping(data.categories, data.showSystemCategory)
@@ -192,7 +193,12 @@ class LibraryViewModel(
             Library(
                 data = data,
                 groupedFavorites = grouped
-                    .applySort(data.favoritesById, data.tracksMap, data.loggedInTrackerIds),
+                    .applySort(
+                        data.favoritesById,
+                        data.tracksMap,
+                        data.loggedInTrackerIds,
+                        sortingMode = sortingMode.takeIf { data.groupType != LibraryGroup.BY_DEFAULT },
+                    ),
             )
         }
         .flowOn(Dispatchers.Default)
@@ -356,6 +362,7 @@ class LibraryViewModel(
         favoritesById: Map<Long, LibraryItem>,
         trackMap: Map<Long, List<Track>>,
         loggedInTrackerIds: Set<Long>,
+        sortingMode: LibrarySort? = null,
     ): Map<Category, List</* LibraryItem */ Long>> {
         // The collator already ignores case, and lowercasing on every comparison is slow on large libraries
         val sortAlphabetically: (LibraryItem, LibraryItem) -> Int = { manga1, manga2 ->
@@ -418,14 +425,17 @@ class LibraryViewModel(
         }
 
         return mapValues { (key, value) ->
-            if (key.sort.type == LibrarySort.Type.Random) {
+            // When grouped by source, tabs are virtual categories (flags=0). Use the
+            // global library sort instead of each tab's flags.
+            val sort = sortingMode ?: key.sort
+            if (sort.type == LibrarySort.Type.Random) {
                 return@mapValues value.shuffled(Random(libraryPreferences.randomSortSeed.get()))
             }
 
             val manga = value.mapNotNull { favoritesById[it] }
 
-            val comparator = key.sort.comparator()
-                .let { if (key.sort.isAscending) it else it.reversed() }
+            val comparator = sort.comparator()
+                .let { if (sort.isAscending) it else it.reversed() }
                 .thenComparator(sortAlphabetically)
 
             manga.sortedWith(comparator).map { it.id }

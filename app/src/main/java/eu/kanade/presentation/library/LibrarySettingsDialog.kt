@@ -172,8 +172,16 @@ private fun ColumnScope.SortPage(
     viewModel: LibrarySettingsViewModel,
 ) {
     val trackers by viewModel.trackersFlow.collectAsState()
-    val sortingMode = category.sort.type
-    val sortDescending = !category.sort.isAscending
+    val groupType by viewModel.libraryPreferences.groupLibraryBy.collectAsState()
+    val globalSort by viewModel.libraryPreferences.sortingMode.collectAsState()
+    // Virtual source tabs don't store sort flags; use the global library sort.
+    val activeSort = if (groupType == LibraryGroup.BY_DEFAULT) {
+        category.sort
+    } else {
+        globalSort
+    }
+    val sortingMode = activeSort.type
+    val sortDescending = !activeSort.isAscending
 
     val options = remember(trackers.isEmpty()) {
         val trackerMeanPair = if (trackers.isNotEmpty()) {
@@ -202,7 +210,7 @@ private fun ColumnScope.SortPage(
                 icon = MaterialSymbols.Rounded.Refresh
                     .takeIf { sortingMode == LibrarySort.Type.Random },
                 onClick = {
-                    viewModel.setSort(category, mode, LibrarySort.Direction.Ascending)
+                    viewModel.setSort(category.takeIf { groupType == LibraryGroup.BY_DEFAULT }, mode, LibrarySort.Direction.Ascending)
                 },
             )
             return@map
@@ -224,7 +232,7 @@ private fun ColumnScope.SortPage(
                         LibrarySort.Direction.Ascending
                     }
                 }
-                viewModel.setSort(category, mode, direction)
+                viewModel.setSort(category.takeIf { groupType == LibraryGroup.BY_DEFAULT }, mode, direction)
             },
         )
     }
