@@ -98,6 +98,7 @@ class LibraryViewModel(
     private val downloadManager: DownloadManager,
     private val downloadCache: DownloadCache,
     private val trackerManager: TrackerManager,
+    private val updateErrorStore: eu.kanade.tachiyomi.data.library.UpdateErrorStore,
 ) : ViewModel() {
 
     private val subscriberGate = SubscriberGate()
@@ -128,6 +129,7 @@ class LibraryViewModel(
             prefs.filterBookmarked,
             prefs.filterCompleted,
             prefs.filterIntervalCustom,
+            prefs.filterUpdateError,
             *trackFilters.values.toTypedArray(),
         )
             .any { it != TriState.DISABLED }
@@ -230,6 +232,8 @@ class LibraryViewModel(
         val filterBookmarked = preferences.filterBookmarked
         val filterCompleted = preferences.filterCompleted
         val filterIntervalCustom = preferences.filterIntervalCustom
+        val filterUpdateError = preferences.filterUpdateError
+        val errorMangaIds = preferences.errorMangaIds
 
         val isNotLoggedInAnyTrack = trackingFilter.isEmpty()
 
@@ -265,6 +269,10 @@ class LibraryViewModel(
             }
         }
 
+        val filterFnUpdateError: (LibraryItem) -> Boolean = {
+            applyFilter(filterUpdateError) { it.id in errorMangaIds }
+        }
+
         val filterFnTracking: (LibraryItem) -> Boolean = tracking@{ item ->
             if (isNotLoggedInAnyTrack || trackFiltersIsIgnored) return@tracking true
 
@@ -283,6 +291,7 @@ class LibraryViewModel(
                 filterFnBookmarked(it) &&
                 filterFnCompleted(it) &&
                 filterFnIntervalCustom(it) &&
+                filterFnUpdateError(it) &&
                 filterFnTracking(it)
         }
     }
@@ -396,7 +405,10 @@ class LibraryViewModel(
             libraryPreferences.filterBookmarked.changes(),
             libraryPreferences.filterCompleted.changes(),
             libraryPreferences.filterIntervalCustom.changes(),
+            libraryPreferences.filterUpdateError.changes(),
+            updateErrorStore.errorsFlow,
         ) {
+            val errors = it[13] as List<*>
             ItemPreferences(
                 downloadBadge = it[0] as Boolean,
                 unreadBadge = it[1] as Boolean,
@@ -410,6 +422,8 @@ class LibraryViewModel(
                 filterBookmarked = it[9] as TriState,
                 filterCompleted = it[10] as TriState,
                 filterIntervalCustom = it[11] as TriState,
+                filterUpdateError = it[12] as TriState,
+                errorMangaIds = errors.filterIsInstance<eu.kanade.tachiyomi.data.library.UpdateError>().mapTo(HashSet()) { err -> err.mangaId },
             )
         }
     }
@@ -773,6 +787,8 @@ class LibraryViewModel(
         val filterBookmarked: TriState,
         val filterCompleted: TriState,
         val filterIntervalCustom: TriState,
+        val filterUpdateError: TriState,
+        val errorMangaIds: Set<Long>,
     )
 
     @Immutable

@@ -125,6 +125,13 @@ private fun ColumnScope.FilterPage(
         )
     }
 
+    val filterUpdateError by viewModel.libraryPreferences.filterUpdateError.collectAsState()
+    TriStateItem(
+        label = stringResource(MR.strings.action_filter_update_error),
+        state = filterUpdateError,
+        onClick = { viewModel.toggleFilter(LibraryPreferences::filterUpdateError) },
+    )
+
     val trackers by viewModel.trackersFlow.collectAsState()
     when (trackers.size) {
         0 -> {

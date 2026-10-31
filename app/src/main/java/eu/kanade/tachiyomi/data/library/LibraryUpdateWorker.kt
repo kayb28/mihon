@@ -104,6 +104,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
     @Inject private lateinit var notifier: LibraryUpdateNotifier
 
+    @Inject private lateinit var updateErrorStore: UpdateErrorStore
+
     private var mangaToUpdate: List<LibraryManga> = mutableListOf()
 
     override suspend fun doWork(): Result {
@@ -254,6 +256,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         val currentlyUpdatingManga = CopyOnWriteArrayList<Manga>()
         val newUpdates = CopyOnWriteArrayList<Pair<Manga, Array<Chapter>>>()
         val failedUpdates = CopyOnWriteArrayList<Pair<Manga, String?>>()
+        val updateErrors = CopyOnWriteArrayList<UpdateError>()
         val hasDownloads = AtomicBoolean(false)
         val timeZone = TimeZone.currentSystemDefault()
         val fetchWindow = fetchInterval.getWindow(Clock.System.now().toLocalDateTime(timeZone).date, timeZone)
@@ -299,6 +302,13 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                             newUpdates.add(manga to newChapters.toTypedArray())
                                         }
                                     } catch (e: Throwable) {
+                                        val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
+                                            ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
+                                        val httpCode = httpException?.code
+                                        val errorType = when (httpCode) {
+                                            404, 410 -> UpdateError.ErrorType.BROKEN_LINK
+                                            else -> UpdateError.ErrorType.TEMPORARY
+                                        }
                                         val errorMessage = when (e) {
                                             is NoChaptersException -> context.stringResource(
                                                 MR.strings.no_chapters_error,
@@ -310,6 +320,16 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                             else -> e.message
                                         }
                                         failedUpdates.add(manga to errorMessage)
+                                        updateErrors.add(
+                                            UpdateError(
+                                                mangaId = manga.id,
+                                                sourceId = manga.source,
+                                                httpCode = httpCode,
+                                                message = errorMessage,
+                                                type = errorType,
+                                                timestamp = Clock.System.now().toEpochMilliseconds(),
+                                            ),
+                                        )
                                     }
                                 }
                             }
@@ -320,6 +340,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         }
 
         notifier.cancelProgressNotification()
+        updateErrorStore.setErrors(updateErrors.toList())
 
         if (newUpdates.isNotEmpty()) {
             notifier.showUpdateNotifications(newUpdates)
