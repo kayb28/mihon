@@ -296,6 +296,7 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
+    implementation(libs.webgpu)
     implementation(libs.webgpuviewer)
 
     // UI libraries
