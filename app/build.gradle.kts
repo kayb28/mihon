@@ -138,6 +138,11 @@ android {
 
     packaging {
         jniLibs {
+            // ca.mpreg:webgpuviewer and androidx.webgpu:webgpu both bundle Dawn's
+            // libwebgpu_c_bundled.so. Keep the ca.mpreg build (declared first below) so the
+            // current viewer's native bindings stay byte-identical; the androidx probe only
+            // needs the library to load. Verified via the CI artifact when bumping either.
+            pickFirsts += listOf("**/libwebgpu_c_bundled.so")
             keepDebugSymbols += listOf(
                 "libandroidx.graphics.path",
                 "libarchive-jni",
@@ -296,8 +301,8 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
-    implementation(libs.webgpu)
     implementation(libs.webgpuviewer)
+    implementation(libs.webgpu)
 
     // UI libraries
     implementation(libs.material)
