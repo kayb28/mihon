@@ -88,6 +88,13 @@ open class WebGpuViewer(
 
     open val isContinuous: Boolean = false
 
+    /**
+     * GPU image lifecycle backend. Routes the viewer's destroy/isDestroyed/invalidate calls
+     * through [GpuImageBackend]; [MpregGpuImageBackend] keeps today's ca.mpreg behavior, and a
+     * later migration phase can swap the implementation without touching the call sites.
+     */
+    protected open val imageBackend: GpuImageBackend<ImagePage> = MpregGpuImageBackend
+
     /** Resolved once: render() asks per frame, and createReaderThemeContext builds a Resources. */
     @Volatile
     private var cachedBackgroundColor: Int? = null
@@ -240,13 +247,13 @@ open class WebGpuViewer(
                         if (e !is Exception && e !is OutOfMemoryError) throw e
                         logcat(LogPriority.ERROR, e) { "decodeReaderPage: ${e.message}" }
                         synchronized(lock) {
-                            if (pageInCache(page) && !page.isDecoded && !page.imagePage.destroyed) {
+                            if (pageInCache(page) && !page.isDecoded && !imageBackend.isDestroyed(page.imagePage)) {
                                 val oldImagePage = page.imagePage
                                 page.imagePage = ErrorPage(this@WebGpuViewer, page, e)
                                 page.preview = null
                                 page.state = PageState.IDLE
                                 cleanupImage(oldImagePage)
-                                page.imagePage.invalidate()
+                                imageBackend.invalidate(page.imagePage)
                             } else {
                                 if (pageInCache(page)) page.state = PageState.IDLE
                             }
@@ -331,7 +338,7 @@ open class WebGpuViewer(
 
     /** Cleans up [image], or defers it while [pinnedFromPage] draws it. Call under [lock]. */
     private fun cleanupImage(image: ImagePage) {
-        if (isPinnedImage(image)) deferredCleanup.add(image) else image.cleanup()
+        if (isPinnedImage(image)) deferredCleanup.add(image) else imageBackend.destroy(image)
     }
 
     /** Releases what [pinnedFromPage] no longer protects. Call under [lock]. */
@@ -340,7 +347,7 @@ open class WebGpuViewer(
         while (iterator.hasNext()) {
             val image = iterator.next()
             if (!isPinnedImage(image)) {
-                image.cleanup()
+                imageBackend.destroy(image)
                 iterator.remove()
             }
         }
@@ -980,11 +987,11 @@ open class WebGpuViewer(
             pinnedFromPage = null
             pageCache.values.forEach {
                 it.state = PageState.IDLE
-                (it as? ViewerReaderPage)?.spreadPage?.cleanup()
-                it.imagePage.cleanup()
+                (it as? ViewerReaderPage)?.spreadPage?.let { spread -> imageBackend.destroy(spread) }
+                imageBackend.destroy(it.imagePage)
             }
             pageCache.clear()
-            deferredCleanup.forEach { it.cleanup() }
+            deferredCleanup.forEach { imageBackend.destroy(it) }
             deferredCleanup.clear()
             loneIndices.clear()
             chapterPreloadsInFlight.clear()
@@ -1348,7 +1355,7 @@ open class WebGpuViewer(
                 }
                 val installed = synchronized(lock) {
                     val old = page.imagePage
-                    (pageInCache(page) && old is ProgressPage && !old.destroyed).also { ok ->
+                    (pageInCache(page) && old is ProgressPage && !imageBackend.isDestroyed(old)).also { ok ->
                         if (!ok) return@also
                         page.preview = single
                         page.imagePage = single
@@ -1358,17 +1365,17 @@ open class WebGpuViewer(
                         viewerState.invalidate()
                     }
                 }
-                if (installed) preview = single else single.cleanup()
+                if (installed) preview = single else imageBackend.destroy(single)
                 previewing = installed
             } else {
                 // Replaced, as by an error page.
-                if (synchronized(lock) { page.imagePage !== shown } || shown.destroyed) {
+                if (synchronized(lock) { page.imagePage !== shown } || imageBackend.isDestroyed(shown)) {
                     previewing = false
                     return
                 }
                 val rect = Rect(f.dirtyX, f.dirtyY, f.dirtyX + f.dirtyWidth, f.dirtyY + f.dirtyHeight)
                 shown.image?.update(f.image, rect)
-                shown.invalidate()
+                imageBackend.invalidate(shown)
                 // A spread's page isn't on screen itself.
                 viewerState.invalidate()
             }
@@ -1419,7 +1426,7 @@ open class WebGpuViewer(
 
             // The preview's textures become the image, or frame 0; one since replaced or freed
             // (a settings reset) leaves a fresh image to install instead.
-            val shown = preview?.takeIf { synchronized(lock) { page.imagePage === it && !it.destroyed } }
+            val shown = preview?.takeIf { synchronized(lock) { page.imagePage === it && !imageBackend.isDestroyed(it) } }
             // Only a page the reader hasn't moved re-homes for its trim.
             val wasHome = shown?.atHome == true
             val firstImage = shown?.image?.also {
@@ -1448,17 +1455,17 @@ open class WebGpuViewer(
 
                     // The preview becomes the image in place, keeping pan and zoom - unless
                     // something replaced it meanwhile.
-                    shown != null -> shown.takeIf { page.imagePage === it && !it.destroyed }?.also {
+                    shown != null -> shown.takeIf { page.imagePage === it && !imageBackend.isDestroyed(it) }?.also {
                         page.preview = null
                         // Tiles for a still; an animation swaps images every frame.
                         it.highQuality = !animated
                         if (wasHome && firstImage.trim != null && !isDualPageMode()) rehome(it)
                         // Bumps frameVersion, so a transition's cached render of the preview is stale.
-                        it.invalidate()
+                        imageBackend.invalidate(it)
                     }
 
                     // A new page in the placeholder's place.
-                    !page.isDecoded && !page.imagePage.destroyed -> {
+                    !page.isDecoded && !imageBackend.isDestroyed(page.imagePage) -> {
                         val imagePage = ImagePage.ImageSingle(firstImage)
                         orphan = null
                         val old = page.imagePage
@@ -1517,7 +1524,7 @@ open class WebGpuViewer(
             firstFrame.close()
             secondFrame?.close()
             // Nothing took it, normally or not. A preview's image belongs to its page either way.
-            orphan?.let { ImagePage.ImageSingle(it).cleanup() }
+            orphan?.let { imageBackend.destroy(ImagePage.ImageSingle(it)) }
         }
     }
 
