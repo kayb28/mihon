@@ -231,7 +231,11 @@ class RepairLinksScreen : Screen() {
                                     }
                                     ProposedRepair.Status.NEEDS_REVIEW -> {
                                         Text(
-                                            text = "${stringResource(MR.strings.repair_links_status_pending)}${item.reason?.let { " ($it)" } ?: ""}",
+                                            text = "${stringResource(
+                                                MR.strings.repair_links_status_pending,
+                                            )}${item.reason?.let {
+                                                " ($it)"
+                                            } ?: ""}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.error,
                                             maxLines = 1,
@@ -256,7 +260,9 @@ class RepairLinksScreen : Screen() {
                             }
                         },
                         actions = {
-                            if (item.status == ProposedRepair.Status.NEEDS_REVIEW || item.status == ProposedRepair.Status.NO_MATCH) {
+                            if (item.status == ProposedRepair.Status.NEEDS_REVIEW ||
+                                item.status == ProposedRepair.Status.NO_MATCH
+                            ) {
                                 OutlinedButton(
                                     onClick = {
                                         navigator.push(MigrateSearchScreen(item.currentManga.id))

@@ -147,7 +147,8 @@ class RepairLinksViewModel(
                                 currentManga = manga,
                                 status = ProposedRepair.Status.NEEDS_REVIEW,
                                 reason = when (result.reason) {
-                                    TitleMatcher.MatchResult.NeedsReview.Reason.MULTIPLE_EXACT_MATCHES -> "Multiple identical titles"
+                                    TitleMatcher.MatchResult.NeedsReview.Reason.MULTIPLE_EXACT_MATCHES ->
+                                        "Multiple identical titles"
                                     TitleMatcher.MatchResult.NeedsReview.Reason.SAME_URL -> "Same URL as current"
                                     else -> null
                                 },
@@ -180,7 +181,15 @@ class RepairLinksViewModel(
             _state.update { it.copy(isMigrating = true, progressCurrent = 0) }
 
             val eligibleIndices = _state.value.items
-                .mapIndexedNotNull { index, item -> if (item.status == ProposedRepair.Status.MATCH_FOUND) index else null }
+                .mapIndexedNotNull { index, item ->
+                    if (item.status ==
+                        ProposedRepair.Status.MATCH_FOUND
+                    ) {
+                        index
+                    } else {
+                        null
+                    }
+                }
                 .let { if (limit != null) it.take(limit) else it }
 
             if (eligibleIndices.isEmpty()) {

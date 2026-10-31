@@ -423,7 +423,11 @@ class LibraryViewModel(
                 filterCompleted = it[10] as TriState,
                 filterIntervalCustom = it[11] as TriState,
                 filterUpdateError = it[12] as TriState,
-                errorMangaIds = errors.filterIsInstance<eu.kanade.tachiyomi.data.library.UpdateError>().mapTo(HashSet()) { err -> err.mangaId },
+                errorMangaIds = errors.filterIsInstance<eu.kanade.tachiyomi.data.library.UpdateError>().mapTo(
+                    HashSet(),
+                ) { err ->
+                    err.mangaId
+                },
             )
         }
     }
