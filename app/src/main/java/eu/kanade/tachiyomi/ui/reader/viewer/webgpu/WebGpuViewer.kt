@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import ca.mpreg.imagedecoder.ImageDecoder
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
@@ -816,7 +817,18 @@ open class WebGpuViewer(
             }
 
             onTap = { offset ->
-                activity.onViewerTap(offset)
+                // Normalize to [0,1] so ViewerNavigation.getAction(pos) can match the
+                // configured tap zones (which are Rects in normalized space) and so the
+                // fallback `?: Action.MENU` fires for taps that fall outside any zone
+                // (the center, by default). Passing the raw pixel offset meant no
+                // region in [0,1] ever matched, which left only the fallback — and any
+                // navigation overlay the user picked (L / kindle / right-to-left / edge)
+                // was effectively dead. Mirrors PagerViewer.kt:123-127 and
+                // WebtoonViewer.kt:127-131, and the fix already applied to the
+                // androidx.webgpu viewers in commit 297a905.
+                val w = viewerState.width.coerceAtLeast(1)
+                val h = viewerState.height.coerceAtLeast(1)
+                activity.onViewerTap(Offset(offset.x / w, offset.y / h))
             }
 
             onLongTap = { _ ->
@@ -1768,6 +1780,15 @@ open class WebGpuViewer(
                 // The viewer already showed the page at fetchPage(delta).
                 // We need to update currentPage to match that.
                 val current = currentPage ?: return@onPageChange
+
+                // A no-op page change (delta == 0) is not a page change: ca.mpreg can
+                // invoke this callback even for taps that didn't move the page (e.g.,
+                // a center tap whose only effect is opening the menu via onTap above).
+                // Falling through here would call activity.hideMenu() on the very same
+                // tap that just called activity.toggleMenu() through onViewerTap —
+                // closing the menu the user just opened, often within the same frame,
+                // so the overlay never visibly appears. Bail out instead.
+                if (delta == 0) return@onPageChange
 
                 // Navigate the same way fetchPage does
                 var page = current
