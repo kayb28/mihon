@@ -34,6 +34,7 @@ import androidx.webgpu.GPUTexelCopyBufferLayout
 import androidx.webgpu.GPUTexelCopyTextureInfo
 import androidx.webgpu.GPUTexture
 import androidx.webgpu.GPUTextureDescriptor
+import androidx.webgpu.GPUTextureView
 import androidx.webgpu.GPUVertexState
 import androidx.webgpu.LoadOp
 import androidx.webgpu.StoreOp
@@ -72,6 +73,9 @@ private const val TEXTURE_COPY_ALIGNMENT = 256
 
 /** Whole uniform buffer: one 256-byte slot per drawable page, each holding the 16-byte struct. */
 private val PARAMS_BUFFER_SIZE = (PARAMS_SLOT * PARAMS_SLOTS).toLong()
+
+/** First scratch allocation; page uploads grow it to their padded-row size and keep it. */
+private const val STAGING_INITIAL_CAPACITY = 64 * 1024
 
 /** Fullscreen-quad pipeline: scales the page texture with the uniform's NDC transform. */
 private val VIEWER_WGSL = """
@@ -191,6 +195,15 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     /** The pages the next frame draws when the continuous viewer has placed some; wins over [currentPage]. */
     @Volatile
     private var placedPages: List<PageDraw> = emptyList()
+
+    /**
+     * CPU scratch reused across uploads and frames: texture rows re-packed to the 256-byte copy
+     * stride (up to a page's padded size) and the per-frame uniform data. Only ever touched on
+     * the WebGPU dispatcher thread, inside [WebGpu.execute], so one grow-only instance needs no
+     * lock; without it every page upload allocated and dropped a direct buffer the size of the
+     * image, and every frame allocated its uniforms.
+     */
+    private var scratchBuffer: ByteBuffer? = null
 
     /** Page zoom applied to the drawn page; 1 shows the whole page aspect-fitted. */
     @Volatile
@@ -344,6 +357,9 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                 releaseResources()
             }
         }
+        // The scratch lived on the dispatcher thread that just drained; a parked page-sized
+        // buffer is not worth keeping across environments.
+        scratchBuffer = null
         // Note: WebGpu.close() deliberately skips device.close() (upstream b/428866400); the
         // per-image and pipeline resources above are still released explicitly.
         environment.close()
@@ -400,7 +416,6 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         val params = paramsBuffer ?: return
         val pageSampler = sampler ?: return
         val groupLayout = bindGroupLayout ?: return
-        val page = currentPage?.takeIf { !it.destroyed }
 
         val frame: GPUSurfaceTexture = try {
             environment.webgpuSurface.getCurrentTexture()
@@ -414,6 +429,109 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
 
         // The backbuffer texture is owned by the surface: never close it, only the views below.
         val backbuffer = frame.texture.createView()
+        try {
+            val placed = placedPages.filter { !it.image.destroyed }.take(PARAMS_SLOTS)
+            if (placed.isNotEmpty()) {
+                drawPlacedPages(environment, pipe, params, pageSampler, groupLayout, backbuffer, placed)
+            } else {
+                drawSinglePage(environment, pipe, params, pageSampler, groupLayout, backbuffer)
+            }
+        } finally {
+            backbuffer.close()
+        }
+    }
+
+    /** Draws the continuous viewer's placed pages; one uniform slot and bind group per page. */
+    private fun drawPlacedPages(
+        environment: WebGpu,
+        pipe: GPURenderPipeline,
+        params: GPUBuffer,
+        pageSampler: GPUSampler,
+        groupLayout: GPUBindGroupLayout,
+        backbuffer: GPUTextureView,
+        placed: List<PageDraw>,
+    ) {
+        writePlacedParams(environment.device, params, placed)
+        val encoder: GPUCommandEncoder = environment.device.createCommandEncoder()
+        var commands: GPUCommandBuffer? = null
+        val views = ArrayList<GPUTextureView>(placed.size)
+        val groups = ArrayList<GPUBindGroup>(placed.size)
+        try {
+            val pass: GPURenderPassEncoder = encoder.beginRenderPass(
+                GPURenderPassDescriptor(
+                    colorAttachments = arrayOf(
+                        GPURenderPassColorAttachment(
+                            clearValue = GPUColor(0.0, 0.0, 0.0, 1.0),
+                            view = backbuffer,
+                            loadOp = LoadOp.Clear,
+                            storeOp = StoreOp.Store,
+                        ),
+                    ),
+                ),
+            )
+            try {
+                placed.forEachIndexed { index, draw ->
+                    val view = draw.image.texture.createView()
+                    views.add(view)
+                    val group = environment.device.createBindGroup(
+                        GPUBindGroupDescriptor(
+                            layout = groupLayout,
+                            entries = arrayOf(
+                                GPUBindGroupEntry(
+                                    binding = 0,
+                                    buffer = params,
+                                    offset = (index * PARAMS_SLOT).toLong(),
+                                    size = PARAMS_SLOT.toLong(),
+                                ),
+                                GPUBindGroupEntry(binding = 1, sampler = pageSampler),
+                                GPUBindGroupEntry(binding = 2, textureView = view),
+                            ),
+                        ),
+                    )
+                    groups.add(group)
+                    pass.setPipeline(pipe)
+                    pass.setBindGroup(0, group)
+                    pass.draw(6)
+                }
+                pass.end()
+            } finally {
+                pass.close()
+            }
+            commands = encoder.finish()
+            environment.device.queue.submit(arrayOf(commands))
+            environment.webgpuSurface.present()
+        } finally {
+            groups.forEach { runCatching { it.close() } }
+            views.forEach { runCatching { it.close() } }
+            commands?.close()
+            encoder.close()
+        }
+    }
+
+    /** Writes one 256-byte uniform slot per placed page (the struct lives at the slot's start). */
+    private fun writePlacedParams(device: GPUDevice, params: GPUBuffer, placed: List<PageDraw>) {
+        val data = scratch(placed.size * PARAMS_SLOT)
+        placed.forEach { draw ->
+            data.putFloat(draw.scaleX)
+            data.putFloat(draw.scaleY)
+            data.putFloat(draw.offsetX)
+            data.putFloat(draw.offsetY)
+            data.position(data.position() + PARAMS_SLOT - PARAMS_STRUCT_SIZE.toInt())
+        }
+        data.flip()
+        device.queue.writeBuffer(params, 0, data)
+    }
+
+    /** Draws the paged viewer's single [currentPage] with its zoom/pan transform. */
+    private fun drawSinglePage(
+        environment: WebGpu,
+        pipe: GPURenderPipeline,
+        params: GPUBuffer,
+        pageSampler: GPUSampler,
+        groupLayout: GPUBindGroupLayout,
+        backbuffer: GPUTextureView,
+    ) {
+        val page = currentPage?.takeIf { !it.destroyed }
         val pageView = page?.texture?.createView()
         val bindGroup: GPUBindGroup? = pageView?.let { view ->
             environment.device.createBindGroup(
@@ -465,7 +583,6 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         } finally {
             bindGroup?.close()
             pageView?.close()
-            backbuffer.close()
         }
     }
 
@@ -487,13 +604,26 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             offsetX = (pagePanX / surfaceWidth * 2f).coerceIn(-maxPanX, maxPanX)
             offsetY = (-pagePanY / surfaceHeight * 2f).coerceIn(-maxPanY, maxPanY)
         }
-        val data = ByteBuffer.allocate(PARAMS_BUFFER_SIZE.toInt()).order(ByteOrder.nativeOrder())
+        val data = scratch(PARAMS_STRUCT_SIZE.toInt())
         data.putFloat(scaleX)
         data.putFloat(scaleY)
         data.putFloat(offsetX)
         data.putFloat(offsetY)
-        data.rewind()
+        data.flip()
         device.queue.writeBuffer(params, 0, data)
+    }
+
+    /** Returns the dispatcher-confined scratch buffer, cleared, holding at least [capacity]. */
+    private fun scratch(capacity: Int): ByteBuffer {
+        val current = scratchBuffer
+        if (current != null && current.capacity() >= capacity) {
+            current.clear()
+            return current
+        }
+        val grown = ByteBuffer.allocateDirect(maxOf(capacity, STAGING_INITIAL_CAPACITY))
+            .order(ByteOrder.nativeOrder())
+        scratchBuffer = grown
+        return grown
     }
 
     override fun isDestroyed(image: PageImage): Boolean = image.destroyed
@@ -592,7 +722,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         }
         val paddedRowBytes = (rowBytes + TEXTURE_COPY_ALIGNMENT - 1) / TEXTURE_COPY_ALIGNMENT *
             TEXTURE_COPY_ALIGNMENT
-        val staging = ByteBuffer.allocateDirect(paddedRowBytes * height).order(ByteOrder.nativeOrder())
+        val staging = scratch(paddedRowBytes * height)
         repeat(height) {
             source.limit(source.position() + rowBytes)
             staging.put(source)

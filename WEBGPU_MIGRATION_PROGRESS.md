@@ -4,15 +4,17 @@ Branch: `feature/webgpu-clean` | Started: 2026-11-01 ~05:00 UTC | User: asleep, 
 Watchdog cron jobId: 492060 (deletes itself when this file contains SESSION-COMPLETE)
 
 ## Done (CI green)
+- `cac5014` #5b continuous/webtoon mode: AndroidxWebGpuBaseViewer (extracted lifecycle) + AndroidxWebGpuContinuousViewer (scroll strip, per-frame placed-pages draw, overlays per page) + routing for all modes + fallback guard on base. CI pending on push.
+- `a8b5feb` #5a gestures: pinch zoom/pan/double-tap/long-press on paged viewer; renderer setTransform (NDC clamp per frame)
 - `8d424a4` #3 windowed page cache + LRU eviction (PRELOAD_BEHIND=2, PRELOAD_AHEAD=3, PAGE_CACHE_SIZE=7)
 - `ae27612` #4 page progress/error/retry overlays
 - `8d28faf` #2 auto-fallback to HQ/stock viewer
 - `bdc6e37`+`4a0d2fb` #1 real surface rendering
 
 ## Todo this session
-- [ ] #5 gestures (pinch zoom + pan + double-tap on paged viewer) → commit
-- [ ] #5 continuous/webtoon mode → commit (scope: see notes below)
-- [ ] #6 zero-copy upload (reusable staging in AndroidxWebGpuSurfaceRenderer; check androidx.webgpu for external-memory APIs first)
+- [x] #5 gestures → a8b5feb
+- [x] #5 continuous/webtoon → cac5014 (CI validating)
+- [ ] #6 zero-copy upload (IN PROGRESS: checking androidx.webgpu for external-memory APIs; else reusable staging buffer in uploadPixels — runs only on WebGPU dispatcher thread so a grow-only buffer field is thread-safe)
 - [ ] #7 settings wiring + accessibility + unit tests → commit
 
 ## Key facts
