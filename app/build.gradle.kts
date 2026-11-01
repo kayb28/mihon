@@ -335,6 +335,10 @@ dependencies {
     // Tests
     testImplementation(libs.bundles.test)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // Puts androidx.webgpu's classes (no natives) on the JVM test classpath: the probe test then
+    // exercises exactly the "library cannot load" path — System.loadLibrary throws
+    // UnsatisfiedLinkError, an Error that used to escape probeRuntime() and crash the reader.
+    testImplementation(libs.webgpu)
 
     // For detecting memory leaks; see https://square.github.io/leakcanary/
     // debugImplementation(libs.leakCanary.android)

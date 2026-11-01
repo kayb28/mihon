@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
 import androidx.webgpu.ExperimentalWebGpuApi
 import androidx.webgpu.GPU
+import androidx.webgpu.helper.initLibrary
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -9,10 +11,12 @@ import kotlinx.coroutines.sync.withLock
  * Smoke probe for the androidx.webgpu runtime (WebGPU migration, phase 1).
  *
  * Exercises the minimal bring-up chain:
- * [GPU.createInstance] -> requestAdapter -> requestDevice -> native handle -> close.
+ * [initLibrary] -> [GPU.createInstance] -> requestAdapter -> requestDevice -> native handle ->
+ * close.
  *
- * Deliberately avoids `GPUAdapter.getInfo()` and any ca.mpreg APIs: this only verifies that the
- * library loads and a logical device can be created on the current hardware.
+ * Deliberately avoids `GPUAdapter.getInfo()` and any ca.mpreg APIs: this only verifies that
+ * androidx.webgpu's own helper can load the bundled Dawn library and that a logical device can
+ * be created on the current hardware.
  */
 @OptIn(ExperimentalWebGpuApi::class)
 object AndroidxWebGpuProbe {
@@ -41,6 +45,12 @@ object AndroidxWebGpuProbe {
 
     private suspend fun probeRuntime(): Boolean {
         return try {
+            // GPU.createInstance is a native (JNI) method: the JVM can only resolve it after the
+            // bundled Dawn library (libwebgpu_c_bundled.so) is loaded. The renderer's
+            // createWebGpu() path does this inside androidx.webgpu.helper's internals; the probe
+            // must load the same library before its own createInstance call, or that call throws
+            // UnsatisfiedLinkError ("No implementation found ... is the library loaded?").
+            initLibrary()
             val instance = GPU.createInstance()
             try {
                 val adapter = instance.requestAdapter()
@@ -57,7 +67,13 @@ object AndroidxWebGpuProbe {
             } finally {
                 instance.close()
             }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // UnsatisfiedLinkError (and its LinkageError siblings) are Errors, not Exceptions:
+            // catching only Exception let them escape and crash the reader on runtimes that
+            // cannot even load the library. Any failure here means "cannot run on this device",
+            // which the callers translate into the fallback viewer.
             false
         }
     }

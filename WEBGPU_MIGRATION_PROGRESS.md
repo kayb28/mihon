@@ -2,6 +2,21 @@
 
 Branch: `feature/webgpu-clean` | Session 2026-11-01 | Approved scope: #5 #6 #7 — ALL DELIVERED
 
+## Hotfix (2026-11-01, hours after SESSION-COMPLETE): reader crashed when the toggle was on
+- Crash log (POCO peridot, Android 16, build e561462): `UnsatisfiedLinkError` at
+  `GPU.createInstance` from `AndroidxWebGpuProbe`. 100% reproducible with the toggle enabled:
+  the probe called the JNI method without ever loading `libwebgpu_c_bundled.so` (the renderer's
+  `createWebGpu()` path loads it via the helper, but the probe bypassed the helper), and its
+  `catch (e: Exception)` cannot catch a `LinkageError`. The deobfuscated stack pointed at
+  `MoreViewModel$1` because R8 merged the probe's `LaunchedEffect` lambda with an identical one.
+- Fix: the probe calls androidx.webgpu.helper's top-level `initLibrary()` before
+  `createInstance` and catches `Throwable` (rethrowing `CancellationException`).
+- Regression test: `AndroidxWebGpuProbeTest` — on the JVM the 408 classes exist
+  (testImplementation(libs.webgpu)) but the .so does not, so the test reproduces the exact
+  production failure; verified it fails on the old probe and passes on the fixed one.
+- Checked: `libwebgpu_c_bundled.so` (arm64) is 16 KB-page aligned — Android 16 devices work
+  once the library actually loads; the crash was purely "library never loaded".
+
 ## Final state
 - `7ae2f8f` #7 settings + accessibility + tests (CI validating at time of writing)
 - `4fc1233` #6 zero-copy upload + FIX: placed-pages draw was silently missing from cac5014 — CI ✅
