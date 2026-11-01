@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -123,18 +124,20 @@ class AndroidxWebGpuViewer(
     }
 
     /**
-     * Migration step: hand the page model's decoded bitmaps to the GPU backend. Only
-     * bitmaps already present on the page model are uploaded; feeding this from the
-     * decode pipeline is a later step.
+     * Migration step: decode the page model's image stream to a bitmap and hand that bitmap
+     * to the GPU backend ([GpuImageBackend.createFromBitmap]). Only pages not yet uploaded
+     * are decoded; feeding this from the viewer decode pipeline is a later step.
      */
     private fun uploadPageBitmaps() {
         val pages = chapters?.currChapter?.pages ?: return
         for (page in pages) {
-            val bitmap = page.bitmap ?: continue
             val needsUpload = synchronized(gpuImages) { !destroyed && page !in gpuImages }
             if (!needsUpload) continue
             uploadScope.launch {
+                val bitmap = page.stream?.let { open -> BitmapFactory.decodeStream(open()) }
+                    ?: return@launch
                 val image = imageBackend.createFromBitmap(bitmap)
+                bitmap.recycle()
                 synchronized(gpuImages) {
                     if (destroyed) {
                         imageBackend.destroy(image)
