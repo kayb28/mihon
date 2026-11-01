@@ -157,12 +157,34 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     @Volatile
     private var currentPage: PageImage? = null
 
+    /** Page zoom applied to the drawn page; 1 shows the whole page aspect-fitted. */
+    @Volatile
+    private var pageZoom = 1f
+
+    /** Page pan in surface pixels (y down); clamped per frame so a zoomed page fills the view. */
+    @Volatile
+    private var pagePanX = 0f
+
+    @Volatile
+    private var pagePanY = 0f
+
     val isRunning: Boolean
         get() = synchronized(lock) { webgpu != null }
 
     /** Sets the page drawn by the next frame (`null` clears the surface). */
     fun setPage(image: PageImage?) {
         currentPage = image
+    }
+
+    /**
+     * Sets the zoom and pan the next frame draws [currentPage] with. [panX]/[panY] are surface
+     * pixels (y down, Compose coordinates as-is); the frame clamps them so a zoomed page keeps
+     * filling the viewport and a page fitting it cannot be panned at all.
+     */
+    fun setTransform(zoom: Float, panX: Float, panY: Float) {
+        pageZoom = zoom
+        pagePanX = panX
+        pagePanY = panY
     }
 
     /**
@@ -404,16 +426,25 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     private fun writeParams(device: GPUDevice, params: GPUBuffer, page: PageImage?) {
         var scaleX = 0f
         var scaleY = 0f
+        var offsetX = 0f
+        var offsetY = 0f
         if (page != null) {
+            val zoom = pageZoom.coerceAtLeast(1f)
             val fit = min(surfaceWidth.toFloat() / page.width, surfaceHeight.toFloat() / page.height)
-            scaleX = page.width * fit / surfaceWidth
-            scaleY = page.height * fit / surfaceHeight
+            // Zoom about the page center, then pan: NDC scale grows, the pan follows in NDC units
+            // (surface px are y down, NDC y up, so the pan's y flips).
+            scaleX = page.width * fit / surfaceWidth * zoom
+            scaleY = page.height * fit / surfaceHeight * zoom
+            val maxPanX = (scaleX - 1f).coerceAtLeast(0f)
+            val maxPanY = (scaleY - 1f).coerceAtLeast(0f)
+            offsetX = (pagePanX / surfaceWidth * 2f).coerceIn(-maxPanX, maxPanX)
+            offsetY = (-pagePanY / surfaceHeight * 2f).coerceIn(-maxPanY, maxPanY)
         }
         val data = ByteBuffer.allocate(PARAMS_BUFFER_SIZE.toInt()).order(ByteOrder.nativeOrder())
         data.putFloat(scaleX)
         data.putFloat(scaleY)
-        data.putFloat(0f)
-        data.putFloat(0f)
+        data.putFloat(offsetX)
+        data.putFloat(offsetY)
         data.rewind()
         device.queue.writeBuffer(params, 0, data)
     }

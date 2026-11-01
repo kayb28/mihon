@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -13,8 +14,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import ca.mpreg.imagedecoder.ImageDecoder
 import eu.kanade.presentation.reader.ReaderError
@@ -67,6 +70,12 @@ private const val PRELOAD_AHEAD = 3
  */
 private const val PAGE_CACHE_SIZE = 1 + PRELOAD_AHEAD + PRELOAD_BEHIND + 1
 
+/** Zoom cap for pinch and double tap; 1 shows the page aspect-fitted. */
+private const val MAX_ZOOM = 4f
+
+/** Zoom a double tap toggles to (and back from). */
+private const val DOUBLE_TAP_ZOOM = 2.5f
+
 /**
  * Paged viewer on androidx.webgpu (WebGPU migration, phase 4: real rendering, phase 5: page
  * progress, errors and retry, phase 6: a windowed page cache).
@@ -94,6 +103,12 @@ private const val PAGE_CACHE_SIZE = 1 + PRELOAD_AHEAD + PRELOAD_BEHIND + 1
  * chapters never sit in GPU memory at once. Pages that leave the window only lose their
  * watcher — [Page.statusFlow] is a StateFlow, so a fresh one replays their state on re-entry.
  *
+ * The drawn page is a plain tap-and-zoom surface: taps turn pages by zone (mirrored in RTL), a
+ * pinch zooms about its centroid, a one-finger drag pans a zoomed page, a double tap toggles
+ * between fit and [DOUBLE_TAP_ZOOM] about the tapped point, and a long press opens the stock
+ * page dialog. Every page starts fitted; zoom and pan never show empty margins around a zoomed
+ * page ([AndroidxWebGpuSurfaceRenderer.setTransform] clamps per frame).
+ *
  * If this viewer cannot draw — the androidx.webgpu probe fails, or the surface bring-up throws —
  * it hands the reader back through [requestFallback] and [ReaderActivity.requestAndroidxWebGpuFallback]
  * rebuilds the reader on the viewer it would use with the preference off (HQ or stock), instead of
@@ -108,6 +123,11 @@ class AndroidxWebGpuViewer(
 
     private var chapters: ViewerChapters? = null
     private var current by mutableStateOf<ReaderPage?>(null)
+
+    /** Gesture state, main thread only: page zoom (1 fits) and pan in surface pixels. */
+    private var zoom = 1f
+    private var panX = 0f
+    private var panY = 0f
 
     private val imageBackend = AndroidxWebGpuSurfaceRenderer()
     private val gpuImages = mutableMapOf<ReaderPage, AndroidxWebGpuSurfaceRenderer.PageImage>()
@@ -203,16 +223,19 @@ class AndroidxWebGpuViewer(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .pointerInput(isReversed, isVertical) {
-                    detectTapGestures { offset ->
-                        val forward = if (isVertical) {
-                            offset.y > size.height / 2f
-                        } else {
-                            // Mirrored in RTL: the left half advances, the right half goes back.
-                            (offset.x > size.width / 2f) != isReversed
-                        }
-                        if (forward) moveForward() else moveBackward()
+                .pointerInput(Unit) {
+                    // Consumes drag and pinch past touch slop; taps and long presses below the
+                    // slop still reach the tap detector below.
+                    detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                        onTransform(centroid, pan, gestureZoom)
                     }
+                }
+                .pointerInput(isReversed, isVertical) {
+                    detectTapGestures(
+                        onTap = { offset -> onTap(offset, size) },
+                        onDoubleTap = ::onDoubleTap,
+                        onLongPress = { current?.let(activity::onPageLongTap) },
+                    )
                 },
         ) {
             AndroidView(
@@ -270,12 +293,14 @@ class AndroidxWebGpuViewer(
     override fun setChapters(chapters: ViewerChapters) {
         this.chapters = chapters
         current = chapters.currChapter.pages?.firstOrNull()
+        resetZoom()
         updatePageWindow()
         renderCurrentPage()
     }
 
     override fun moveToPage(page: ReaderPage) {
         current = page
+        resetZoom()
         updatePageWindow()
         renderCurrentPage()
     }
@@ -593,12 +618,77 @@ class AndroidxWebGpuViewer(
         imageBackend.requestRender()
     }
 
+    /**
+     * Turns pages by tap zone: bottom/right-half advances (top/left goes back), mirrored in RTL
+     * for horizontal modes and by screen half for vertical ones.
+     */
+    private fun onTap(offset: Offset, container: IntSize) {
+        val forward = if (isVertical) {
+            offset.y > container.height / 2f
+        } else {
+            // Mirrored in RTL: the left half advances, the right half goes back.
+            (offset.x > container.width / 2f) != isReversed
+        }
+        if (forward) moveForward() else moveBackward()
+    }
+
+    /**
+     * Pinch and pan. Zoom keeps the point under the pinch centroid stationary, a pinch collapsing
+     * below fit snaps back to fit, and a page that fits cannot pan — the renderer clamps the pan
+     * per frame, this only feeds it what the fingers did.
+     */
+    private fun onTransform(centroid: Offset, pan: Offset, gestureZoom: Float) {
+        if (current == null) return
+        val oldZoom = zoom
+        val newZoom = (zoom * gestureZoom).coerceIn(1f, MAX_ZOOM)
+        if (newZoom != oldZoom) {
+            val carry = newZoom / oldZoom
+            panX = centroid.x - (centroid.x - panX) * carry
+            panY = centroid.y - (centroid.y - panY) * carry
+            zoom = newZoom
+        }
+        panX += pan.x
+        panY += pan.y
+        if (zoom <= 1f) {
+            zoom = 1f
+            panX = 0f
+            panY = 0f
+        }
+        imageBackend.setTransform(zoom, panX, panY)
+        imageBackend.requestRender()
+    }
+
+    /** Toggles between fit and [DOUBLE_TAP_ZOOM], zooming into the tapped point. */
+    private fun onDoubleTap(centroid: Offset) {
+        val oldZoom = zoom
+        if (oldZoom > 1f) {
+            zoom = 1f
+            panX = 0f
+            panY = 0f
+        } else {
+            zoom = DOUBLE_TAP_ZOOM
+            panX = centroid.x * (1f - zoom / oldZoom)
+            panY = centroid.y * (1f - zoom / oldZoom)
+        }
+        imageBackend.setTransform(zoom, panX, panY)
+        imageBackend.requestRender()
+    }
+
+    /** A new page always starts fitted; the caller renders right after. */
+    private fun resetZoom() {
+        zoom = 1f
+        panX = 0f
+        panY = 0f
+        imageBackend.setTransform(zoom, panX, panY)
+    }
+
     private fun moveBy(delta: Int) {
         val pages = chapters?.currChapter?.pages ?: return
         if (pages.isEmpty()) return
         val index = current?.let { page -> pages.indexOfFirst { it === page } }?.takeIf { it >= 0 } ?: 0
         val page = pages[(index + delta).coerceIn(pages.indices)]
         current = page
+        resetZoom()
         updatePageWindow()
         renderCurrentPage()
     }
