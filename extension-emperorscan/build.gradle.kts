@@ -23,13 +23,17 @@ android {
         applicationId = "eu.kanade.tachiyomi.extension.es.emperorscan"
 
         // MMmmNN convention: the previously shipped upstream APK was v1.6.74
-        // (versionCode 106074). v1.6.75 added the in-fork module; v1.6.76 fixes
+        // (versionCode 106074). v1.6.75 added the in-fork module; v1.6.76 fixed
         // the listing parser (DTO wire field names — `series`/`content`/
         // `chapters`/`items`/`slug`/`label`/`url`/`cover_canonical`/etc. —
         // reconstructed incorrectly from R8-flattened dex, which made the
-        // listing silently return 0 results).
-        versionCode = 106076
-        versionName = "1.6.76"
+        // listing silently return 0 results); v1.6.77 drops the
+        // sourcePreferences() call (the host's ConfigurableSourceKt facade was
+        // stripped by R8 in release builds → NoClassDefFoundError on chapter
+        // list parse) in favour of reading "source_$id" SharedPreferences
+        // directly through Injekt.
+        versionCode = 106077
+        versionName = "1.6.77"
     }
 
     buildTypes {

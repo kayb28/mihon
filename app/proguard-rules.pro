@@ -23,6 +23,16 @@
     java.lang.Object readResolve();
 }
 
+# Extension-facing source API. Extensions are pre-compiled against these
+# classes and resolve them at runtime through the DelegateLastPathClassLoader
+# parent chain, so R8 must not strip, merge or rename them. Top-level
+# functions such as sourcePreferences()/preferenceKey() compile into the
+# eu.kanade.tachiyomi.source.ConfigurableSourceKt file-facade — release
+# builds let it disappear, and every extension calling it crashed with
+# NoClassDefFoundError.
+-keep class eu.kanade.tachiyomi.source.** { *; }
+-keep class eu.kanade.tachiyomi.util.** { *; }
+
 # Provided by the OEM at runtime when supported
 -dontwarn androidx.window.extensions.**
 -dontwarn androidx.window.sidecar.**

@@ -13,7 +13,6 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
-import eu.kanade.tachiyomi.source.sourcePreferences
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -88,8 +87,21 @@ abstract class ImperioManhwa(
 
     private val i18n by lazy { I18nBundle(javaClass.classLoader!!, lang) }
 
+    /**
+     * Source-scoped preferences, obtained via Injekt instead of the
+     * `sourcePreferences()` helper: that top-level function compiles into the
+     * host's `ConfigurableSourceKt` file-facade, which R8 is free to strip or
+     * merge away in release builds (it did — NoClassDefFoundError on the
+     * user's installed app). The file name matches the one the host's source
+     * settings screen binds ("source_$id"), so the toggle set from Settings
+     * and this getter share the same state.
+     */
+    private val preferences by lazy {
+        Injekt.get<Context>().getSharedPreferences("source_$id", Context.MODE_PRIVATE)
+    }
+
     private val hideLockedChapters: Boolean
-        get() = sourcePreferences().getBoolean(KEY_HIDE_LOCKED, true)
+        get() = preferences.getBoolean(KEY_HIDE_LOCKED, true)
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -32,8 +33,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
+import android.view.Choreographer
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /** Pages uploaded behind the scroll position; a screen shows parts of a few pages at once. */
 private const val CONTINUOUS_PRELOAD_BEHIND = 2
@@ -83,8 +88,37 @@ class AndroidxWebGpuContinuousViewer(
 
     private val scrollState = ScrollState(0)
 
-    /** Main-thread scope for scroll jumps and layout refreshes fed from upload threads. */
-    private val viewerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    /**
+     * Frame clock for [viewerScope]'s scroll animations.
+     *
+     * `ScrollState.animateScrollTo` drives a frame-based animation that needs
+     * a [MonotonicFrameClock] in the coroutine context. Inside a composition
+     * the clock is supplied by AndroidUiDispatcher, but this scope runs on the
+     * plain Main dispatcher — without a clock, `shiftPage` crashed with
+     * "A MonotonicFrameClock is not available in this CoroutineContext". This
+     * implementation mirrors what AndroidUiDispatcher does: hop one Choreographer
+     * frame and resume with its timestamp. It must run on a Looper thread,
+     * which [Dispatchers.Main] guarantees.
+     */
+    private val frameClock = object : MonotonicFrameClock {
+        override suspend fun <R> withFrameNanos(onFrame: (Long) -> R): R =
+            suspendCancellableCoroutine { cont ->
+                val choreographer = Choreographer.getInstance()
+                val callback = Choreographer.FrameCallback { frameTimeNanos ->
+                    try {
+                        cont.resume(onFrame(frameTimeNanos))
+                    } catch (e: Throwable) {
+                        // Propagate only while the continuation is still live;
+                        // resuming a cancelled one is silently ignored.
+                        if (cont.isActive) cont.resumeWithException(e)
+                    }
+                }
+                choreographer.postFrameCallback(callback)
+                cont.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
+            }
+    }
+
+    private val viewerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + frameClock)
 
     /** Width-over-height of every decoded page; a default until its texture arrives. */
     private val aspects = ConcurrentHashMap<ReaderPage, Float>()
