@@ -55,13 +55,12 @@ class WebViewReader(private val baseUrl: String) {
             val webView = WebView(app).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                settings.blockImages = true
                 settings.useWideViewPort = false
                 settings.loadWithOverviewMode = false
             }
 
             val listener = WebViewCompat.WebMessageListener { _, message, _, _, _ ->
-                val payload = message.data
+                val payload = message.data.orEmpty()
                 val result = runCatching {
                     ImperioManhwa.json.decodeFromString(ReaderResult.serializer(), payload)
                 }.getOrElse {

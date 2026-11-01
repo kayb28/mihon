@@ -49,6 +49,11 @@ dependencies {
     // out of the APK.
     compileOnly(projects.sourceApi)
 
+    // ConfigurableSource's setupPreferenceScreen(PreferenceScreen) — source-api
+    // pulls androidx.preference as `implementation`, which does NOT leak to
+    // consumers' compile classpath, so the extension needs it explicitly.
+    compileOnly(libs.androidx.preference)
+
     // The multisrc parses the Astro `<script data-page=app>` Inertia payloads
     // with kotlinx.serialization — the host bundles it via :data.
     compileOnly(libs.kotlinx.serialization.json)

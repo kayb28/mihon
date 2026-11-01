@@ -13,8 +13,8 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.sourcePreferences
 import eu.kanade.tachiyomi.util.asJsoup
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -353,15 +353,15 @@ abstract class ImperioManhwa(
         }
 
         val pages = result.pages ?: return emptyList()
-        val siteHost = baseUrlHttp().host()
+        val siteHost = baseUrlHttp().host
         return pages.mapIndexed { index, dto ->
             val src = dto.src
                 ?: dto.srcset.split(", ").firstOrNull()?.substringBefore(' ')
                 ?: throw IOException("Page ${dto.n} has no resolvable URL")
             val resolved = src.toHttpUrlOrNull()
                 ?: throw IOException("Page ${dto.n} URL is invalid: $src")
-            if (resolved.host() != siteHost && !resolved.host().endsWith(".$siteHost")) {
-                throw IOException("Unexpected image host: ${resolved.host()}")
+            if (resolved.host != siteHost && !resolved.host.endsWith(".$siteHost")) {
+                throw IOException("Unexpected image host: ${resolved.host}")
             }
             Page(index, imageUrl = resolved.toString())
         }
@@ -478,6 +478,6 @@ abstract class ImperioManhwa(
     }
 }
 
-/** Runs [block] on an IO dispatcher without deadlocking a main-thread caller. */
-private inline fun <T> withBlockingIo(block: () -> T): T =
-    runBlocking(Dispatchers.IO) { block() }
+/** Runs [block] on the IO dispatcher without deadlocking a main-thread caller. */
+private inline fun <T> withBlockingIo(crossinline block: suspend () -> T): T =
+    runBlocking { block() }
