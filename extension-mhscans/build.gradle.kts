@@ -59,7 +59,9 @@ android {
 
 dependencies {
     // Host-provided at runtime (parent classloader). compileOnly keeps them out of the APK.
+    // okhttp: only the core client/Request/Response types are referenced — the host's client
+    // already carries the brotli/zstd interceptors, so the core artifact is all we compile against.
     compileOnly(projects.sourceApi)
-    compileOnly(libs.okhttp)
+    compileOnly(libs.okhttp.core)
     compileOnly(libs.jsoup)
 }
