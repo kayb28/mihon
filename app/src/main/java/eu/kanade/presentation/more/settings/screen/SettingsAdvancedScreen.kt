@@ -349,6 +349,11 @@ object SettingsAdvancedScreen : SearchableSettings {
                     preference = basePreferences.highQualityRenderer,
                     title = stringResource(MR.strings.pref_high_quality_renderer),
                 ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = basePreferences.androidxWebGpuViewer,
+                    title = stringResource(MR.strings.pref_androidx_webgpu_viewer),
+                    subtitle = stringResource(MR.strings.pref_androidx_webgpu_viewer_summary),
+                ),
             ),
         )
     }

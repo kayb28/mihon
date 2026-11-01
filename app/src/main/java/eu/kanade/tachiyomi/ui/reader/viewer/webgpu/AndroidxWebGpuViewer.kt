@@ -78,7 +78,7 @@ class AndroidxWebGpuViewer(
                     )
                 },
         ) {
-            SurfaceHost(Modifier.fillMaxSize())
+            SurfaceHost(Modifier.fillMaxSize(), surfaceDescription(current))
             val context = LocalContext.current
             val page = current
             val state = page?.let { presentation[it] }

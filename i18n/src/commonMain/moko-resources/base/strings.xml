@@ -428,6 +428,11 @@
     <string name="pref_show_reading_mode">Show reading mode</string>
     <string name="pref_show_reading_mode_summary">Briefly show current mode when reader is opened</string>
     <string name="pref_high_quality_renderer">Use high quality renderer</string>
+    <string name="pref_androidx_webgpu_viewer">Use androidx.webgpu viewer (experimental)</string>
+    <string name="pref_androidx_webgpu_viewer_summary">Render the reader with the androidx.webgpu backend; the reader falls back to the usual viewer on devices that cannot run it</string>
+    <string name="webgpu_surface_page">Page %1$d</string>
+    <string name="webgpu_surface_page_loading">Page %1$d, loading</string>
+    <string name="webgpu_surface_page_failed">Page %1$d, failed to load</string>
     <string name="pref_crop_borders">Crop borders</string>
     <string name="pref_custom_brightness">Custom brightness</string>
     <string name="pref_grayscale">Grayscale</string>

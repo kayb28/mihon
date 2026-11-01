@@ -26,8 +26,9 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.i18n.stringResource
 import java.io.InputStream
-import kotlin.math.abs
 
 /** What the Compose layer draws over the surface while a page is not on it (yet). */
 internal sealed interface PagePresentation {
@@ -51,10 +52,10 @@ private const val PRELOAD_BEHIND = 2
 private const val PRELOAD_AHEAD = 3
 
 /**
- * Shared page lifecycle for the androidx.webgpu viewers (WebGPU migration phases 4-6): owning the
+ * Shared page lifecycle for the androidx.webgpu viewers (WebGPU migration phases 4-8): owning the
  * render surface and the GPU environment behind it, presenting the pages around the current one
- * with their loader watchers, capping the live page textures, and handing the reader back when
- * the runtime cannot draw.
+ * with their loader watchers, capping the live page textures through the testable
+ * [AndroidxWebGpuPageCachePolicy], and handing the reader back when the runtime cannot draw.
  *
  * Only the pages around the current one are presented — [preloadBehind] behind and
  * [preloadAhead] ahead of it in reading order ([updatePageWindow]): a ready stream is decoded and
@@ -184,9 +185,13 @@ abstract class AndroidxWebGpuBaseViewer(
         }
     }
 
-    /** The embedded surface, gated on the androidx.webgpu probe. */
+    /**
+     * The embedded surface, gated on the androidx.webgpu probe. [contentDescription] is what
+     * TalkBack reads for the page: callers keep it in sync with their current page and its
+     * presentation state.
+     */
     @Composable
-    protected fun SurfaceHost(modifier: Modifier) {
+    protected fun SurfaceHost(modifier: Modifier, contentDescription: String) {
         LaunchedEffect(Unit) {
             if (!AndroidxWebGpuProbe.probe()) requestFallback()
         }
@@ -195,8 +200,26 @@ abstract class AndroidxWebGpuBaseViewer(
             factory = { context ->
                 SurfaceView(context).apply { holder.addCallback(surfaceCallback) }
             },
+            update = { view -> view.contentDescription = contentDescription },
             onRelease = { view -> view.holder.removeCallback(surfaceCallback) },
         )
+    }
+
+    /**
+     * TalkBack text for the surface: which page is on it, and what state that page is in.
+     */
+    @Composable
+    protected fun surfaceDescription(page: ReaderPage?): String {
+        if (page == null) return ""
+        return when (presentation[page]) {
+            is PagePresentation.Failed -> stringResource(MR.strings.webgpu_surface_page_failed, page.number)
+            is PagePresentation.Loading, is PagePresentation.Uploading -> stringResource(
+                MR.strings.webgpu_surface_page_loading,
+                page.number,
+            )
+
+            else -> stringResource(MR.strings.webgpu_surface_page, page.number)
+        }
     }
 
     final override fun setChapters(chapters: ViewerChapters) {
@@ -273,13 +296,11 @@ abstract class AndroidxWebGpuBaseViewer(
             chapters.nextChapter?.let { addAll(it.pages.orEmpty()) }
         }
         val anchor = pages.indexOfFirst { it === current }.takeIf { it >= 0 } ?: 0
-        val window = if (pages.isEmpty()) {
+        val windowRange = AndroidxWebGpuPageCachePolicy.window(anchor, pages.size, preloadBehind, preloadAhead)
+        val window = if (windowRange.isEmpty()) {
             emptyList()
         } else {
-            pages.subList(
-                (anchor - preloadBehind).coerceAtLeast(0),
-                (anchor + preloadAhead + 1).coerceAtMost(pages.size),
-            )
+            pages.subList(windowRange.first, windowRange.last + 1)
         }
         val released = mutableListOf<AndroidxWebGpuSurfaceRenderer.PageImage>()
         synchronized(gpuImages) {
@@ -339,11 +360,12 @@ abstract class AndroidxWebGpuBaseViewer(
                     while (gpuImages.size > cacheSize) {
                         val reference = current
                         val refIndex = reference?.let { readingOrder[it] } ?: 0
-                        val victim = gpuImages.keys
-                            .filterNot { it === reference }
-                            .maxByOrNull { page ->
-                                readingOrder[page]?.let { index -> abs(index - refIndex) } ?: Int.MAX_VALUE
-                            } ?: break
+                        val victim = AndroidxWebGpuPageCachePolicy.victim(
+                            gpuImages.keys,
+                            readingOrder,
+                            reference,
+                            refIndex,
+                        ) ?: break
                         val image = gpuImages.remove(victim) ?: break
                         presentation.remove(victim)
                         add(image)

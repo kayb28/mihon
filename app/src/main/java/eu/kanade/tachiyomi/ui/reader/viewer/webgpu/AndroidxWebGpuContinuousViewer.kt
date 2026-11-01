@@ -107,7 +107,7 @@ class AndroidxWebGpuContinuousViewer(
         // Reads the version so a relayout recomposes the scroll layer's height.
         val version = layoutVersion
         Box(modifier = modifier.fillMaxSize()) {
-            SurfaceHost(Modifier.fillMaxSize())
+            SurfaceHost(Modifier.fillMaxSize(), surfaceDescription(current))
             Box(
                 modifier = Modifier
                     .fillMaxSize()
