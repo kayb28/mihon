@@ -96,7 +96,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Action
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
-import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuBaseViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
@@ -666,7 +666,7 @@ class ReaderActivity : BaseActivity() {
      */
     fun requestAndroidxWebGpuFallback() {
         runOnUiThread {
-            if (viewer !is AndroidxWebGpuViewer || androidxWebGpuFallback || isFinishing) return@runOnUiThread
+            if (viewer !is AndroidxWebGpuBaseViewer || androidxWebGpuFallback || isFinishing) return@runOnUiThread
             logcat(LogPriority.WARN) {
                 "androidx.webgpu viewer gave the reader back; rebuilding on the HQ/stock viewer"
             }

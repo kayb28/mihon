@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.L2RPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.VerticalPagerViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuContinuousViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerContinuous
@@ -78,18 +79,18 @@ enum class ReadingMode(
         }
 
         fun toViewer(preference: Int?, activity: ReaderActivity, androidxWebGpuFallback: Boolean = false): Viewer {
-            // Migration experiment: paged modes can use the androidx.webgpu viewer when its
-            // preference is on, unless the reader disabled it for this session because that viewer
-            // reported its runtime unusable (probe or surface bring-up failure). Default off: every
-            // mode keeps its current viewer below.
+            // Migration experiment: every mode can use an androidx.webgpu viewer when its
+            // preference is on, unless the reader disabled it for this session because that
+            // viewer reported its runtime unusable (probe or surface bring-up failure). Default
+            // off: every mode keeps its current viewer below.
             if (!androidxWebGpuFallback && activity.appGraph.basePreferences.androidxWebGpuViewer.get()) {
-                val mode = fromPreference(preference)
-                if (mode.type is ViewerType.Pager) {
-                    return AndroidxWebGpuViewer(
-                        activity = activity,
-                        isReversed = mode == RIGHT_TO_LEFT,
-                        isVertical = mode == VERTICAL,
-                    )
+                return when (fromPreference(preference)) {
+                    LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity, isReversed = false, isVertical = false)
+                    RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity, isReversed = true, isVertical = false)
+                    VERTICAL -> AndroidxWebGpuViewer(activity, isReversed = false, isVertical = true)
+                    WEBTOON -> AndroidxWebGpuContinuousViewer(activity, useGap = false)
+                    CONTINUOUS_VERTICAL -> AndroidxWebGpuContinuousViewer(activity, useGap = true)
+                    DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
                 }
             }
             if (activity.appGraph.basePreferences.highQualityRenderer.get()) {

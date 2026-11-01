@@ -56,13 +56,22 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.min
 
+/** vec2f scale + vec2f offset, both in NDC units. */
+private const val PARAMS_STRUCT_SIZE = 16L
+
+/** Uniform buffer slots are 256 bytes apart: uniform bind group offsets align to 256. */
+private const val PARAMS_SLOT = 256
+
+/** Pages drawable in one frame: the continuous viewer never shows more than this at once. */
+private const val PARAMS_SLOTS = 12
+
 private const val BYTES_PER_PIXEL = 4
 
 /** Dawn enforces the WebGPU spec's 256-byte copy stride for texture uploads. */
 private const val TEXTURE_COPY_ALIGNMENT = 256
 
-/** vec2f scale + vec2f offset, both in NDC units. */
-private const val PARAMS_BUFFER_SIZE = 16L
+/** Whole uniform buffer: one 256-byte slot per drawable page, each holding the 16-byte struct. */
+private val PARAMS_BUFFER_SIZE = (PARAMS_SLOT * PARAMS_SLOTS).toLong()
 
 /** Fullscreen-quad pipeline: scales the page texture with the uniform's NDC transform. */
 private val VIEWER_WGSL = """
@@ -129,6 +138,19 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         internal var destroyed = false
     }
 
+    /**
+     * One page quad the next frame draws, placed by the viewer: NDC half-extents and center
+     * offset. The continuous viewer places every visible page this way; the paged viewer keeps
+     * the single-page [setPage] path, which computes the same thing from its transform.
+     */
+    class PageDraw internal constructor(
+        internal val image: PageImage,
+        internal val scaleX: Float,
+        internal val scaleY: Float,
+        internal val offsetX: Float,
+        internal val offsetY: Float,
+    )
+
     private val lock = Any()
 
     private var webgpu: WebGpu? = null
@@ -141,6 +163,15 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     /** Set as soon as a stop begins; kills uploads and frames that race the teardown. */
     @Volatile
     private var stopped = true
+
+    /** Latest configured surface size, readable from any thread (viewers lay pages out with it). */
+    @Volatile
+    var surfaceWidthPx: Int = 1
+        private set
+
+    @Volatile
+    var surfaceHeightPx: Int = 1
+        private set
 
     // Only touched from the WebGPU dispatcher thread.
     private var surfaceFormat: Int = TextureFormat.RGBA8Unorm
@@ -156,6 +187,10 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     /** The page the next frame draws; null clears the surface. */
     @Volatile
     private var currentPage: PageImage? = null
+
+    /** The pages the next frame draws when the continuous viewer has placed some; wins over [currentPage]. */
+    @Volatile
+    private var placedPages: List<PageDraw> = emptyList()
 
     /** Page zoom applied to the drawn page; 1 shows the whole page aspect-fitted. */
     @Volatile
@@ -188,6 +223,14 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     }
 
     /**
+     * Sets the pages the next frame draws, each already placed in NDC by its viewer; drawn in
+     * order, page quads never overlap. An empty list falls back to the single-page [setPage] path.
+     */
+    fun setPages(pages: List<PageDraw>) {
+        placedPages = pages
+    }
+
+    /**
      * Brings up the GPU environment bound to [surface], configured for [width] x [height], and
      * creates the pipeline the frames use. Replaces any environment still running.
      */
@@ -199,6 +242,8 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                 surfaceFormat = pickSurfaceFormat(environment.webgpuSurface.getCapabilities(environment.adapter))
                 surfaceWidth = width.coerceAtLeast(1)
                 surfaceHeight = height.coerceAtLeast(1)
+                surfaceWidthPx = surfaceWidth
+                surfaceHeightPx = surfaceHeight
                 configureSurface(environment, surfaceWidth, surfaceHeight)
 
                 // Every object below is tracked in a field and released by releaseResources(),
@@ -252,6 +297,8 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                     if (stopped) return@execute
                     surfaceWidth = w
                     surfaceHeight = h
+                    surfaceWidthPx = w
+                    surfaceHeightPx = h
                     configureSurface(environment, w, h)
                     drawFrame(environment)
                 }
