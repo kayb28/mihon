@@ -15,8 +15,9 @@ import java.nio.ByteBuffer
  * plus [createFromBitmap], which starts routing the page model's decoded bitmaps
  * into the GPU pipeline.
  *
- * The current behavior is provided by [MpregGpuImageBackend]; the viewer keeps
- * calling ca.mpreg directly until later migration phases switch it over.
+ * Two implementations exist: [MpregGpuImageBackend] (the ca.mpreg HQ viewer, unchanged) and
+ * [AndroidxWebGpuSurfaceRenderer] (the androidx.webgpu migration viewer, which also renders
+ * the images it creates onto its own surface).
  */
 interface GpuImageBackend<T> {
     /** True once the GPU resources behind [image] have been released. */
