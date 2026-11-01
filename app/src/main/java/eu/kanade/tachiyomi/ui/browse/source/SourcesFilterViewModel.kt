@@ -12,6 +12,7 @@ import eu.kanade.domain.source.interactor.GetLanguagesWithSources
 import eu.kanade.domain.source.interactor.ToggleLanguage
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.ContentFilterableSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,6 +28,7 @@ import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.model.SourceClassification
 import tachiyomi.domain.source.model.SourceClassificationEntry
 import tachiyomi.domain.source.model.SourceContentFilterEntry
+import tachiyomi.domain.source.model.sourceClassificationFor
 import tachiyomi.domain.source.service.SourceManager
 import java.util.SortedMap
 import java.util.TreeMap
@@ -41,7 +43,17 @@ class SourcesFilterViewModel(
     private val toggleSource: ToggleSource,
     private val toggleLanguage: ToggleLanguage,
     private val sourceManager: SourceManager,
+    private val extensionManager: ExtensionManager,
 ) : ViewModel() {
+
+    /**
+     * Source id → the [ContentWarning] its extension declares, rebuilt whenever the set of loaded
+     * extensions changes. Drives the default classification for sources the user has not tagged
+     * themselves (see [sourceClassificationFor] with a content-warning fallback).
+     */
+    private val sourceContentWarnings = extensionManager.loadedExtensionsFlow.map { extensions ->
+        extensions.flatMap { ext -> ext.sources.map { it.id to ext.contentWarning } }.toMap()
+    }
 
     private val declaredContentFilters = sourceManager.sources.map { sources ->
         sources.mapNotNull { source ->
@@ -60,17 +72,15 @@ class SourcesFilterViewModel(
             preferences.enabledSourceContentFilters.changes(),
             ::Triple,
         ),
-        declaredContentFilters,
-    ) { languagesWithSources, enabledLanguages, disabledSources, categoryPreferences, contentFilterOptions ->
+        combine(declaredContentFilters, sourceContentWarnings, ::Pair),
+    ) { languagesWithSources, enabledLanguages, disabledSources, categoryPreferences, extensionDerived ->
         val (classifications, classificationFilter, enabledContentFilters) = categoryPreferences
+        val (contentFilterOptions, contentWarningBySourceId) = extensionDerived
         val filteredItems = TreeMap<String, List<Source>>(languagesWithSources.comparator())
         languagesWithSources.forEach { (language, sources) ->
             val visibleSources = sources.filter { source ->
                 classificationFilter.isEmpty() ||
-                    (
-                        classifications.firstOrNull { it.sourceId == source.id }?.classification
-                            ?: SourceClassification.MIXED
-                        ) in classificationFilter
+                    sourceClassificationFor(source.id, classifications, contentWarningBySourceId[source.id]) in classificationFilter
             }
             if (visibleSources.isNotEmpty()) filteredItems[language] = visibleSources
         }
@@ -80,6 +90,7 @@ class SourcesFilterViewModel(
             disabledSources = disabledSources,
             classifications = classifications,
             classificationFilter = classificationFilter,
+            sourceContentWarnings = contentWarningBySourceId,
             contentFilterOptions = contentFilterOptions,
             enabledContentFilters = enabledContentFilters,
         )
@@ -132,6 +143,7 @@ class SourcesFilterViewModel(
             val disabledSources: Set<String>,
             val classifications: Set<SourceClassificationEntry>,
             val classificationFilter: Set<SourceClassification>,
+            val sourceContentWarnings: Map<Long, mihon.domain.extension.model.ContentWarning>,
             val contentFilterOptions: Map<Long, List<eu.kanade.tachiyomi.source.SourceContentFilterOption>>,
             val enabledContentFilters: Set<SourceContentFilterEntry>,
         ) : State {

@@ -30,6 +30,7 @@ import eu.kanade.tachiyomi.util.system.LocaleHelper
 import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.model.SourceClassification
 import tachiyomi.domain.source.model.SourceContentFilterEntry
+import tachiyomi.domain.source.model.toDefaultClassification
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -138,8 +139,8 @@ private fun SourcesFilterContent(
                     modifier = Modifier.animateItem(),
                     source = source,
                     enabled = "${source.id}" !in state.disabledSources,
-                    classification = state.classifications.firstOrNull { it.sourceId == source.id }
-                        ?.classification ?: SourceClassification.MIXED,
+                    classification = state.classifications.firstOrNull { it.sourceId == source.id }?.classification
+                        ?: state.sourceContentWarnings[source.id].toDefaultClassification(),
                     onClickItem = onClickSource,
                     onSetClassification = onSetClassification,
                     contentFilterOptions = state.contentFilterOptions[source.id].orEmpty(),
