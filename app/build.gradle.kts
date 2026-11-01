@@ -297,6 +297,10 @@ dependencies {
     implementation(libs.image.decoder)
 
     implementation(libs.webgpuviewer)
+    // androidx.webgpu:webgpu is compile-only on purpose: ca.mpreg:webgpuviewer:54 already
+    // embeds a byte-identical copy of its 407 classes and its libwebgpu_c_bundled.so.
+    // Packaging both would create duplicate classes and a duplicate JNI lib.
+    compileOnly(libs.webgpu)
 
     // UI libraries
     implementation(libs.material)

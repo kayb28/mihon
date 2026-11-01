@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.L2RPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.VerticalPagerViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerContinuous
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
@@ -77,6 +78,18 @@ enum class ReadingMode(
         }
 
         fun toViewer(preference: Int?, activity: ReaderActivity): Viewer {
+            // Migration experiment: paged modes can use the androidx.webgpu stub when its
+            // preference is on. Default off: every mode keeps its current viewer below.
+            if (activity.appGraph.basePreferences.androidxWebGpuViewer.get()) {
+                val mode = fromPreference(preference)
+                if (mode.type is ViewerType.Pager) {
+                    return AndroidxWebGpuViewer(
+                        activity = activity,
+                        isReversed = mode == RIGHT_TO_LEFT,
+                        isVertical = mode == VERTICAL,
+                    )
+                }
+            }
             if (activity.appGraph.basePreferences.highQualityRenderer.get()) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> WebGpuViewer(activity, isReversed = false, isVertical = false)
