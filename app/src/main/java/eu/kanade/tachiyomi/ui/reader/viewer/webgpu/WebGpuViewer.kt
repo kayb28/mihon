@@ -1426,7 +1426,9 @@ open class WebGpuViewer(
 
             // The preview's textures become the image, or frame 0; one since replaced or freed
             // (a settings reset) leaves a fresh image to install instead.
-            val shown = preview?.takeIf { synchronized(lock) { page.imagePage === it && !imageBackend.isDestroyed(it) } }
+            val shown = preview?.takeIf {
+                synchronized(lock) { page.imagePage === it && !imageBackend.isDestroyed(it) }
+            }
             // Only a page the reader hasn't moved re-homes for its trim.
             val wasHome = shown?.atHome == true
             val firstImage = shown?.image?.also {

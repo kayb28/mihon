@@ -11,9 +11,9 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.domain.source.interactor.GetEnabledSources
 import eu.kanade.domain.source.interactor.ToggleSource
 import eu.kanade.domain.source.interactor.ToggleSourcePin
+import eu.kanade.presentation.browse.SourceUiModel
 import eu.kanade.tachiyomi.data.source.SourceHealthRecord
 import eu.kanade.tachiyomi.data.source.SourceHealthStore
-import eu.kanade.presentation.browse.SourceUiModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel

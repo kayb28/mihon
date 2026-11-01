@@ -536,7 +536,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
             category: Category? = null,
             sourceId: Long? = null,
         ): Boolean {
-            require(category == null || sourceId == null) { "A library update cannot target both a category and a source" }
+            require(category == null || sourceId == null) {
+                "A library update cannot target both a category and a source"
+            }
             if (workManager.isRunning(TAG)) {
                 // Already running either as a scheduled or manual job
                 return false

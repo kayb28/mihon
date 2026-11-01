@@ -9,6 +9,7 @@ import mihon.domain.extension.model.ContentWarning
 import mihon.domain.migration.models.MigrationFlag
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.core.common.preference.getEnum
 import tachiyomi.core.common.preference.getEnumSet
 import tachiyomi.core.common.preference.getLongArray
@@ -16,9 +17,8 @@ import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.source.model.SourceClassification
 import tachiyomi.domain.source.model.SourceClassificationEntry
 import tachiyomi.domain.source.model.SourceContentFilterEntry
-import tachiyomi.domain.source.model.sourceClassificationFor
 import tachiyomi.domain.source.model.filterSourceIdsByClassification
-import tachiyomi.core.common.preference.getAndSet
+import tachiyomi.domain.source.model.sourceClassificationFor
 
 @Inject
 @SingleIn(AppScope::class)
@@ -141,7 +141,11 @@ class SourcePreferences(
 
     fun setSourceClassification(sourceId: Long, classification: SourceClassification) {
         sourceClassifications.getAndSet { current ->
-            (current.filterNot { it.sourceId == sourceId } + SourceClassificationEntry(sourceId, classification)).toSet()
+            (
+                current.filterNot {
+                    it.sourceId == sourceId
+                } + SourceClassificationEntry(sourceId, classification)
+                ).toSet()
         }
     }
 

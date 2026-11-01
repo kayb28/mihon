@@ -38,8 +38,8 @@ import mihon.icons.materialsymbols.roundedfilled.Warning
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.core.common.preference.toggle
-import tachiyomi.i18n.MR
 import tachiyomi.domain.source.model.SourceClassification
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Button
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
@@ -113,7 +113,10 @@ fun MigrationConfigScreenSheet(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.extraSmall),
+                        .padding(
+                            horizontal = MaterialTheme.padding.medium,
+                            vertical = MaterialTheme.padding.extraSmall,
+                        ),
                 )
                 Text(
                     text = stringResource(MR.strings.source_classification_migration_summary),

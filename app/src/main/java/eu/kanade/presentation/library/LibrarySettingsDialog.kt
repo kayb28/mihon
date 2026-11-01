@@ -4,7 +4,6 @@ import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
@@ -16,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.tachiyomi.ui.library.LibrarySettingsViewModel
@@ -210,7 +210,13 @@ private fun ColumnScope.SortPage(
                 icon = MaterialSymbols.Rounded.Refresh
                     .takeIf { sortingMode == LibrarySort.Type.Random },
                 onClick = {
-                    viewModel.setSort(category.takeIf { groupType == LibraryGroup.BY_DEFAULT }, mode, LibrarySort.Direction.Ascending)
+                    viewModel.setSort(
+                        category.takeIf {
+                            groupType == LibraryGroup.BY_DEFAULT
+                        },
+                        mode,
+                        LibrarySort.Direction.Ascending,
+                    )
                 },
             )
             return@map
@@ -317,7 +323,6 @@ private fun ColumnScope.DisplayPage(
         pref = viewModel.libraryPreferences.categoryNumberOfItems,
     )
 }
-
 
 @Composable
 private fun ColumnScope.GroupPage(

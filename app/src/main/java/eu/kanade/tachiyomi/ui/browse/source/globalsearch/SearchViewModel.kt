@@ -6,12 +6,12 @@ import androidx.compose.runtime.produceState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.service.SourcePreferences
-import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.data.source.SourceHealthStore
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.applyEnabledContentFilters
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

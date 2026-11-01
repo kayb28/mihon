@@ -23,7 +23,6 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
-import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +32,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
+import java.io.InputStream
 
 /**
  * Paged viewer on androidx.webgpu (WebGPU migration, phase 4: real rendering).
@@ -243,7 +243,7 @@ class AndroidxWebGpuViewer(
                 frame.use { full ->
                     val image = imageBackend.createFromImage(full.image, full.width, full.height)
                     synchronized(gpuImages) {
-                        if (destroyed || image.isDestroyed) {
+                        if (destroyed || imageBackend.isDestroyed(image)) {
                             imageBackend.destroy(image)
                         } else {
                             gpuImages[page] = image

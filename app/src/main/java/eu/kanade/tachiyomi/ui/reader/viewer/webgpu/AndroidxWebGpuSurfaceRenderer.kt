@@ -9,6 +9,7 @@ import androidx.webgpu.GPUBindGroupDescriptor
 import androidx.webgpu.GPUBindGroupEntry
 import androidx.webgpu.GPUBindGroupLayout
 import androidx.webgpu.GPUBuffer
+import androidx.webgpu.GPUBufferDescriptor
 import androidx.webgpu.GPUColor
 import androidx.webgpu.GPUColorTargetState
 import androidx.webgpu.GPUCommandBuffer
@@ -41,9 +42,6 @@ import androidx.webgpu.TextureFormat
 import androidx.webgpu.TextureUsage
 import androidx.webgpu.helper.WebGpu
 import androidx.webgpu.helper.createWebGpu
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +52,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.min
 
 private const val BYTES_PER_PIXEL = 4
 
@@ -375,7 +376,8 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                     ),
                 )
                 try {
-                    if (bindGroup != null && page != null) {
+                    // bindGroup is only non-null when page is, so it gates both.
+                    if (bindGroup != null) {
                         pass.setPipeline(pipe)
                         pass.setBindGroup(0, bindGroup)
                         pass.draw(6)

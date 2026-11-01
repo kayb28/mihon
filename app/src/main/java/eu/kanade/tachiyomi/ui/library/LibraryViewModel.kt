@@ -63,10 +63,9 @@ import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.history.interactor.GetNextChapters
 import tachiyomi.domain.library.model.LibraryDisplayMode
+import tachiyomi.domain.library.model.LibraryGroup
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.library.model.LibrarySort
-import tachiyomi.domain.library.model.LibraryGroup
-import tachiyomi.source.local.LocalSource
 import tachiyomi.domain.library.model.sort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetLibraryManga
@@ -76,6 +75,7 @@ import tachiyomi.domain.manga.model.applyFilter
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracksPerManga
 import tachiyomi.domain.track.model.Track
+import tachiyomi.source.local.LocalSource
 import tachiyomi.source.local.isLocal
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
@@ -336,9 +336,11 @@ class LibraryViewModel(
         val bySource = groupBy { it.libraryManga.manga.source }
         val orderedSourceIds = bySource.keys
             .map { sourceId -> sourceId to sourceManager.getOrStub(sourceId) }
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { (_, source) ->
-                source.name.ifBlank { source.id.toString() }
-            })
+            .sortedWith(
+                compareBy(String.CASE_INSENSITIVE_ORDER) { (_, source) ->
+                    source.name.ifBlank { source.id.toString() }
+                },
+            )
             .map { it.first }
         return orderedSourceIds.associate { sourceId ->
             val source = sourceManager.getOrStub(sourceId)
@@ -474,7 +476,11 @@ class LibraryViewModel(
                 filterCompleted = it[10] as TriState,
                 filterIntervalCustom = it[11] as TriState,
                 filterUpdateError = it[12] as TriState,
-                errorMangaIds = errors.filterIsInstance<eu.kanade.tachiyomi.data.library.UpdateError>().mapTo(HashSet()) { err -> err.mangaId },
+                errorMangaIds = errors.filterIsInstance<eu.kanade.tachiyomi.data.library.UpdateError>().mapTo(
+                    HashSet(),
+                ) { err ->
+                    err.mangaId
+                },
             )
         }
     }
