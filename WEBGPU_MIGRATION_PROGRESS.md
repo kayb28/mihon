@@ -17,6 +17,26 @@ Branch: `feature/webgpu-clean` | Session 2026-11-01 | Approved scope: #5 #6 #7 �
 - Checked: `libwebgpu_c_bundled.so` (arm64) is 16 KB-page aligned — Android 16 devices work
   once the library actually loads; the crash was purely "library never loaded".
 
+## Hotfix 2 (2026-11-01): reader drew nothing but black after the loading animation
+- Symptom (same POCO, build 8b00e5b): probe passes, pages upload, no error overlay — the
+  surface stays black (only the clear color).
+- Root cause, proven by disassembling `Java_androidx_webgpu_GPUQueue_writeBuffer` and the
+  `writeTexture` staging helper in `libwebgpu_c_bundled.so` (capstone, arm64): the JNI sizes
+  every queue write by `GetDirectBufferCapacity` + `GetDirectBufferAddress` and ignores
+  `position`/`limit`. The renderer's grow-only scratch therefore handed Dawn a multi-MB
+  "payload" for a 16-byte uniform write — Dawn rejected it, uniforms stayed zero, the quad
+  collapsed to nothing: black, on every device, from the first frame (the initial 64 KB scratch
+  already exceeds the 3 KB uniform buffer).
+- Fix 1: `AndroidxWebGpuBufferOps.confine()` — slice every ByteBuffer to (position 0, capacity
+  == remaining) before `queue.writeBuffer`/`writeTexture`; unit-tested in
+  `AndroidxWebGpuBufferOpsTest` (this is exactly ca.mpreg's flip+slice discipline).
+- Fix 2 (latent, same family): the padded-row staging path packed rows contiguously — row N
+  landed at `N*rowBytes` while Dawn reads rows at `N*paddedRowBytes`, so every page whose
+  width*4 was not 256-aligned (i.e. most widths) uploaded skewed or failed validation. Rows now
+  skip to the next aligned stride.
+- Lesson for future androidx.webgpu work: NEVER pass a ByteBuffer whose capacity outgrows the
+  write, and never assume position/limit are honored.
+
 ## Final state
 - `7ae2f8f` #7 settings + accessibility + tests (CI validating at time of writing)
 - `4fc1233` #6 zero-copy upload + FIX: placed-pages draw was silently missing from cac5014 — CI ✅

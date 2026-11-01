@@ -519,7 +519,9 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             data.position(data.position() + PARAMS_SLOT - PARAMS_STRUCT_SIZE.toInt())
         }
         data.flip()
-        device.queue.writeBuffer(params, 0, data)
+        // The JNI sizes queue writes by capacity, not remaining: confine first or Dawn rejects
+        // the write once the grow-only scratch has outgrown this 16-byte payload.
+        device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
     }
 
     /** Draws the paged viewer's single [currentPage] with its zoom/pan transform. */
@@ -610,7 +612,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         data.putFloat(offsetX)
         data.putFloat(offsetY)
         data.flip()
-        device.queue.writeBuffer(params, 0, data)
+        device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
     }
 
     /** Returns the dispatcher-confined scratch buffer, cleared, holding at least [capacity]. */
@@ -714,7 +716,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         if (rowBytes % TEXTURE_COPY_ALIGNMENT == 0) {
             device.queue.writeTexture(
                 destination = GPUTexelCopyTextureInfo(texture = texture),
-                data = source,
+                data = AndroidxWebGpuBufferOps.confine(source),
                 writeSize = writeSize,
                 dataLayout = GPUTexelCopyBufferLayout(bytesPerRow = rowBytes, rowsPerImage = height),
             )
@@ -727,11 +729,14 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             source.limit(source.position() + rowBytes)
             staging.put(source)
             source.limit(source.capacity())
+            // Rows must land on the padded stride: put() advances by rowBytes only, so skip to
+            // the next row's aligned start (the same slot-stride trick the uniform writes use).
+            staging.position(staging.position() + paddedRowBytes - rowBytes)
         }
         staging.flip()
         device.queue.writeTexture(
             destination = GPUTexelCopyTextureInfo(texture = texture),
-            data = staging,
+            data = AndroidxWebGpuBufferOps.confine(staging),
             writeSize = writeSize,
             dataLayout = GPUTexelCopyBufferLayout(bytesPerRow = paddedRowBytes, rowsPerImage = height),
         )
