@@ -1,49 +1,36 @@
-# androidx.webgpu migration — autonomous session progress
+# androidx.webgpu migration — session progress
 
-Branch: `feature/webgpu-clean` | Started: 2026-11-01 ~05:00 UTC | User: asleep, approved #5 #6 #7
-Watchdog cron jobId: 492060 (deletes itself when this file contains SESSION-COMPLETE)
+Branch: `feature/webgpu-clean` | Session 2026-11-01 | Approved scope: #5 #6 #7 — ALL DELIVERED
 
-## Done (CI green)
-- `cac5014` #5b continuous/webtoon mode: AndroidxWebGpuBaseViewer (extracted lifecycle) + AndroidxWebGpuContinuousViewer (scroll strip, per-frame placed-pages draw, overlays per page) + routing for all modes + fallback guard on base. CI pending on push.
-- `a8b5feb` #5a gestures: pinch zoom/pan/double-tap/long-press on paged viewer; renderer setTransform (NDC clamp per frame)
-- `8d424a4` #3 windowed page cache + LRU eviction (PRELOAD_BEHIND=2, PRELOAD_AHEAD=3, PAGE_CACHE_SIZE=7)
-- `ae27612` #4 page progress/error/retry overlays
-- `8d28faf` #2 auto-fallback to HQ/stock viewer
-- `bdc6e37`+`4a0d2fb` #1 real surface rendering
+## Final state
+- `7ae2f8f` #7 settings + accessibility + tests (CI validating at time of writing)
+- `4fc1233` #6 zero-copy upload + FIX: placed-pages draw was silently missing from cac5014 — CI ✅
+- `cac5014` #5b continuous/webtoon mode (base class + AndroidxWebGpuContinuousViewer + routing) — CI ✅
+- `a8b5feb` #5a gestures: pinch zoom/pan/double-tap/long-press — CI ✅
+- `8d424a4` #3 windowed page cache + LRU eviction — CI ✅
+- `ae27612` #4 page progress/error/retry overlays — CI ✅
+- `8d28faf` #2 auto-fallback to HQ/stock viewer — CI ✅
+- `bdc6e37`+`4a0d2fb` #1 real surface rendering — CI ✅
 
-## Todo this session
-- [x] #5 gestures → a8b5feb
-- [x] #5 continuous/webtoon → cac5014 (CI validating)
-- [ ] #6 zero-copy upload (IN PROGRESS: checking androidx.webgpu for external-memory APIs; else reusable staging buffer in uploadPixels — runs only on WebGPU dispatcher thread so a grow-only buffer field is thread-safe)
-- [ ] #7 settings wiring + accessibility + unit tests → commit
+## What #7 added
+- Settings > Advanced > Reader: androidx.webgpu toggle (pref_androidx_webgpu_viewer + summary).
+- TalkBack: surface announces "Page N" / "Page N, loading" / "Page N, failed to load" (both viewers).
+- AndroidxWebGpuPageCachePolicy: pure window/victim functions used by the base viewer + 9 unit
+  tests (app/src/test/.../webgpu/AndroidxWebGpuPageCachePolicyTest.kt).
 
-## Key facts
+## Known limitations / next steps (for a future session)
+- Continuous viewer: no pinch-zoom yet (HQ keeps it); no transition pages between chapters;
+  layout jumps when page aspects resolve; preload 2/5, cache 10.
+- Paged viewer: no navigation-zone customization (fixed halves), no fling page turns.
+- Zero-copy: real AHardwareBuffer import exists (GPUAndroidHardwareBufferUtil) but the ca.mpreg
+  decoder only outputs CPU ByteBuffers — revisit if the decoder ever gains AHB output.
+- Reader resume position still lands on the first page of the chapter (same as phase 4 behavior).
+
+## Key facts (kept for reference)
 - Build: `export JAVA_HOME=/home/z/jdks/jdk-21.0.13+9 && ./gradlew <task> -Pdist=ci -Pinclude-telemetry=false --console=plain`
-- Local allowed: `:app:spotlessCheck`, `:app:compileReleaseKotlin`, `:app:testDebugUnitTest`. NEVER assembleRelease locally — CI does it.
-- ktlint 1.8.0 pinned. CI order: spotless → unit tests → assembleRelease (2 jobs: release + unminified).
-- CI check: `TOKEN=$(git remote get-url origin | sed -n 's|https://\([^@]*\)@github.com.*|\1|p')` (never print it)
-  then `curl -s -H "Authorization: token $TOKEN" https://api.github.com/repos/kayb28/mihon/actions/runs?branch=feature/webgpu-clean&per_page=1`
-- HQ viewer reference: `WebGpuViewer.kt` (ca.mpreg) — preload 3/2, cacheSize 7, evictFarthestPage.
-- `Page.statusFlow`/`progressFlow` are StateFlow (replay on collect) — watchers safe to cancel/recreate.
-- Renderer (`AndroidxWebGpuSurfaceRenderer`): Dawn calls only inside `environment.execute` (single dispatcher thread).
-  `stop()` is synchronous; textures die with environment.
-- Viewer monitor: `synchronized(gpuImages)` guards gpuImages/watchJobs/uploadJobs/readingOrder. destroy() outside monitor.
+- Local: spotlessCheck / compileReleaseKotlin / testDebugUnitTest only. assembleRelease → CI.
+- moko stringResource: `tachiyomi.presentation.core.i18n.stringResource` (NOT androidx.compose.ui.res).
+- MultiEdit lesson: ALWAYS grep-verify edited regions after every batch; one huge edit silently
+  failed once and compiled anyway (unused field).
 
-## #5 scope notes
-- Gestures: Compose detectTransformGestures on the Box; transform applied at writeParams time
-  (NDC scale *= zoom, offset += pan) — no WGSL change needed. Clamp pan to page bounds.
-- Continuous: check `ReadingMode.toViewer` routing first. If flag-on webtoon currently lands on the
-  paged androidx viewer, that's broken → build AndroidxWebGpuContinuousViewer: single surface,
-  renderer draws visible pages each with own NDC rect (extend setPage→setPages), vertical scroll
-  with fling, current = viewport center, same windowed cache (bigger window), same presentation
-  overlays. If too risky, keep webtoon on HQ viewer and document.
-
-## #6 scope notes
-- uploadPixels re-packs rows into a per-call allocateDirect staging buffer when rowBytes % 256 != 0.
-  Runs only on the WebGPU dispatcher thread → reusable grow-only staging ByteBuffer field is safe.
-- Search androidx.webgpu classes for external memory / AHardwareBuffer import APIs before choosing.
-
-## #7 scope notes
-- Settings: wire BasePreferences.androidxWebGpuViewer into reader settings screen (entry + state).
-- A11y: contentDescription on SurfaceView (page number), semantics on overlays.
-- Tests: extract pure window/eviction logic into testable object + JUnit tests (no Robolectric needed).
+SESSION-COMPLETE
