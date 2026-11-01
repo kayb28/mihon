@@ -37,6 +37,9 @@ include(":core:common")
 include(":core:metro")
 include(":data")
 include(":domain")
+// Standalone extension APK built by the same CI as the app (see .github/workflows/build_apk.yml,
+// job build_extension). Not a dependency of :app — it ships as its own installable APK.
+include(":extension-mhscans")
 include(":i18n")
 include(":icons:custom-material-symbols")
 include(":icons:material-symbols")

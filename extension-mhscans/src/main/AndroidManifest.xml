@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MHScans extension manifest.
+
+  The meta-data items follow the Tachiyomi/Mihon extension contract (read by the host app's
+  ExtensionLoader at install time):
+    - tachiyomi.extension.class → fully-qualified name of the HttpSource implementation.
+    - tachiyomi.extension.nsfw  → 0 (site is not classified NSFW; individual titles may still be).
+    - tachiyomix.contentWarning → 0 (fork-specific: maps to SourceClassification GENERAL, same
+      value the previously shipped v1.6.71 APK carried, so the user's source-category filters
+      keep working unchanged).
+    - tachiyomix.extensionLib   → 1.6 (API level this extension targets).
+
+  MHScansUrlActivity handles https://mhscans.com/comics/<slug> deep links, so "Open in app"
+  from a shared manga URL lands in Mihon's search scoped to this extension.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="tachiyomi.extension" />
+
+    <application
+        android:allowBackup="false"
+        android:extractNativeLibs="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Tachiyomi: MHScans">
+
+        <meta-data
+            android:name="tachiyomix.name"
+            android:value="MHScans" />
+        <meta-data
+            android:name="tachiyomi.extension.class"
+            android:value="eu.kanade.tachiyomi.extension.es.mhscans.MHScans" />
+        <meta-data
+            android:name="tachiyomi.extension.nsfw"
+            android:value="0" />
+        <meta-data
+            android:name="tachiyomix.contentWarning"
+            android:value="0" />
+        <meta-data
+            android:name="tachiyomix.extensionLib"
+            android:value="1.6" />
+
+        <activity
+            android:name=".MHScansUrlActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="mhscans.com" />
+                <data android:host="www.mhscans.com" />
+                <data android:pathPattern="/comics/..*" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

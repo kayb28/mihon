@@ -100,3 +100,22 @@ M	i18n/src/commonMain/moko-resources/base/strings.xml
 M	i18n/src/commonMain/moko-resources/es/strings.xml
 ```
 Tabs virtuales por sourceId; sort global cuando no es BY_DEFAULT; refresh usa sourceId del worker.
+
+### Extension MHScans embebida en el repo (extension-mhscans/)
+```
+A	extension-mhscans/build.gradle.kts
+A	extension-mhscans/src/main/AndroidManifest.xml
+A	extension-mhscans/src/main/kotlin/eu/kanade/tachiyomi/extension/es/mhscans/MHScans.kt
+A	extension-mhscans/src/main/kotlin/eu/kanade/tachiyomi/extension/es/mhscans/MHScansUrlActivity.kt
+A	extension-mhscans/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+M	settings.gradle.kts
+M	.github/workflows/build_apk.yml
+```
+Fuente `eu.kanade.tachiyomi.extension.es.mhscans` (HttpSource propio para el sitio Astro de
+mhscans.com, no MangaThemesia). Reconstruida desde el APK v1.6.71 (decompilada con jadx) y
+reverificada contra el sitio vivo. Source id identico (versionId=2 -> 9008444898589746680),
+misma firma que el app (mismo keystore en CI), versionCode 106072. CI: nuevo job
+`build_extension` que publica el APK como artefacto `mhscans-extension-apk-<sha>`.
+Mejoras sobre v1.6.71: filtros Type y Status (el sitio expone ?type= y ?status=), generos
+fijos en vez de scraping en runtime, overrides getMangaUrl/getChapterUrl para los flujos
+suspend del app (el base HttpSource construiria "https://mhscans.com<slug>" sin ellos).
