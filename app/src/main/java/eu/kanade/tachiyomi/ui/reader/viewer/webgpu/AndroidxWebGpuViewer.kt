@@ -37,6 +37,7 @@ import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
 import java.io.InputStream
+import kotlin.math.abs
 
 /** What the Compose layer draws over the surface while a page is not on it (yet). */
 private sealed interface PagePresentation {
@@ -53,9 +54,22 @@ private sealed interface PagePresentation {
     data class Failed(val error: Throwable) : PagePresentation
 }
 
+/** Pages uploaded behind the current one, mirroring the HQ viewer's preload window. */
+private const val PRELOAD_BEHIND = 2
+
+/** Pages uploaded ahead of the current one, mirroring the HQ viewer's preload window. */
+private const val PRELOAD_AHEAD = 3
+
+/**
+ * Page textures alive at once: the preload window, the current page and one page of slack — the
+ * size the HQ viewer keeps — so a chapter swap or a decode finishing early never evicts a page
+ * the next page turn asks for.
+ */
+private const val PAGE_CACHE_SIZE = 1 + PRELOAD_AHEAD + PRELOAD_BEHIND + 1
+
 /**
  * Paged viewer on androidx.webgpu (WebGPU migration, phase 4: real rendering, phase 5: page
- * progress, errors and retry).
+ * progress, errors and retry, phase 6: a windowed page cache).
  *
  * Work in progress behind [eu.kanade.domain.base.BasePreferences.androidxWebGpuViewer]
  * (default OFF): when the flag is off, [eu.kanade.tachiyomi.ui.reader.setting.ReadingMode]
@@ -69,11 +83,16 @@ private sealed interface PagePresentation {
  * aspect-fitted onto the surface. Transitions, zoom and the continuous mode stay on the ca.mpreg
  * HQ viewer until later migration phases.
  *
- * Every chapter page is presented from wherever it is ([presentPage]): a ready stream is decoded
+ * Only the pages around the current one are presented — [PRELOAD_BEHIND] behind and
+ * [PRELOAD_AHEAD] ahead of it in reading order ([updatePageWindow]): a ready stream is decoded
  * and uploaded, one still on the loader gets a watcher on [Page.statusFlow] (so its download
  * progress shows, and its bytes reach the surface as soon as they arrive), and a page the loader
  * gave up on turns into the stock [ReaderError] overlay, whose Retry goes back to the loader —
- * or, for a page whose stream is fine, re-decodes right here.
+ * or, for a page whose stream is fine, re-decodes right here. Live page textures are capped at
+ * [PAGE_CACHE_SIZE]: past it the page farthest from the current one loses its texture
+ * ([trimCache]) and re-decodes from its stream when the reader walks back to it, so three whole
+ * chapters never sit in GPU memory at once. Pages that leave the window only lose their
+ * watcher — [Page.statusFlow] is a StateFlow, so a fresh one replays their state on re-entry.
  *
  * If this viewer cannot draw — the androidx.webgpu probe fails, or the surface bring-up throws —
  * it hands the reader back through [requestFallback] and [ReaderActivity.requestAndroidxWebGpuFallback]
@@ -92,6 +111,12 @@ class AndroidxWebGpuViewer(
 
     private val imageBackend = AndroidxWebGpuSurfaceRenderer()
     private val gpuImages = mutableMapOf<ReaderPage, AndroidxWebGpuSurfaceRenderer.PageImage>()
+
+    /**
+     * Where each loaded page sits in reading order (prev + current + next chapter, flattened);
+     * measures eviction distance in [trimCache]. Guarded by [gpuImages]' monitor.
+     */
+    private val readingOrder = HashMap<ReaderPage, Int>()
 
     /** Each presented page's overlay state; the Compose layer observes this map. */
     private val presentation = mutableStateMapOf<ReaderPage, PagePresentation>()
@@ -135,12 +160,12 @@ class AndroidxWebGpuViewer(
                     }
                     // Textures died with the previous environment: forget every page's state
                     // (in-flight decodes could have logged stale failures against it) and
-                    // bring each chapter page onto the fresh one.
+                    // bring the pages around the current one onto the fresh one.
                     synchronized(gpuImages) {
                         gpuImages.clear()
                     }
                     presentation.clear()
-                    presentAllPages()
+                    updatePageWindow()
                     renderCurrentPage()
                 } catch (e: CancellationException) {
                     throw e
@@ -245,13 +270,13 @@ class AndroidxWebGpuViewer(
     override fun setChapters(chapters: ViewerChapters) {
         this.chapters = chapters
         current = chapters.currChapter.pages?.firstOrNull()
-        presentAllPages()
+        updatePageWindow()
         renderCurrentPage()
     }
 
     override fun moveToPage(page: ReaderPage) {
         current = page
-        presentPage(page)
+        updatePageWindow()
         renderCurrentPage()
     }
 
@@ -269,6 +294,7 @@ class AndroidxWebGpuViewer(
         imageBackend.stop()
         synchronized(gpuImages) {
             gpuImages.clear()
+            readingOrder.clear()
             watchJobs.clear()
             uploadJobs.clear()
         }
@@ -289,25 +315,114 @@ class AndroidxWebGpuViewer(
         }
         if (handled) return
         watchLoader(page)
-        if (page.status == Page.State.Ready) uploadPage(page)
+        when (page.status) {
+            Page.State.Ready -> uploadPage(page)
+
+            // A watcher that already survived a surface bring-up does not replay this page's
+            // state until the loader changes it again; restore its progress overlay here.
+            Page.State.DownloadImage -> if (presentation[page] == null) {
+                presentation[page] = PagePresentation.Loading(page.progress)
+            }
+
+            else -> {}
+        }
     }
 
-    /** Presents every page of the loaded chapters, and forgets pages dropped by a chapter swap. */
-    private fun presentAllPages() {
+    /**
+     * Presents the pages around the current one, and reclaims what the new window leaves behind.
+     * Pages of chapters the reader dropped lose their texture — destroyed here, since those
+     * [ReaderPage]s never come back — while pages outside the window keep texture and overlay but
+     * lose their watcher (a fresh one replays their loader state when they re-enter). In-flight
+     * uploads are left to finish: [trimCache] reclaims their textures by distance, and a store
+     * for a page the chapters dropped is rejected anyway.
+     */
+    private fun updatePageWindow() {
         val chapters = this.chapters ?: return
         val pages = buildList {
             chapters.prevChapter?.let { addAll(it.pages.orEmpty()) }
             addAll(chapters.currChapter.pages.orEmpty())
             chapters.nextChapter?.let { addAll(it.pages.orEmpty()) }
         }
+        val anchor = pages.indexOfFirst { it === current }.takeIf { it >= 0 } ?: 0
+        val window = if (pages.isEmpty()) {
+            emptyList()
+        } else {
+            pages.subList(
+                (anchor - PRELOAD_BEHIND).coerceAtLeast(0),
+                (anchor + PRELOAD_AHEAD + 1).coerceAtMost(pages.size),
+            )
+        }
+        val released = mutableListOf<AndroidxWebGpuSurfaceRenderer.PageImage>()
         synchronized(gpuImages) {
-            (watchJobs.keys + uploadJobs.keys + presentation.keys).filterNot { it in pages }.forEach { page ->
-                watchJobs.remove(page)?.cancel()
-                uploadJobs.remove(page)?.cancel()
-                presentation.remove(page)
+            readingOrder.clear()
+            pages.forEachIndexed { index, page -> readingOrder[page] = index }
+
+            // Chapters the reader dropped: destroy their pages' textures, cancel their in-flight
+            // decodes (the store below rejects their late results regardless).
+            val textureIterator = gpuImages.entries.iterator()
+            while (textureIterator.hasNext()) {
+                val (page, image) = textureIterator.next()
+                if (page !in pages) {
+                    textureIterator.remove()
+                    presentation.remove(page)
+                    released.add(image)
+                }
+            }
+            val uploadIterator = uploadJobs.entries.iterator()
+            while (uploadIterator.hasNext()) {
+                val (page, job) = uploadIterator.next()
+                if (page !in pages) {
+                    uploadIterator.remove()
+                    job.cancel()
+                }
+            }
+
+            // Pages outside the window: their texture and overlay stay, their watcher goes —
+            // a fresh watcher replays their state when they re-enter.
+            val watchIterator = watchJobs.entries.iterator()
+            while (watchIterator.hasNext()) {
+                val (page, job) = watchIterator.next()
+                if (page !in window) {
+                    watchIterator.remove()
+                    job.cancel()
+                }
             }
         }
-        pages.forEach { presentPage(it) }
+        // destroy() drains through the WebGPU dispatcher, so it stays off the monitor.
+        released.forEach(imageBackend::destroy)
+        window.forEach(::presentPage)
+        trimCache()
+    }
+
+    /**
+     * Keeps [PAGE_CACHE_SIZE] page textures alive: past it, the page farthest from the current
+     * one in reading order — never the current page itself — loses its texture and overlay, and
+     * re-decodes from its stream when the reader walks back to it.
+     */
+    private fun trimCache() {
+        val evicted: List<AndroidxWebGpuSurfaceRenderer.PageImage>
+        synchronized(gpuImages) {
+            evicted = if (destroyed) {
+                emptyList()
+            } else {
+                buildList {
+                    while (gpuImages.size > PAGE_CACHE_SIZE) {
+                        val reference = current
+                        val refIndex = reference?.let { readingOrder[it] } ?: 0
+                        val victim = gpuImages.keys
+                            .filterNot { it === reference }
+                            .maxByOrNull { page ->
+                                readingOrder[page]?.let { index -> abs(index - refIndex) } ?: Int.MAX_VALUE
+                            } ?: break
+                        val image = gpuImages.remove(victim) ?: break
+                        presentation.remove(victim)
+                        add(image)
+                    }
+                }
+            }
+        }
+        // destroy() drains through the WebGPU dispatcher, so it stays off the monitor.
+        evicted.forEach(imageBackend::destroy)
     }
 
     /**
@@ -369,19 +484,25 @@ class AndroidxWebGpuViewer(
     /**
      * Decodes [page]'s stream and uploads the first full frame; one upload per page at a time.
      * The in-flight page shows as loading, a stored one as drawn, and a failure as the error
-     * overlay.
+     * overlay. Without a running environment there is nothing to upload onto — surfaceCreated
+     * presents the window again once it brings the renderer up.
      */
     private fun uploadPage(page: ReaderPage) {
         synchronized(gpuImages) {
-            if (destroyed || page in gpuImages || uploadJobs[page]?.isActive == true) return
+            if (
+                destroyed ||
+                !imageBackend.isRunning ||
+                page in gpuImages ||
+                uploadJobs[page]?.isActive == true
+            ) {
+                return
+            }
             uploadJobs[page] = uploadScope.launch {
                 try {
                     presentation[page] = PagePresentation.Uploading
                     val input = page.stream?.invoke()
                         ?: throw IllegalStateException("Page ${page.number} has no stream to decode")
-                    if (decodeAndUpload(page, input)) {
-                        presentation[page] = PagePresentation.Drawn
-                    }
+                    decodeAndUpload(page, input)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -420,8 +541,8 @@ class AndroidxWebGpuViewer(
         presentPage(page)
     }
 
-    /** Decodes [input] and uploads the first full frame's image; true when the page got stored. */
-    private suspend fun decodeAndUpload(page: ReaderPage, input: InputStream): Boolean {
+    /** Decodes [input] and uploads the first full frame's image into the page cache. */
+    private suspend fun decodeAndUpload(page: ReaderPage, input: InputStream) {
         input.use { stream ->
             val dec = ImageDecoder.open(stream)
             try {
@@ -433,16 +554,31 @@ class AndroidxWebGpuViewer(
                 frame.use { full ->
                     val image = imageBackend.createFromImage(full.image, full.width, full.height)
                     val stored = synchronized(gpuImages) {
-                        if (destroyed || imageBackend.isDestroyed(image)) {
-                            imageBackend.destroy(image)
-                            false
-                        } else {
-                            gpuImages[page] = image
-                            true
+                        when {
+                            destroyed -> {
+                                imageBackend.destroy(image)
+                                false
+                            }
+
+                            // The chapters swapped while this page decoded: it is gone for good.
+                            readingOrder[page] == null -> {
+                                imageBackend.destroy(image)
+                                false
+                            }
+
+                            imageBackend.isDestroyed(image) -> false
+
+                            else -> {
+                                gpuImages[page] = image
+                                presentation[page] = PagePresentation.Drawn
+                                true
+                            }
                         }
                     }
-                    if (stored && current === page) renderCurrentPage()
-                    return stored
+                    if (stored) {
+                        if (current === page) renderCurrentPage()
+                        trimCache()
+                    }
                 }
             } finally {
                 dec.close()
@@ -463,7 +599,7 @@ class AndroidxWebGpuViewer(
         val index = current?.let { page -> pages.indexOfFirst { it === page } }?.takeIf { it >= 0 } ?: 0
         val page = pages[(index + delta).coerceIn(pages.indices)]
         current = page
-        presentPage(page)
+        updatePageWindow()
         renderCurrentPage()
     }
 
