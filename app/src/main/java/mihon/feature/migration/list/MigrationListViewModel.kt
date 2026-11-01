@@ -36,6 +36,7 @@ import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import mihon.feature.migration.list.models.MigratingManga
 import mihon.feature.migration.list.models.MigratingManga.SearchResult
+import mihon.feature.migration.list.search.ScoredManga
 import mihon.feature.migration.list.search.SmartSourceSearchEngine
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChapterSummaryByMangaId
@@ -114,7 +115,10 @@ class MigrationListViewModel(
         )
     }
 
-    private suspend fun Manga.toSuccessSearchResult(): SearchResult.Success {
+    private suspend fun Manga.toSuccessSearchResult(
+        similarity: Double? = null,
+        isExactTitle: Boolean = false,
+    ): SearchResult.Success {
         val chapterInfo = getChapterInfo(id)
         val source = sourceManager.getOrStub(source).getNameForMangaInfo()
         return SearchResult.Success(
@@ -122,6 +126,8 @@ class MigrationListViewModel(
             chapterCount = chapterInfo.chapterCount,
             latestChapter = chapterInfo.latestChapter,
             source = source,
+            similarity = similarity,
+            isExactTitle = isExactTitle,
         )
     }
 
@@ -171,16 +177,18 @@ class MigrationListViewModel(
                 continue
             }
 
-            if (result != null && result.first.thumbnailUrl == null) {
+            if (result != null && result.first.manga.thumbnailUrl == null) {
                 try {
-                    updateMangaFromRemote(result.first, fetchDetails = true, manualFetch = true).getOrThrow().manga
+                    updateMangaFromRemote(result.first.manga, fetchDetails = true, manualFetch = true).getOrThrow().manga
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
                 }
             }
 
-            manga.searchResult.value = result?.first?.toSuccessSearchResult() ?: SearchResult.NotFound
+            manga.searchResult.value = result?.let { (scored, _) ->
+                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle)
+            } ?: SearchResult.NotFound
 
             if (result == null && hideUnmatched) {
                 removeManga(manga)
@@ -200,7 +208,7 @@ class MigrationListViewModel(
         manga: Manga,
         source: Source,
         deepSearchMode: Boolean,
-    ): Pair<Manga, ChapterInfo>? {
+    ): Pair<ScoredManga, ChapterInfo>? {
         return try {
             // The exact-match pass (hybrid pick) must only reject same-URL candidates on the manga's
             // own source: a matching URL on a different site is a different manga, not the current one.
@@ -211,15 +219,18 @@ class MigrationListViewModel(
                 smartSearchEngine.regularSearch(source, manga.title, currentUrl)
             }
 
-            if (searchResult == null || (searchResult.url == manga.url && source.id == manga.source)) return null
+            if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
-            val localManga = networkToLocalManga(searchResult)
+            val localManga = networkToLocalManga(searchResult.manga)
             try {
                 updateMangaFromRemote(localManga, fetchChapters = true).getOrThrow()
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
             }
-            localManga to getChapterInfo(localManga.id)
+            // Preserve the engine's verdict (exact vs fuzzy + its score) on the local manga it
+            // resolved to — networkToLocalManga returns the persisted row, same title/url.
+            val scored = ScoredManga(localManga, searchResult.similarity, searchResult.isExactTitle)
+            scored to getChapterInfo(localManga.id)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

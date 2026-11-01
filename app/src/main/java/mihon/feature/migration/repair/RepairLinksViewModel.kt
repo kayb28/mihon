@@ -9,6 +9,8 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.domain.manga.model.toSManga
+import eu.kanade.domain.source.service.SourcePreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -23,6 +25,7 @@ import kotlinx.coroutines.withContext
 import mihon.domain.manga.model.toDomainManga
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.source.interactor.UpdateMangaFromRemote
+import mihon.feature.migration.list.search.SmartSourceSearchEngine
 import mihon.feature.migration.repair.TitleMatcher.MatchResult.NeedsReview.Reason
 import tachiyomi.domain.chapter.interactor.GetChapterSummaryByMangaId
 import tachiyomi.domain.manga.interactor.GetManga
@@ -36,6 +39,18 @@ data class ProposedRepair(
     val proposedManga: SManga? = null,
     val status: Status = Status.SIMULATING,
     val reason: String? = null,
+    /**
+     * Normalized-Levenshtein similarity of the proposed candidate vs the broken manga's title,
+     * in [0, 1]. Null for exact matches (where it is implicitly 1.0) and for non-match statuses.
+     * Surfaced so the UI can show "Fuzzy match 87%" and let the user judge whether to trust it.
+     */
+    val matchScore: Double? = null,
+    /**
+     * True when the candidate was found by the strict exact-title pass (titles equal after
+     * normalization). False for fuzzy deep-search picks, which are auto-accepted but visibly
+     * less certain. Defaults to true to keep exact matches the common, trusted case.
+     */
+    val isExactMatch: Boolean = true,
 ) {
     enum class Status {
         SIMULATING,
@@ -83,10 +98,23 @@ class RepairLinksViewModel(
     private val migrateMangaUseCase: MigrateMangaUseCase,
     private val updateMangaFromRemote: UpdateMangaFromRemote,
     private val getChapterSummaryByMangaId: GetChapterSummaryByMangaId,
+    sourcePreferences: SourcePreferences,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RepairState())
     val state: StateFlow<RepairState> = _state.asStateFlow()
+
+    /**
+     * Reuses the bulk-migration engine for the fuzzy fallback so the two flows agree on what
+     * "similar enough" means: the user's configured [SourcePreferences.migrationSimilarityThreshold]
+     * (default 40%) gates which fuzzy candidates are worth proposing, and the same deep-search
+     * query variants (cleaned title, largest words, etc.) run when the strict exact-title pass
+     * found nothing.
+     */
+    private val smartSearchEngine = SmartSourceSearchEngine(
+        extraSearchParams = null,
+        eligibleThreshold = sourcePreferences.migrationSimilarityThreshold.get() / 100.0,
+    )
 
     private suspend fun rebuildGroups(items: List<ProposedRepair>): List<RepairSourceGroup> {
         return items
@@ -144,7 +172,7 @@ class RepairLinksViewModel(
                 val manga = brokenMangas[index]
                 val source = sourceManager.get(manga.source)
 
-                val result = if (source != null) {
+                val exactResult = if (source != null) {
                     semaphore.withPermit {
                         delay(400.milliseconds)
                         try {
@@ -164,14 +192,50 @@ class RepairLinksViewModel(
                     )
                 }
 
-                val proposedRepair = when (result) {
+                // Deep-search fallback: only when the strict exact-title pass found nothing at all.
+                // MULTIPLE_EXACT_MATCHES / SAME_URL stay manual-review (a fuzzy pick can't resolve
+                // a tie or a self-link). NO_MATCH gets a second chance through the same engine the
+                // bulk migration list uses — it re-runs the search with cleaned-title and word-
+                // fragment queries and applies the user's configured similarity threshold, so a
+                // title the exact pass missed (typo, parenthetical subtitle, romanization variant)
+                // can still surface. Fuzzy picks are auto-accepted but carry their score so the
+                // user can judge them on the screen and via "Repair first 10".
+                val proposedRepair: ProposedRepair = when (exactResult) {
                     is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
                         currentManga = manga,
-                        proposedManga = result.candidate,
+                        proposedManga = exactResult.candidate,
                         status = ProposedRepair.Status.MATCH_FOUND,
+                        isExactMatch = true,
                     )
                     is TitleMatcher.MatchResult.NeedsReview -> {
-                        if (result.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
+                        if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
+                            source != null
+                        ) {
+                            val fuzzy = try {
+                                semaphore.withPermit {
+                                    delay(400.milliseconds)
+                                    smartSearchEngine.deepSearch(source, manga.title, manga.url)
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                null
+                            }
+                            if (fuzzy != null) {
+                                ProposedRepair(
+                                    currentManga = manga,
+                                    proposedManga = fuzzy.manga.toSManga(),
+                                    status = ProposedRepair.Status.MATCH_FOUND,
+                                    isExactMatch = false,
+                                    matchScore = fuzzy.similarity,
+                                )
+                            } else {
+                                ProposedRepair(
+                                    currentManga = manga,
+                                    status = ProposedRepair.Status.NO_MATCH,
+                                )
+                            }
+                        } else if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
                             ProposedRepair(
                                 currentManga = manga,
                                 status = ProposedRepair.Status.NO_MATCH,
@@ -180,7 +244,7 @@ class RepairLinksViewModel(
                             ProposedRepair(
                                 currentManga = manga,
                                 status = ProposedRepair.Status.NEEDS_REVIEW,
-                                reason = when (result.reason) {
+                                reason = when (exactResult.reason) {
                                     Reason.MULTIPLE_EXACT_MATCHES -> "Multiple identical titles"
                                     Reason.SAME_URL -> "Same URL as current"
                                     else -> null

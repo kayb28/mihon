@@ -262,6 +262,8 @@
     <string name="transition_pages_loading">Cargando páginas…</string>
     <string name="transition_pages_error">Error al cargar páginas: %1$s</string>
     <string name="migration_dialog_what_to_include">Elige qué datos incluir</string>
+    <string name="migration_dialog_from_label">De</string>
+    <string name="migration_dialog_to_label">A</string>
     <string name="pref_double_tap_anim_speed">Velocidad de animación de doble toque</string>
     <string name="pager_viewer">Por páginas</string>
     <string name="pref_read_with_long_tap">Menú de pulsación prolongada</string>
@@ -850,6 +852,7 @@
     <string name="migrationListScreen.exitDialog.cancelLabel">Cancelar</string>
     <string name="migrationListScreenTitle">Migración</string>
     <string name="migrationListScreen.matchWithoutChapterToast">No se ha encontrado ningún capítulo, por lo que no se puede utilizar para migrar</string>
+    <string name="migrationListScreen.exactMatchBadge">EXACTO</string>
     <string name="migrationListScreen.migrateDialog.migrateLabel">Migrar</string>
     <string name="migrationConfigScreen.prioritizeByChaptersSubtitle">Al activarlo elige la coincidencia mayor, si no elige la primera que encuentre por prioridad de fuente.</string>
     <string name="migrationConfigScreen.similarityThresholdTitle">Precisión de coincidencia</string>
@@ -906,7 +909,7 @@
     <string name="update_errors_view_log">Ver registro (.txt)</string>
     <string name="repair_links_title">Reparador de enlaces</string>
     <string name="repair_links_simulation_title">Modo simulación</string>
-    <string name="repair_links_simulation_desc">Revisa las coincidencias propuestas en la misma fuente antes de migrar. Solo se auto-migrarán coincidencias exactas únicas.</string>
+    <string name="repair_links_simulation_desc">Busca primero coincidencias exactas de título en la misma fuente; si no encuentra, reintenta con una búsqueda profunda difusa. Ambas se auto-migran, mostrando la confianza de la coincidencia.</string>
     <string name="repair_links_action_simulate">Simular</string>
     <string name="repair_links_action_repair_10">Reparar primeros 10</string>
     <string name="repair_links_action_repair_all">Reparar todos</string>
@@ -917,6 +920,8 @@
     <string name="repair_links_summary">%1$d reparados • %2$d pendientes • %3$d sin resultado</string>
     <string name="repair_links_running">Procesando: %1$d / %2$d</string>
     <string name="repair_links_source_header">%1$s (%2$d)</string>
+    <string name="repair_links_fuzzy_match_label">Difusa</string>
+    <string name="repair_links_exact_match_label">Exacta</string>
     <string name="action_trust_all_untrusted">Confiar en todas las pendientes</string>
     <string name="trust_all_dialog_title">¿Confiar en todas las extensiones pendientes?</string>
     <string name="trust_all_dialog_message">¿Deseas confiar en %d extensión(es) no confiable(s)? Confía solo en extensiones de fuentes seguras. Las extensiones que instales en el futuro seguirán requiriendo confirmación individual.</string>

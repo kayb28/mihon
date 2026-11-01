@@ -226,11 +226,30 @@ class RepairLinksScreen : Screen() {
                                             )
                                         }
                                         ProposedRepair.Status.MATCH_FOUND -> {
+                                            // Show the candidate's title (not its raw URL) and, for
+                                            // fuzzy picks, the confidence percent so the user can tell
+                                            // a 92% near-match from a 43% guess before hitting Repair.
+                                            val title = item.proposedManga?.title.orEmpty()
+                                            val suffix = if (!item.isExactMatch && item.matchScore != null) {
+                                                " (${
+                                                    stringResource(
+                                                        MR.strings.repair_links_fuzzy_match_label,
+                                                    )
+                                                } ${(item.matchScore * 100).toInt()}%)"
+                                            } else if (item.isExactMatch) {
+                                                " (${
+                                                    stringResource(
+                                                        MR.strings.repair_links_exact_match_label,
+                                                    )
+                                                })"
+                                            } else {
+                                                ""
+                                            }
                                             Text(
-                                                text = "→ ${item.proposedManga?.url ?: ""}",
+                                                text = "→ $title$suffix",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.primary,
-                                                maxLines = 1,
+                                                maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
                                         }

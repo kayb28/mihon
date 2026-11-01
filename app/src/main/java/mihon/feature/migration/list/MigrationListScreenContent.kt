@@ -194,6 +194,8 @@ fun MigrationListItem(
     chapterCount: Int,
     latestChapter: Double?,
     onClick: () -> Unit,
+    similarity: Double? = null,
+    isExactTitle: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -236,6 +238,18 @@ fun MigrationListItem(
             )
             BadgeGroup(modifier = Modifier.padding(4.dp)) {
                 Badge(text = "$chapterCount")
+                // Match-confidence badge on the target side only. Exact picks (the strict
+                // normalized-title pass) get a plain EXACT label so users can trust them at a
+                // glance; fuzzy picks show their Levenshtein percent so a 42% match is visibly
+                // shakier than a 91% one.
+                if (similarity != null) {
+                    val label = if (isExactTitle) {
+                        stringResource(MR.strings.migrationListScreen_exactMatchBadge)
+                    } else {
+                        "${(similarity * 100).toInt()}%"
+                    }
+                    Badge(text = label)
+                }
             }
         }
 
@@ -316,6 +330,8 @@ fun MigrationListItemResult(
                     chapterCount = result.chapterCount,
                     latestChapter = result.latestChapter,
                     onClick = { onItemClick(result.manga) },
+                    similarity = result.similarity,
+                    isExactTitle = result.isExactTitle,
                 )
             }
         }

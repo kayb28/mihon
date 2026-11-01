@@ -26,6 +26,19 @@ class MigratingManga(
             val chapterCount: Int,
             val latestChapter: Double?,
             val source: String,
+            /**
+             * Normalized-Levenshtein similarity of the matched title vs the source manga's title,
+             * in [0, 1]. 1.0 means the exact-title pass accepted it (titles equal after
+             * normalization); anything below 1.0 is a fuzzy pick. Null only when the match came
+             * from a manual override (no search engine involved).
+             */
+            val similarity: Double? = null,
+            /**
+             * True when the match was selected by the strict exact-title pass. Distinct from
+             * `similarity == 1.0` because a manual override has no score but should not be
+             * flagged as fuzzy either.
+             */
+            val isExactTitle: Boolean = false,
         ) : SearchResult
     }
 }
