@@ -1,17 +1,24 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan.imperiomanhwa
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonElement
 
 /**
  * Serializable DTOs matching the wire format of the Astro
  * `<script data-page=app>` Inertia payloads served by imperiomanhwa.com.
  *
- * Class/field names mirror the descriptor names embedded in the decompiled
- * upstream APK (`eu.kanade.tachiyomi.multisrc.imperiomanhwa.*`), so the JSON
- * contract is byte-for-byte identical to what the previously shipped v1.6.74
- * APK consumed.
+ * Field names mirror the descriptor names embedded in the decompiled
+ * upstream APK v1.6.74 (`eu.kanade.tachiyomi.multisrc.imperiomanhwa.*`),
+ * so the JSON contract is byte-for-byte identical to what the previously
+ * shipped APK consumed.
+ *
+ * Correctness was re-verified by extracting every serializer descriptor
+ * (PluginGeneratedSerialDescriptor.addElement calls) from the dex — the
+ * earlier reconstruction had several wire names wrong (e.g. `listing`
+ * instead of `series`, `sections` instead of `content`, `totalPages`
+ * instead of `last`), which made the listing parser silently return
+ * 0 results because [Json] ignored the unknown keys.
  */
 
 /** Inertia-page envelope. `component` identifies the Astro route (e.g. "Series/Show", "Reader/Locked"). */
@@ -29,31 +36,37 @@ data class MangaDto(
     val cover: String? = null,
 )
 
-/** Named entity (genre) — `id` goes into the `genero`/`seccion` query param. */
+/** Named entity (genre). `slug` goes into the `genero` query param. */
 @Serializable
 data class NamedDto(
-    val id: String,
+    val slug: String,
     val name: String,
 )
 
-/** Same shape as [NamedDto] but a distinct descriptor (sections list). */
+/** Section entry. `code` goes into the `seccion` query param. */
 @Serializable
 data class SectionDto(
-    val id: String,
-    val name: String,
+    val code: String,
+    val label: String,
 )
 
 /** Listing page props — `/manga/` and `/buscar/?q=` share this shape. */
 @Serializable
 data class ListingProps(
-    val listing: List<MangaDto> = emptyList(),
+    val series: List<MangaDto> = emptyList(),
     val pagination: PaginationDto = PaginationDto(),
 )
 
-/** Home page props — carries the filter catalogs. */
+/** Home page props — carries the filter catalogs wrapped in `content`. */
 @Serializable
 data class HomeProps(
     val genres: List<NamedDto> = emptyList(),
+    val content: ContentDto = ContentDto(),
+)
+
+/** Wrapper around the home page's `sections` list. */
+@Serializable
+data class ContentDto(
     val sections: List<SectionDto> = emptyList(),
 )
 
@@ -62,10 +75,10 @@ data class PaginationDto(
     val next: String? = null,
 )
 
-/** Chapter-list pagination: how many `chapters-N.json` files exist (page 1 inline). */
+/** Chapter-list pagination: `last` is the total number of chapter pages (page 1 is inline). */
 @Serializable
 data class ChaptersPaginationDto(
-    val totalPages: Int = 1,
+    val last: Int = 1,
 )
 
 /** Relative path fragment used to build the on-demand `…-N.json` chapter URLs. */
@@ -82,30 +95,30 @@ data class FilterData(
 
 @Serializable
 data class ChapterDto(
-    val id: String,
-    val name: String,
-    val isoDate: String? = null,
-    val altDate: String? = null,
+    val slug: String,
+    val label: String,
+    @SerialName("published_at") val isoDate: String? = null,
+    @SerialName("published_label") val altDate: String? = null,
     val locked: Boolean = false,
 )
 
 /** Payload of the on-demand `chapters-N.json` endpoints. */
 @Serializable
 data class ChapterListDto(
-    val chapters: List<ChapterDto> = emptyList(),
+    val items: List<ChapterDto> = emptyList(),
 )
 
 @Serializable
 data class SeriesDto(
-    val path: String,
+    val url: String,
     val title: String,
     val type: String? = null,
     val status: String? = null,
-    val cover: String? = null,
-    val altNames: List<String> = emptyList(),
-    val description: String? = null,
+    @SerialName("cover_canonical") val cover: String? = null,
+    @SerialName("alt_titles") val altNames: List<String> = emptyList(),
+    val synopsis: String? = null,
     val genres: List<NamedDto> = emptyList(),
-    val sections: List<NamedDto> = emptyList(),
+    val tags: List<NamedDto> = emptyList(),
     val authors: List<String> = emptyList(),
     val artists: List<String> = emptyList(),
 )
@@ -114,9 +127,9 @@ data class SeriesDto(
 data class SeriesProps(
     val series: SeriesDto,
     val chapters: List<ChapterDto> = emptyList(),
-    val pagination: ChaptersPaginationDto = ChaptersPaginationDto(),
+    @SerialName("chapters_pagination") val pagination: ChaptersPaginationDto = ChaptersPaginationDto(),
     val paths: PathsDto,
-    val nextCursor: String? = null,
+    @SerialName("tags_label") val tagsLabel: String? = null,
 )
 
 /** One decrypted page entry returned by the site's reader module. */
@@ -129,22 +142,22 @@ data class PageDto(
 
 @Serializable
 data class ReaderSeriesDto(
-    val id: Int,
+    val slug: String,
 )
 
 @Serializable
 data class ReaderChapterDto(
-    val slug: String,
+    val id: Int,
 )
 
 /** Reader page payload (`component = "Reader/Show"`). */
 @Serializable
 data class ReaderProps(
-    val series: ReaderSeriesDto,
     val chapter: ReaderChapterDto,
-    val initialPages: List<PageDto> = emptyList(),
-    val remainingPages: List<JsonElement> = emptyList(),
-    val challenge: JsonElement,
+    val series: ReaderSeriesDto,
+    val pages: List<PageDto> = emptyList(),
+    val dims: JsonElement,
+    val reader: JsonElement,
 )
 
 /**
@@ -163,16 +176,18 @@ data class ReaderResult(
     val cdata: String? = null,
 )
 
-/** Input handed to `assets/reader.js` through the WebView bridge. */
+/**
+ * Input handed to `assets/reader.js` through the WebView bridge.
+ *
+ * Wire field order matches the upstream reader.js contract verbatim:
+ * `entry` (reader module URL), `reader` (per-page config blob), `chapterId`,
+ * `seriesSlug`, optional `token` (Cloudflare Turnstile solution).
+ */
 @Serializable
 data class ReaderInput(
     val entry: String,
-    val challenge: JsonElement,
+    val reader: JsonElement,
     val chapterId: Int,
     val seriesSlug: String,
-) {
-    // Not serialized: patched into the bootstrap script separately so the
-    // JSON field order of the wire format stays identical to upstream.
-    @Transient
-    var turnstileToken: String? = null
-}
+    val token: String? = null,
+)

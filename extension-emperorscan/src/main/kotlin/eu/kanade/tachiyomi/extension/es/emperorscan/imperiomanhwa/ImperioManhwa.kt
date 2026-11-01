@@ -184,7 +184,7 @@ abstract class ImperioManhwa(
 
     private fun parseListingProps(props: JsonElement): MangasPage {
         val listing = json.decodeFromJsonElement(ListingProps.serializer(), props)
-        val mangas = listing.listing.map { dto ->
+        val mangas = listing.series.map { dto ->
             SManga.create().apply {
                 url = dto.url
                 title = dto.title
@@ -207,7 +207,7 @@ abstract class ImperioManhwa(
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val props = parseSeriesProps(response)
-        val allChapters = if (props.pagination.totalPages > 1) {
+        val allChapters = if (props.pagination.last > 1) {
             props.chapters + fetchRemainingChapters(props)
         } else {
             props.chapters
@@ -223,24 +223,24 @@ abstract class ImperioManhwa(
                     LocalDate.ofEpochDay(Instant.parse(it).toEpochMilli() / 86_400_000)
                 }.getOrNull()?.let { reference = it }
             }
-            dto.toSChapter(props.series.path, reference)
+            dto.toSChapter(props.series.url, reference)
         }
     }
 
     /** Fetches chapter pages 2..N synchronously (runs on a background thread). */
     private fun fetchRemainingChapters(props: SeriesProps): List<ChapterDto> {
         val base = baseUrlHttp()
-        val mangaPathUrl = base.resolve(props.series.path)
-            ?: throw IOException("Cannot resolve mangaPath: ${props.series.path}")
+        val mangaPathUrl = base.resolve(props.series.url)
+            ?: throw IOException("Cannot resolve mangaPath: ${props.series.url}")
 
         val out = ArrayList<ChapterDto>()
-        for (n in 2..props.pagination.totalPages) {
+        for (n in 2..props.pagination.last) {
             val pageUrl = mangaPathUrl.resolve("${props.paths.chapters}-$n.json")
                 ?: throw IOException("Cannot resolve chapter page URL for n=$n")
             client.newCall(get(pageUrl)).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("HTTP ${response.code} fetching $pageUrl")
                 val body = response.body.string()
-                out += json.decodeFromString(ChapterListDto.serializer(), body).chapters
+                out += json.decodeFromString(ChapterListDto.serializer(), body).items
             }
         }
         return out
@@ -252,13 +252,13 @@ abstract class ImperioManhwa(
     }
 
     private fun SeriesDto.toSManga(i18n: I18nBundle): SManga = SManga.create().apply {
-        url = path
+        url = this@toSManga.url
         title = this@toSManga.title
         thumbnail_url = cover
         author = authors.takeIf { it.isNotEmpty() }?.joinToString(", ")
         artist = artists.takeIf { it.isNotEmpty() }?.joinToString(", ")
         description = buildString {
-            this@toSManga.description?.let { append(it) }
+            this@toSManga.synopsis?.let { append(it) }
             if (altNames.isNotEmpty()) {
                 if (isNotEmpty()) append("\n\n")
                 append(i18n.get("alt_names")).append(": ").append(altNames.joinToString(", "))
@@ -267,7 +267,7 @@ abstract class ImperioManhwa(
         genre = buildList {
             type?.replaceFirstChar { it.titlecase() }?.let { add(it) }
             addAll(genres.map { it.name })
-            addAll(sections.map { it.name })
+            addAll(tags.map { it.name })
         }.distinct().joinToString(", ")
         status = when (this@toSManga.status) {
             "ongoing" -> SManga.ONGOING
@@ -281,8 +281,8 @@ abstract class ImperioManhwa(
 
     private fun ChapterDto.toSChapter(mangaPath: String, reference: LocalDate?): SChapter =
         SChapter.create().apply {
-            url = "$mangaPath$id/"
-            name = if (locked) "🔒 $name" else name
+            url = "$mangaPath$slug/"
+            name = if (locked) "🔒 $label" else label
             date_upload = parseDate(reference)
         }
 
@@ -335,9 +335,9 @@ abstract class ImperioManhwa(
 
         val input = ReaderInput(
             entry = entryUrl,
-            challenge = props.challenge,
-            chapterId = props.series.id,
-            seriesSlug = props.chapter.slug,
+            reader = props.reader,
+            chapterId = props.chapter.id,
+            seriesSlug = props.series.slug,
         )
 
         // runBlocking on the calling (background) thread; the WebView itself
@@ -431,7 +431,7 @@ abstract class ImperioManhwa(
                 val home = json.decodeFromJsonElement(HomeProps.serializer(), props)
                 json.encodeToJsonElement(
                     FilterData.serializer(),
-                    FilterData(genres = home.genres, sections = home.sections),
+                    FilterData(genres = home.genres, sections = home.content.sections),
                 )
             }
         }.getOrNull() ?: return null

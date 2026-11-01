@@ -58,7 +58,7 @@ object Filters {
         val genreFilter = parsed?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
             SelectFilter(
                 displayName = i18n.get("genre_title"),
-                options = listOf(all) + genres.map { it.name to it.id },
+                options = listOf(all) + genres.map { it.name to it.slug },
                 queryParam = "genero",
             )
         }
@@ -80,7 +80,7 @@ object Filters {
         val sectionFilter = parsed?.sections?.takeIf { it.isNotEmpty() }?.let { sections ->
             SelectFilter(
                 displayName = i18n.get("section_title"),
-                options = listOf(all) + sections.map { it.name to it.id },
+                options = listOf(all) + sections.map { it.label to it.code },
                 queryParam = "seccion",
             )
         }

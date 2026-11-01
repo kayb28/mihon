@@ -130,14 +130,12 @@ class WebViewReader(private val baseUrl: String) {
             ?: throw IOException("Missing asset: assets/reader.js")
 
         val inputJson = ImperioManhwa.json.encodeToString(ReaderInput.serializer(), input)
-        val token = input.turnstileToken?.let { "\"$it\"" } ?: "null"
 
         val invocation = """
             (async () => {
                 try {
                     const fn = $readerJs;
                     const input = $inputJson;
-                    input.token = $token;
                     const pages = await fn(input);
                     ${bridgeName}.postMessage(JSON.stringify({ pages }));
                 } catch (e) {
