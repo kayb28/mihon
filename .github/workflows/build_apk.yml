@@ -133,24 +133,8 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      # Same keystore the app is signed with: the extension module reads release.keystore at the
-      # repo root plus the KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD env vars (see
-      # extension-mhscans/build.gradle.kts), so the installed extension shares the app's
-      # signature. Without a keystore secret the build still succeeds and emits an unsigned APK.
-      - name: Setup Signing Keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
-            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
-            echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
-          fi
-
+      # Signs release with the debug config (same scheme as the app), so the emitted APK is
+      # installable without any keystore secrets.
       - name: Build MHScans extension APK
         run: ./gradlew :extension-mhscans:assembleRelease -Pinclude-telemetry=false
 

@@ -26,33 +26,19 @@ android {
         versionName = "1.6.72"
     }
 
-    // Sign with the same keystore the app CI uses (release.keystore at the repo root, decoded
-    // from the KEYSTORE_BASE64 secret by the workflow). Without it, assembleRelease emits an
-    // unsigned APK — fine for CI artifacts, not installable directly.
-    // Note: resolved via this project's layout (../release.keystore) — rootProject.file() is
-    // cross-project access and Gradle 9 forbids it at configuration time.
-    val keystoreFile = layout.projectDirectory.file("../release.keystore").asFile
-    if (keystoreFile.exists()) {
-        signingConfigs {
-            create("release") {
-                storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-            }
-        }
-        buildTypes {
-            release {
-                signingConfig = signingConfigs.getByName("release")
-            }
-        }
-    }
-
     buildTypes {
+        val debug = getByName("debug")
+
         release {
             // No minify: the manifest meta-data and the reflected source class name must
             // survive verbatim, and the APK is already tiny (~100KB).
             isMinifyEnabled = false
+
+            // Same signing scheme as the app (app/build.gradle.kts signs release with the
+            // debug config — either the runner's default debug keystore or the repo-local
+            // keystore.properties). A debug-signed extension APK installs fine; what matters
+            // for Mihon is the extension's own meta-data, not signature parity with the host.
+            signingConfig = debug.signingConfig
         }
     }
 }
