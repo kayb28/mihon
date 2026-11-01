@@ -179,109 +179,130 @@ class RepairLinksScreen : Screen() {
                     }
                 }
 
-                items(
-                    items = state.items,
-                    key = { "repair_${it.currentManga.id}" },
-                ) { item ->
-                    BaseMangaListItem(
-                        manga = item.currentManga,
-                        content = {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(start = MaterialTheme.padding.medium),
-                            ) {
-                                Text(
-                                    text = item.currentManga.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                when (item.status) {
-                                    ProposedRepair.Status.SIMULATING -> {
-                                        Text(
-                                            text = "...",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline,
-                                        )
-                                    }
-                                    ProposedRepair.Status.MATCH_FOUND -> {
-                                        Text(
-                                            text = "→ ${item.proposedManga?.url ?: ""}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    ProposedRepair.Status.REPAIRED -> {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = MaterialSymbols.Rounded.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(end = 4.dp),
-                                            )
+                state.groups.forEach { group ->
+                    item(key = "header_${group.sourceId}") {
+                        Text(
+                            text = stringResource(
+                                MR.strings.repair_links_source_header,
+                                group.sourceName,
+                                group.items.size,
+                            ),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(
+                                start = MaterialTheme.padding.medium,
+                                end = MaterialTheme.padding.medium,
+                                top = MaterialTheme.padding.medium,
+                                bottom = MaterialTheme.padding.small,
+                            ),
+                        )
+                    }
+
+                    items(
+                        items = group.items,
+                        key = { "repair_${it.currentManga.id}" },
+                    ) { item ->
+                        BaseMangaListItem(
+                            manga = item.currentManga,
+                            content = {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = MaterialTheme.padding.medium),
+                                ) {
+                                    Text(
+                                        text = item.currentManga.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    when (item.status) {
+                                        ProposedRepair.Status.SIMULATING -> {
                                             Text(
-                                                text = stringResource(MR.strings.repair_links_status_repaired),
+                                                text = "...",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.outline,
+                                            )
+                                        }
+                                        ProposedRepair.Status.MATCH_FOUND -> {
+                                            Text(
+                                                text = "→ ${item.proposedManga?.url ?: ""}",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.primary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        ProposedRepair.Status.REPAIRED -> {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = MaterialSymbols.Rounded.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(end = 4.dp),
+                                                )
+                                                Text(
+                                                    text = stringResource(MR.strings.repair_links_status_repaired),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
+                                        }
+                                        ProposedRepair.Status.NEEDS_REVIEW -> {
+                                            Text(
+                                                text = "${stringResource(
+                                                    MR.strings.repair_links_status_pending,
+                                                )}${item.reason?.let {
+                                                    " ($it)"
+                                                } ?: ""}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        ProposedRepair.Status.NO_MATCH -> {
+                                            Text(
+                                                text = stringResource(MR.strings.repair_links_status_no_match),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.outline,
+                                            )
+                                        }
+                                        ProposedRepair.Status.FAILED -> {
+                                            Text(
+                                                text = "Migration failed",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
                                             )
                                         }
                                     }
-                                    ProposedRepair.Status.NEEDS_REVIEW -> {
-                                        Text(
-                                            text = "${stringResource(
-                                                MR.strings.repair_links_status_pending,
-                                            )}${item.reason?.let {
-                                                " ($it)"
-                                            } ?: ""}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.error,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    ProposedRepair.Status.NO_MATCH -> {
-                                        Text(
-                                            text = stringResource(MR.strings.repair_links_status_no_match),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline,
-                                        )
-                                    }
-                                    ProposedRepair.Status.FAILED -> {
-                                        Text(
-                                            text = "Migration failed",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.error,
-                                        )
-                                    }
                                 }
-                            }
-                        },
-                        actions = {
-                            if (item.status == ProposedRepair.Status.NEEDS_REVIEW ||
-                                item.status == ProposedRepair.Status.NO_MATCH
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        navigator.push(MigrateSearchScreen(item.currentManga.id))
-                                    },
-                                    modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                            },
+                            actions = {
+                                if (item.status == ProposedRepair.Status.NEEDS_REVIEW ||
+                                    item.status == ProposedRepair.Status.NO_MATCH
                                 ) {
-                                    Icon(
-                                        imageVector = MaterialSymbols.Rounded.Search,
-                                        contentDescription = null,
-                                        modifier = Modifier.padding(end = 4.dp),
-                                    )
-                                    Text(
-                                        text = stringResource(MR.strings.repair_links_action_manual),
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            navigator.push(MigrateSearchScreen(item.currentManga.id))
+                                        },
+                                        modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                                    ) {
+                                        Icon(
+                                            imageVector = MaterialSymbols.Rounded.Search,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 4.dp),
+                                        )
+                                        Text(
+                                            text = stringResource(MR.strings.repair_links_action_manual),
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
             }
         }

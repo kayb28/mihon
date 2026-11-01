@@ -51,10 +51,22 @@ data class RepairState(
     val progressCurrent: Int = 0,
     val progressTotal: Int = 0,
     val items: List<ProposedRepair> = emptyList(),
+    val groups: List<RepairSourceGroup> = emptyList(),
     val repairedCount: Int = 0,
     val pendingReviewCount: Int = 0,
     val noMatchCount: Int = 0,
     val matchFoundCount: Int = 0,
+)
+
+/**
+ * Repair items grouped by their source, so the screen can show a header per source and the user
+ * can see which sources have the most broken links and act on them selectively. Mirrors the
+ * grouping the UpdateErrors screen already does.
+ */
+data class RepairSourceGroup(
+    val sourceId: Long,
+    val sourceName: String,
+    val items: List<ProposedRepair>,
 )
 
 @Inject
@@ -70,6 +82,20 @@ class RepairLinksViewModel(
 
     private val _state = MutableStateFlow(RepairState())
     val state: StateFlow<RepairState> = _state.asStateFlow()
+
+    private suspend fun rebuildGroups(items: List<ProposedRepair>): List<RepairSourceGroup> {
+        return items
+            .groupBy { it.currentManga.source }
+            .map { (sourceId, groupItems) ->
+                val sourceName = sourceManager.getOrStub(sourceId).name.ifBlank { "Source ($sourceId)" }
+                RepairSourceGroup(
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    items = groupItems,
+                )
+            }
+            .sortedBy { it.sourceName.lowercase() }
+    }
 
     init {
         startSimulation()
@@ -92,11 +118,13 @@ class RepairLinksViewModel(
             }
 
             val initialItems = brokenMangas.map { ProposedRepair(currentManga = it) }
+            val initialGroups = rebuildGroups(initialItems)
             _state.update {
                 it.copy(
                     isLoading = false,
                     progressTotal = brokenMangas.size,
                     items = initialItems,
+                    groups = initialGroups,
                     repairedCount = 0,
                     pendingReviewCount = 0,
                     noMatchCount = 0,
@@ -158,11 +186,14 @@ class RepairLinksViewModel(
                 }
 
                 updatedItems[index] = proposedRepair
+                val updatedList = updatedItems.toList()
+                val updatedGroups = rebuildGroups(updatedList)
 
                 _state.update { current ->
                     current.copy(
                         progressCurrent = index + 1,
-                        items = updatedItems.toList(),
+                        items = updatedList,
+                        groups = updatedGroups,
                         matchFoundCount = updatedItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
                         pendingReviewCount = updatedItems.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
                         noMatchCount = updatedItems.count { it.status == ProposedRepair.Status.NO_MATCH },
@@ -225,10 +256,13 @@ class RepairLinksViewModel(
 
                 processed++
 
+                val currentList = currentItems.toList()
+                val currentGroups = rebuildGroups(currentList)
                 _state.update { state ->
                     state.copy(
                         progressCurrent = processed,
-                        items = currentItems.toList(),
+                        items = currentList,
+                        groups = currentGroups,
                         repairedCount = currentItems.count { it.status == ProposedRepair.Status.REPAIRED },
                         matchFoundCount = currentItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
                     )
