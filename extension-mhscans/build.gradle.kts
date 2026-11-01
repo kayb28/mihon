@@ -29,7 +29,9 @@ android {
     // Sign with the same keystore the app CI uses (release.keystore at the repo root, decoded
     // from the KEYSTORE_BASE64 secret by the workflow). Without it, assembleRelease emits an
     // unsigned APK — fine for CI artifacts, not installable directly.
-    val keystoreFile = rootProject.file("release.keystore")
+    // Note: resolved via this project's layout (../release.keystore) — rootProject.file() is
+    // cross-project access and Gradle 9 forbids it at configuration time.
+    val keystoreFile = layout.projectDirectory.file("../release.keystore").asFile
     if (keystoreFile.exists()) {
         signingConfigs {
             create("release") {
