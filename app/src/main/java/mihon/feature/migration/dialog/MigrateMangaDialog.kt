@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -30,6 +31,7 @@ import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -87,6 +89,14 @@ internal fun Screen.MigrateMangaDialog(
                         onCheckedChange = { viewModel.toggleSelection(flag) },
                     )
                 }
+                if (state.migrationFailed) {
+                    Text(
+                        text = stringResource(MR.strings.migration_error_generic),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = MaterialTheme.padding.small),
+                    )
+                }
             }
         },
         confirmButton = {
@@ -107,8 +117,8 @@ internal fun Screen.MigrateMangaDialog(
                 TextButton(
                     onClick = {
                         scope.launch(Dispatchers.IO) {
-                            viewModel.migrateManga(replace = false)
-                            withContext(Dispatchers.Main) { onComplete() }
+                            val migrated = viewModel.migrateManga(replace = false)
+                            if (migrated) withContext(Dispatchers.Main) { onComplete() }
                         }
                     },
                 ) {
@@ -117,8 +127,8 @@ internal fun Screen.MigrateMangaDialog(
                 TextButton(
                     onClick = {
                         scope.launch(Dispatchers.IO) {
-                            viewModel.migrateManga(replace = true)
-                            withContext(Dispatchers.Main) { onComplete() }
+                            val migrated = viewModel.migrateManga(replace = true)
+                            if (migrated) withContext(Dispatchers.Main) { onComplete() }
                         }
                     },
                 ) {
@@ -175,14 +185,25 @@ class MigrateDialogViewModel(
         }
     }
 
-    suspend fun migrateManga(replace: Boolean) {
+    suspend fun migrateManga(replace: Boolean): Boolean {
         val currentState = state.value
-        val current = currentState.current ?: return
-        val target = currentState.target ?: return
+        val current = currentState.current ?: return false
+        val target = currentState.target ?: return false
         sourcePreference.migrationFlags.set(currentState.selectedFlags)
-        state.update { it.copy(isMigrating = true) }
-        migrateManga(current, target, replace)
-        state.update { it.copy(isMigrating = false, isMigrated = true) }
+        state.update { it.copy(isMigrating = true, migrationFailed = false) }
+        return try {
+            migrateManga(current, target, replace)
+            state.update { it.copy(isMigrating = false, isMigrated = true) }
+            true
+        } catch (e: CancellationException) {
+            state.update { it.copy(isMigrating = false) }
+            throw e
+        } catch (_: Exception) {
+            // MigrateMangaUseCase now propagates failures — show them in-dialog instead of
+            // crashing the calling scope or pretending the migration succeeded.
+            state.update { it.copy(isMigrating = false, migrationFailed = true) }
+            false
+        }
     }
 
     data class State(
@@ -192,5 +213,6 @@ class MigrateDialogViewModel(
         val selectedFlags: Set<MigrationFlag> = emptySet(),
         val isMigrating: Boolean = false,
         val isMigrated: Boolean = false,
+        val migrationFailed: Boolean = false,
     )
 }

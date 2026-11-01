@@ -1059,6 +1059,9 @@
     <string name="migrationConfigScreen.deepSearchModeSubtitle">Breaks down the title into keywords for a wider search</string>
     <string name="migrationConfigScreen.prioritizeByChaptersTitle">Match based on chapter number</string>
     <string name="migrationConfigScreen.prioritizeByChaptersSubtitle">If enabled, chooses the match furthest ahead. Otherwise, picks the first match by source priority.</string>
+    <string name="migrationConfigScreen.similarityThresholdTitle">Match precision</string>
+    <string name="migrationConfigScreen.similarityThresholdSubtitle">Minimum similarity for automatic matches. Lower finds more candidates (more false positives); higher is stricter.</string>
+    <string name="migration_error_generic">Migration failed. Check your connection and try again.</string>
     <string name="migrationListScreenTitle">Migration</string>
     <string name="migrationListScreenTitleWithProgress">Migration (%1$d/%2$d)</string>
     <string name="migrationListScreen.copyActionLabel">Copy</string>

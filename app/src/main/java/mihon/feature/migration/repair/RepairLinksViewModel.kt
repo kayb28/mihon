@@ -9,6 +9,7 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.model.SManga
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +22,9 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import mihon.domain.manga.model.toDomainManga
 import mihon.domain.migration.usecases.MigrateMangaUseCase
+import mihon.domain.source.interactor.UpdateMangaFromRemote
 import mihon.feature.migration.repair.TitleMatcher.MatchResult.NeedsReview.Reason
+import tachiyomi.domain.chapter.interactor.GetChapterSummaryByMangaId
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
@@ -78,6 +81,8 @@ class RepairLinksViewModel(
     private val sourceManager: SourceManager,
     private val networkToLocalManga: NetworkToLocalManga,
     private val migrateMangaUseCase: MigrateMangaUseCase,
+    private val updateMangaFromRemote: UpdateMangaFromRemote,
+    private val getChapterSummaryByMangaId: GetChapterSummaryByMangaId,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RepairState())
@@ -243,13 +248,27 @@ class RepairLinksViewModel(
 
                 try {
                     val localTarget = networkToLocalManga(candidate.toDomainManga(item.currentManga.source))
-                    migrateMangaUseCase(
-                        current = item.currentManga,
-                        target = localTarget,
-                        replace = true,
-                    )
-                    updateErrorStore.removeErrorsForManga(item.currentManga.id)
-                    currentItems[index] = item.copy(status = ProposedRepair.Status.REPAIRED)
+                    // Verify the target actually has chapters before migrating to it: an exact title
+                    // match on an empty entry (or a source glitch) would migrate the user's read
+                    // state into a stub and lose it.
+                    updateMangaFromRemote(localTarget, fetchChapters = true).getOrThrow()
+                    val summary = getChapterSummaryByMangaId.await(localTarget.id)
+                    if (summary.chapterCount <= 0L) {
+                        currentItems[index] = item.copy(
+                            status = ProposedRepair.Status.NEEDS_REVIEW,
+                            reason = "Target has no chapters",
+                        )
+                    } else {
+                        migrateMangaUseCase(
+                            current = item.currentManga,
+                            target = localTarget,
+                            replace = true,
+                        )
+                        updateErrorStore.removeErrorsForManga(item.currentManga.id)
+                        currentItems[index] = item.copy(status = ProposedRepair.Status.REPAIRED)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     currentItems[index] = item.copy(status = ProposedRepair.Status.FAILED)
                 }

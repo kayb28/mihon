@@ -12,33 +12,24 @@ abstract class BaseSmartSearchEngine<T>(
     private val extraSearchParams: String? = null,
     private val eligibleThreshold: Double = MIN_ELIGIBLE_THRESHOLD,
 ) {
-    private val normalizedLevenshtein = NormalizedLevenshtein()
+    protected val normalizedLevenshtein = NormalizedLevenshtein()
 
     protected abstract fun getTitle(result: T): String
 
-    protected suspend fun regularSearch(searchAction: SearchAction<T>, title: String): T? {
-        return baseSearch(searchAction, listOf(title)) {
-            normalizedLevenshtein.similarity(title, getTitle(it))
-        }
-    }
-
-    protected suspend fun deepSearch(searchAction: SearchAction<T>, title: String): T? {
-        val cleanedTitle = cleanDeepSearchTitle(title)
-
-        val queries = getDeepSearchQueries(cleanedTitle)
-
-        return baseSearch(searchAction, queries) {
-            val cleanedMangaTitle = cleanDeepSearchTitle(getTitle(it))
-            normalizedLevenshtein.similarity(cleanedTitle, cleanedMangaTitle)
-        }
-    }
-
-    private suspend fun baseSearch(
+    /**
+     * Fetches candidates for every query and ranks them by [calculateDistance], dropping entries
+     * below [eligibleThreshold]. A single query with a single candidate keeps the legacy
+     * auto-accept behavior (distance 1.0) instead of being scored.
+     *
+     * Exposed so subclasses can post-process the ranked candidates — e.g. the hybrid exact-match
+     * pass in [SmartSourceSearchEngine] — without re-fetching anything.
+     */
+    protected suspend fun rankedCandidates(
         searchAction: SearchAction<T>,
         queries: List<String>,
         calculateDistance: (T) -> Double,
-    ): T? {
-        val eligibleManga = supervisorScope {
+    ): List<SearchEntry<T>> {
+        return supervisorScope {
             queries.map { query ->
                 async(Dispatchers.IO) {
                     val builtQuery = if (!extraSearchParams.isNullOrBlank()) {
@@ -62,11 +53,9 @@ abstract class BaseSmartSearchEngine<T>(
             }
                 .flatMap { it.await() }
         }
-
-        return eligibleManga.maxByOrNull { it.distance }?.entry
     }
 
-    private fun cleanDeepSearchTitle(title: String): String {
+    protected fun cleanDeepSearchTitle(title: String): String {
         val preTitle = title.lowercase(Locale.getDefault())
 
         // Remove text in brackets
@@ -113,7 +102,7 @@ abstract class BaseSmartSearchEngine<T>(
         }
     }
 
-    private fun getDeepSearchQueries(cleanedTitle: String): List<String> {
+    protected fun getDeepSearchQueries(cleanedTitle: String): List<String> {
         val splitCleanedTitle = cleanedTitle.split(" ")
         val splitSortedByLargest = splitCleanedTitle.sortedByDescending { it.length }
 

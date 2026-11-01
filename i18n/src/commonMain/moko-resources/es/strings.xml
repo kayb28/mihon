@@ -852,6 +852,9 @@
     <string name="migrationListScreen.matchWithoutChapterToast">No se ha encontrado ningún capítulo, por lo que no se puede utilizar para migrar</string>
     <string name="migrationListScreen.migrateDialog.migrateLabel">Migrar</string>
     <string name="migrationConfigScreen.prioritizeByChaptersSubtitle">Al activarlo elige la coincidencia mayor, si no elige la primera que encuentre por prioridad de fuente.</string>
+    <string name="migrationConfigScreen.similarityThresholdTitle">Precisión de coincidencia</string>
+    <string name="migrationConfigScreen.similarityThresholdSubtitle">Similitud mínima para coincidencias automáticas. Más bajo encuentra más candidatos (más falsos positivos); más alto es más estricto.</string>
+    <string name="migration_error_generic">Error al migrar. Revisa tu conexión e inténtalo de nuevo.</string>
     <string name="migrationListScreen.migrateDialog.cancelLabel">Cancelar</string>
     <string name="migrationListScreen.migrateDialog.copyLabel">Copiar</string>
     <string name="migrationListScreen.progressDialog.cancelLabel">Cancelar</string>

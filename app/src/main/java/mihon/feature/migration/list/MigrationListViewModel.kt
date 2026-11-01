@@ -67,7 +67,11 @@ class MigrationListViewModel(
         fun create(mangaIds: Collection<Long>, extraSearchQuery: String?): MigrationListViewModel
     }
 
-    private val smartSearchEngine = SmartSourceSearchEngine(extraSearchQuery, preferences::enabledContentFilterIds)
+    private val smartSearchEngine = SmartSourceSearchEngine(
+        extraSearchQuery,
+        preferences::enabledContentFilterIds,
+        preferences.migrationSimilarityThreshold.get() / 100.0,
+    )
 
     val items
         inline get() = state.value.items
@@ -198,10 +202,13 @@ class MigrationListViewModel(
         deepSearchMode: Boolean,
     ): Pair<Manga, ChapterInfo>? {
         return try {
+            // The exact-match pass (hybrid pick) must only reject same-URL candidates on the manga's
+            // own source: a matching URL on a different site is a different manga, not the current one.
+            val currentUrl = if (source.id == manga.source) manga.url else null
             val searchResult = if (deepSearchMode) {
-                smartSearchEngine.deepSearch(source, manga.title)
+                smartSearchEngine.deepSearch(source, manga.title, currentUrl)
             } else {
-                smartSearchEngine.regularSearch(source, manga.title)
+                smartSearchEngine.regularSearch(source, manga.title, currentUrl)
             }
 
             if (searchResult == null || (searchResult.url == manga.url && source.id == manga.source)) return null
@@ -317,7 +324,15 @@ class MigrationListViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val manga = items.find { it.manga.id == mangaId } ?: return@launch
             val target = (manga.searchResult.value as? SearchResult.Success)?.manga ?: return@launch
-            migrateManga(current = manga.manga, target = target, replace = replace)
+            try {
+                migrateManga(current = manga.manga, target = target, replace = replace)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // MigrateMangaUseCase now propagates failures; this single-item path has no dialog
+                // to show them, so log instead of crashing the scope.
+                logcat(LogPriority.ERROR, e) { "Single migration failed for manga ${manga.manga.id}" }
+            }
 
             removeManga(mangaId)
         }

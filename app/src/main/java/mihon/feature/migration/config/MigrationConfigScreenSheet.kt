@@ -17,6 +17,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +47,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.theme.active
 import tachiyomi.presentation.core.theme.header
 import tachiyomi.presentation.core.util.collectAsState
+import kotlin.math.roundToInt
 
 @Composable
 fun MigrationConfigScreenSheet(
@@ -203,6 +205,13 @@ fun MigrationConfigScreenSheet(
                     subtitle = stringResource(MR.strings.migrationConfigScreen_prioritizeByChaptersSubtitle),
                     preference = preferences.migrationPrioritizeByChapters,
                 )
+                val similarityThreshold by preferences.migrationSimilarityThreshold.collectAsState()
+                MigrationSheetSliderItem(
+                    title = stringResource(MR.strings.migrationConfigScreen_similarityThresholdTitle),
+                    subtitle = stringResource(MR.strings.migrationConfigScreen_similarityThresholdSubtitle),
+                    value = similarityThreshold,
+                    onValueChange = { preferences.migrationSimilarityThreshold.set(it) },
+                )
             }
             HorizontalDivider()
             Button(
@@ -254,6 +263,36 @@ private fun MigrationSheetSwitchItem(
         },
         supportingContent = subtitle?.let { { Text(text = subtitle) } },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        content = { Text(text = title) },
+    )
+}
+
+@Composable
+private fun MigrationSheetSliderItem(
+    title: String,
+    subtitle: String?,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        supportingContent = {
+            Column {
+                if (subtitle != null) Text(text = subtitle)
+                Slider(
+                    value = value.toFloat(),
+                    onValueChange = { onValueChange(it.roundToInt()) },
+                    valueRange = 20f..90f,
+                    steps = 6,
+                )
+            }
+        },
+        trailingContent = {
+            Text(
+                text = "$value%",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        },
         content = { Text(text = title) },
     )
 }

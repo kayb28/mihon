@@ -136,6 +136,15 @@ class SourcePreferences(
         false,
     )
 
+    /**
+     * Minimum similarity (as a percentage, 0-100) a bulk-migration search candidate needs before
+     * it can be auto-selected. Stored as Int because the preference store has no float support.
+     */
+    val migrationSimilarityThreshold: Preference<Int> = preferenceStore.getInt(
+        "migration_similarity_threshold",
+        40,
+    )
+
     fun sourceClassification(sourceId: Long): SourceClassification =
         sourceClassificationFor(sourceId, sourceClassifications.get())
 

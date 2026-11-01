@@ -11,9 +11,11 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
 import mihon.domain.migration.models.MigrationFlag
 import mihon.domain.source.interactor.UpdateMangaFromRemote
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetMangaCategories
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
@@ -129,10 +131,13 @@ class MigrateMangaUseCase(
             }
 
             updateManga.awaitAll(listOfNotNull(currentMangaUpdate, targetMangaUpdate))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
-            if (e is CancellationException) {
-                throw e
-            }
+            // Fail loudly: swallowing errors here made callers (the link repairer, the bulk
+            // migration list) mark failed migrations as successful — data silently not copied.
+            logcat(LogPriority.ERROR, e) { "Failed to migrate manga ${current.title} (${current.id})" }
+            throw e
         }
     }
 }
