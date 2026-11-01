@@ -37,6 +37,40 @@ Branch: `feature/webgpu-clean` | Session 2026-11-01 | Approved scope: #5 #6 #7 �
 - Lesson for future androidx.webgpu work: NEVER pass a ByteBuffer whose capacity outgrows the
   write, and never assume position/limit are honored.
 
+## Hotfix 3 (2026-11-01): tall webtoon pages hit maxTextureDimension2D, surface stays black
+- Symptom (same POCO, build 8b00e5b with Hotfix 2 installed): "No crachea, hace la animación
+  de carga del capítulo pero no muestra imagen solo negro" — black screen on multiple titles.
+  WebGPU's own error overlay (captured in
+  `Screenshot_2026-11-01-05-16-47-996_app.mihonfix.png`) named the cause verbatim:
+  `ValidationException` at `device.createTexture` — "Texture size (800, 15005) exceeds maximum
+  limit (8192, 8192)... this adapter supports up to (16384, 16384) for maxTextureDimension2D...
+  consider requesting a higher limit via requiredLimits in requestDevice()".
+- Root cause: the renderer used the `createWebGpu(surface = surface)` overload, which internally
+  builds the device descriptor with `requiredLimits = null`. Dawn then caps
+  `maxTextureDimension2D` at the WebGPU spec minimum (8192) regardless of what the adapter
+  actually supports. A single webtoon page of 800×15005 px blows past 8192 in the height axis,
+  `device.createTexture` throws `ValidationException`, the reader eats it per-page, no texture
+  ever lands on the surface, and the user sees the loading animation finish into a black screen.
+- Fix: pass an explicit `GPUDeviceDescriptor` to `createWebGpu` that requests
+  `requiredLimits.maxTextureDimension2D = 16384`. 16384 is the WebGPU "default + 1" tier — every
+  adapter that supports the 8192 default also supports 16384 per the spec, and the device's own
+  error message confirms the POCO's adapter tops out at exactly that value. Other limits stay
+  at their spec defaults (a 0 in `requiredLimits` means "use default").
+- The descriptor also reproduces the helper's default error callbacks (the `GPUDeviceDescriptor`
+  constructor makes the executor and callback params required — without `requiredLimits` the
+  helper used its own private default; with our descriptor we mirror it: `Executor { it.run() }`
+  + `DeviceLostException` on device-lost + `WebGpuRuntimeException.create` on uncaptured error,
+  matching `WebGpuUtils.getDefaultDeviceDescriptor` byte-for-byte).
+- Regression test: `AndroidxWebGpuDeviceDescriptorTest` — JVM (no GPU needed) asserts the
+  descriptor carries `requiredLimits.maxTextureDimension2D == 16384` and that the block is not
+  null (a null silently falls back to the 8192 spec default — the exact bug this guards).
+- Files: `AndroidxWebGpuSurfaceRenderer.kt` (new top-level `internal fun
+  buildWebGpuDeviceDescriptor()`, `MAX_TEXTURE_DIMENSION_2D` constant, `DIRECT_EXECUTOR`), the
+  `start()` call now passes `deviceDescriptor = buildWebGpuDeviceDescriptor()`.
+- Future hardening (out of scope here): pages taller than 16384 px would still fail. A real
+  tile-split renderer (slice the page into ≤16384 sub-textures, draw as multiple quads) would
+  lift the ceiling without bound; tracked in "Known limitations".
+
 ## Final state
 - `7ae2f8f` #7 settings + accessibility + tests (CI validating at time of writing)
 - `4fc1233` #6 zero-copy upload + FIX: placed-pages draw was silently missing from cac5014 — CI ✅

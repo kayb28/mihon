@@ -3,6 +3,8 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 import android.graphics.Bitmap
 import android.view.Surface
 import androidx.webgpu.BufferUsage
+import androidx.webgpu.DeviceLostCallback
+import androidx.webgpu.DeviceLostException
 import androidx.webgpu.FilterMode
 import androidx.webgpu.GPUBindGroup
 import androidx.webgpu.GPUBindGroupDescriptor
@@ -15,8 +17,10 @@ import androidx.webgpu.GPUColorTargetState
 import androidx.webgpu.GPUCommandBuffer
 import androidx.webgpu.GPUCommandEncoder
 import androidx.webgpu.GPUDevice
+import androidx.webgpu.GPUDeviceDescriptor
 import androidx.webgpu.GPUExtent3D
 import androidx.webgpu.GPUFragmentState
+import androidx.webgpu.GPULimits
 import androidx.webgpu.GPURenderPassColorAttachment
 import androidx.webgpu.GPURenderPassDescriptor
 import androidx.webgpu.GPURenderPassEncoder
@@ -41,6 +45,8 @@ import androidx.webgpu.StoreOp
 import androidx.webgpu.SurfaceGetCurrentTextureStatus
 import androidx.webgpu.TextureFormat
 import androidx.webgpu.TextureUsage
+import androidx.webgpu.UncapturedErrorCallback
+import androidx.webgpu.WebGpuRuntimeException
 import androidx.webgpu.helper.WebGpu
 import androidx.webgpu.helper.createWebGpu
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +61,7 @@ import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.Executor
 import kotlin.math.min
 
 /** vec2f scale + vec2f offset, both in NDC units. */
@@ -76,6 +83,56 @@ private val PARAMS_BUFFER_SIZE = (PARAMS_SLOT * PARAMS_SLOTS).toLong()
 
 /** First scratch allocation; page uploads grow it to their padded-row size and keep it. */
 private const val STAGING_INITIAL_CAPACITY = 64 * 1024
+
+/**
+ * WebGPU's default `maxTextureDimension2D` (8192) is too low for the tall pages webtoon sources
+ * ship — single-page strips of 12000–16000 px are routine. With the helper's default device
+ * descriptor (no `requiredLimits`), Dawn caps the dimension at 8192 and `device.createTexture`
+ * throws `ValidationException` for any page taller than that; the reader eats the exception per
+ * page and shows a black screen (POCO peridot, Android 16, build 8b00e5b: "hace la animación de
+ * carga del capítulo pero no muestra imagen solo negro").
+ *
+ * 16384 is the WebGPU "default + 1" tier — every adapter that supports the 8192 default also
+ * supports 16384 per the spec, and the device's own error message names this exact value as the
+ * adapter's actual maximum. Pages taller than 16384 would need tile-split rendering, tracked
+ * separately.
+ */
+private const val MAX_TEXTURE_DIMENSION_2D = 16384
+
+/**
+ * The executor the device's error callbacks run on. Matches the androidx.webgpu.helper default:
+ * run inline on the WebGPU dispatcher thread (the helper builds its own descriptor with the same
+ * `Executor { it.run() }` — see `WebGpuUtils.getDefaultDeviceDescriptor`). We replicate it here
+ * because [GPUDeviceDescriptor]'s constructor makes the executor and callback params required.
+ */
+private val DIRECT_EXECUTOR = Executor { it.run() }
+
+/**
+ * Builds the [GPUDeviceDescriptor] the renderer hands to `createWebGpu`: asks for
+ * `maxTextureDimension2D = [MAX_TEXTURE_DIMENSION_2D]` and lets every other limit fall back to
+ * the adapter's spec defaults (a 0 in `requiredLimits` means "use default"). The error callbacks
+ * mirror the helper's defaults — surface device-lost and uncaptured errors as exceptions so the
+ * reader's `catch (e: Exception)` path turns them into the per-page error overlay instead of
+ * silently swallowing them.
+ *
+ * `internal` so the JVM regression test in `AndroidxWebGpuDeviceDescriptorTest` can assert the
+ * field without spinning up the renderer (which needs a real GPU).
+ */
+internal fun buildWebGpuDeviceDescriptor(): GPUDeviceDescriptor = GPUDeviceDescriptor(
+    deviceLostCallbackExecutor = DIRECT_EXECUTOR,
+    uncapturedErrorCallbackExecutor = DIRECT_EXECUTOR,
+    requiredLimits = GPULimits(maxTextureDimension2D = MAX_TEXTURE_DIMENSION_2D),
+    deviceLostCallback = object : DeviceLostCallback {
+        override fun onDeviceLost(device: GPUDevice, reason: Int, message: String) {
+            throw DeviceLostException(device, reason, message)
+        }
+    },
+    uncapturedErrorCallback = object : UncapturedErrorCallback {
+        override fun onUncapturedError(device: GPUDevice, type: Int, message: String) {
+            throw WebGpuRuntimeException.create(type, message)
+        }
+    },
+)
 
 /** Fullscreen-quad pipeline: scales the page texture with the uniform's NDC transform. */
 private val VIEWER_WGSL = """
@@ -249,7 +306,9 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
      */
     suspend fun start(surface: Surface, width: Int, height: Int) {
         if (isRunning) stop()
-        val environment = createWebGpu(surface = surface)
+        // Pass an explicit device descriptor (not the helper's no-requiredLimits default) so the
+        // device's maxTextureDimension2D is bumped to 16384 — see buildWebGpuDeviceDescriptor().
+        val environment = createWebGpu(surface = surface, deviceDescriptor = buildWebGpuDeviceDescriptor())
         try {
             environment.execute {
                 surfaceFormat = pickSurfaceFormat(environment.webgpuSurface.getCapabilities(environment.adapter))
