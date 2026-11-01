@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
 import android.graphics.Bitmap
-import ca.mpreg.webgpuviewer.renderer.Image
+import java.nio.ByteBuffer
 
 /**
  * Minimal lifecycle contract for the GPU-side images the reader viewer draws
@@ -36,8 +36,8 @@ interface GpuImageBackend<T> {
     suspend fun createFromBitmap(bitmap: Bitmap): T
 
     /**
-     * Creates a GPU image wrapping the pixels of the decoder frame [image] produced by
-     * the image decoder. Callers own the returned image and must [destroy] it.
+     * Creates a GPU image wrapping the pixel buffer of a decoder frame [image] produced
+     * by the image decoder. Callers own the returned image and must [destroy] it.
      */
-    suspend fun createFromImage(image: Image, width: Int, height: Int): T
+    suspend fun createFromImage(image: ByteBuffer, width: Int, height: Int): T
 }
