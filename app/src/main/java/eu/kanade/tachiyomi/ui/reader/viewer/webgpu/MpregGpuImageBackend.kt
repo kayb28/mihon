@@ -37,4 +37,8 @@ object MpregGpuImageBackend : GpuImageBackend<ImagePage> {
         val image = Image(buffer, pixels.width, pixels.height, createMipMaps = true)
         return ImagePage.ImageSingle(image)
     }
+
+    override suspend fun createFromImage(image: Image, width: Int, height: Int): ImagePage {
+        return ImagePage.ImageSingle(Image(image, width, height, createMipMaps = true))
+    }
 }

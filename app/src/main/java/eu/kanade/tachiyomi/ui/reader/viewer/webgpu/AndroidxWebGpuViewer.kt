@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,15 +15,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import ca.mpreg.imagedecoder.ImageDecoder
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
+import java.io.InputStream
 
 /**
  * Minimal paged viewer on androidx.webgpu (WebGPU migration, phase B).
@@ -124,9 +128,10 @@ class AndroidxWebGpuViewer(
     }
 
     /**
-     * Migration step: decode the page model's image stream to a bitmap and hand that bitmap
-     * to the GPU backend ([GpuImageBackend.createFromBitmap]). Only pages not yet uploaded
-     * are decoded; feeding this from the viewer decode pipeline is a later step.
+     * Migration step: decode the page model's image stream with the image decoder and hand
+     * the first full frame's image to the GPU backend ([GpuImageBackend.createFromImage]).
+     * Only pages not yet uploaded are decoded; feeding this from the viewer decode pipeline
+     * is a later step.
      */
     private fun uploadPageBitmaps() {
         val pages = chapters?.currChapter?.pages ?: return
@@ -134,18 +139,41 @@ class AndroidxWebGpuViewer(
             val needsUpload = synchronized(gpuImages) { !destroyed && page !in gpuImages }
             if (!needsUpload) continue
             uploadScope.launch {
-                val bitmap = page.stream?.let { open -> BitmapFactory.decodeStream(open()) }
-                    ?: return@launch
-                val image = imageBackend.createFromBitmap(bitmap)
-                bitmap.recycle()
-                synchronized(gpuImages) {
-                    if (destroyed) {
-                        imageBackend.destroy(image)
-                    } else {
-                        gpuImages[page] = image
-                        gpuImageCount = gpuImages.size
+                val input = page.stream?.invoke() ?: return@launch
+                try {
+                    decodeAndUpload(page, input)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logcat(LogPriority.ERROR, e) { "uploadPageBitmaps: page ${page.index}: ${e.message}" }
+                }
+            }
+        }
+    }
+
+    /** Decodes [input] and uploads the first full frame's image through [imageBackend]. */
+    private suspend fun decodeAndUpload(page: ReaderPage, input: InputStream) {
+        input.use { stream ->
+            val dec = ImageDecoder.open(stream)
+            try {
+                var frame = dec.decodeNext()
+                while (frame.partial) {
+                    frame.use { }
+                    frame = dec.decodeNext()
+                }
+                frame.use { full ->
+                    val image = imageBackend.createFromImage(full.image, full.width, full.height)
+                    synchronized(gpuImages) {
+                        if (destroyed) {
+                            imageBackend.destroy(image)
+                        } else {
+                            gpuImages[page] = image
+                            gpuImageCount = gpuImages.size
+                        }
                     }
                 }
+            } finally {
+                dec.close()
             }
         }
     }
