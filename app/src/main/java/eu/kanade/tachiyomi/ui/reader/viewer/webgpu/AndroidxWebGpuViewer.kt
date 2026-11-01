@@ -48,6 +48,12 @@ import java.io.InputStream
  * the renderer through the [GpuImageBackend] seam ([GpuImageBackend.createFromImage]) and drawn
  * aspect-fitted onto the surface. Transitions, zoom and the continuous mode stay on the ca.mpreg
  * HQ viewer until later migration phases.
+ *
+ * If this viewer cannot draw — the androidx.webgpu probe fails, or the surface bring-up throws —
+ * it hands the reader back through [requestFallback] and [ReaderActivity.requestAndroidxWebGpuFallback]
+ * rebuilds the reader on the viewer it would use with the preference off (HQ or stock), instead of
+ * stranding the user on a black surface. The handoff is one-shot per viewer and sticky per
+ * activity, so a runtime known bad is not retried on every mode change.
  */
 class AndroidxWebGpuViewer(
     val activity: ReaderActivity,
@@ -68,6 +74,10 @@ class AndroidxWebGpuViewer(
     /** True between surfaceCreated and surfaceDestroyed; guards the async bring-up. */
     @Volatile
     private var surfaceReady = false
+
+    /** Set once this viewer gave the reader back; [requestFallback] fires only once. */
+    @Volatile
+    private var fallbackRequested = false
 
     private var surfaceJob: Job? = null
 
@@ -102,6 +112,7 @@ class AndroidxWebGpuViewer(
                     throw e
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e) { "WebGPU surface bring-up failed" }
+                    requestFallback()
                 }
             }
         }
@@ -123,6 +134,7 @@ class AndroidxWebGpuViewer(
     override fun Content(modifier: Modifier) {
         LaunchedEffect(Unit) {
             probePassed = AndroidxWebGpuProbe.probe()
+            if (probePassed != true) requestFallback()
         }
         Box(
             modifier = modifier
@@ -271,5 +283,18 @@ class AndroidxWebGpuViewer(
         val index = current?.let { page -> pages.indexOfFirst { it === page } }?.takeIf { it >= 0 } ?: 0
         current = pages[(index + delta).coerceIn(pages.indices)]
         renderCurrentPage()
+    }
+
+    /**
+     * One-shot handoff to the reader: rebuild on the viewer the flag-less path would have picked.
+     * Fires when this viewer decides it cannot draw (probe failed or the surface bring-up threw),
+     * whichever thread that surfaces on — [ReaderActivity.requestAndroidxWebGpuFallback] hops to
+     * the main thread itself.
+     */
+    private fun requestFallback() {
+        if (fallbackRequested) return
+        fallbackRequested = true
+        logcat(LogPriority.WARN) { "androidx.webgpu viewer cannot draw; falling back to the HQ/stock viewer" }
+        activity.requestAndroidxWebGpuFallback()
     }
 }

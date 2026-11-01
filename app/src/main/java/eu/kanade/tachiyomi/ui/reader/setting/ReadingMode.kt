@@ -77,10 +77,12 @@ enum class ReadingMode(
             return mode.type is ViewerType.Pager
         }
 
-        fun toViewer(preference: Int?, activity: ReaderActivity): Viewer {
-            // Migration experiment: paged modes can use the androidx.webgpu stub when its
-            // preference is on. Default off: every mode keeps its current viewer below.
-            if (activity.appGraph.basePreferences.androidxWebGpuViewer.get()) {
+        fun toViewer(preference: Int?, activity: ReaderActivity, androidxWebGpuFallback: Boolean = false): Viewer {
+            // Migration experiment: paged modes can use the androidx.webgpu viewer when its
+            // preference is on, unless the reader disabled it for this session because that viewer
+            // reported its runtime unusable (probe or surface bring-up failure). Default off: every
+            // mode keeps its current viewer below.
+            if (!androidxWebGpuFallback && activity.appGraph.basePreferences.androidxWebGpuViewer.get()) {
                 val mode = fromPreference(preference)
                 if (mode.type is ViewerType.Pager) {
                     return AndroidxWebGpuViewer(

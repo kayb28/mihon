@@ -40,9 +40,10 @@ class BasePreferences(
     val highQualityRenderer: Preference<Boolean> = preferenceStore.getBoolean("pref_high_quality_renderer_key", false)
 
     /**
-     * WebGPU migration experiment: paged modes build [AndroidxWebGpuViewer] (androidx.webgpu
-     * stub) instead of the ca.mpreg HQ viewer. Off by default; the HQ path is untouched while
-     * this is false. Remove once the migration owns the paged reader.
+     * WebGPU migration experiment: paged modes build [AndroidxWebGpuViewer] (androidx.webgpu)
+     * instead of the ca.mpreg HQ viewer. Off by default; the HQ path is untouched while this is
+     * false. When the androidx.webgpu runtime cannot draw on the device, the reader falls back to
+     * the viewer below for the rest of the session. Remove once the migration owns the paged reader.
      */
     val androidxWebGpuViewer: Preference<Boolean> = preferenceStore.getBoolean("pref_androidx_webgpu_viewer_key", false)
 
