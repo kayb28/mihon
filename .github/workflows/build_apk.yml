@@ -145,3 +145,36 @@ jobs:
           path: |
             extension-mhscans/build/outputs/apk/release/*.apk
           retention-days: 30
+
+  build_emperorscan_extension:
+    name: Build Emperor Scan Extension APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      # Signs release with the debug config (same scheme as the app), so the emitted APK is
+      # installable without any keystore secrets. The module inlines the multisrc body
+      # (eu.kanade.tachiyomi.extension.es.emperorscan.imperiomanhwa.*) reconstructed from the
+      # upstream keiyoushi APK v1.6.74 — source id preserved so library entries survive.
+      - name: Build Emperor Scan extension APK
+        run: ./gradlew :extension-emperorscan:assembleRelease -Pinclude-telemetry=false
+
+      - name: Upload Emperor Scan extension APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: emperorscan-extension-apk-${{ github.sha }}
+          path: |
+            extension-emperorscan/build/outputs/apk/release/*.apk
+          retention-days: 30

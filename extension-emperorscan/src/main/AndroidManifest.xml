@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Emperor Scan extension manifest.
+
+  Meta-data follows the Tachiyomi/Mihon extension contract (read by the host's
+  ExtensionLoader at install time) and mirrors the upstream keiyoushi APK
+  v1.6.74 exactly — including NSFW=1 / contentWarning=1, because
+  imperiomanhwa.com hosts 18+ manhwa. Values must stay in sync with the
+  upstream APK so the user's source-category filters keep working unchanged.
+
+  EmperorScanUrlActivity handles https://imperiomanhwa.com/manga/<slug> deep
+  links, so "Open in app" from a shared series URL lands in Mihon's search
+  scoped to this extension.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="tachiyomi.extension" />
+
+    <application
+        android:allowBackup="false"
+        android:extractNativeLibs="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Tachiyomi: Emperor Scan">
+
+        <meta-data
+            android:name="tachiyomix.name"
+            android:value="Emperor Scan" />
+        <meta-data
+            android:name="tachiyomi.extension.class"
+            android:value="eu.kanade.tachiyomi.extension.es.emperorscan.EmperorScan" />
+        <meta-data
+            android:name="tachiyomi.extension.nsfw"
+            android:value="1" />
+        <meta-data
+            android:name="tachiyomix.contentWarning"
+            android:value="1" />
+        <meta-data
+            android:name="tachiyomix.extensionLib"
+            android:value="1.6" />
+
+        <activity
+            android:name=".EmperorScanUrlActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="imperiomanhwa.com" />
+                <data android:host="www.imperiomanhwa.com" />
+                <data android:pathPattern="/manga/..*" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
