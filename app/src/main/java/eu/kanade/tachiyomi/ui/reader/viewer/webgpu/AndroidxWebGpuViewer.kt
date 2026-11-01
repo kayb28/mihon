@@ -19,6 +19,11 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Minimal paged viewer on androidx.webgpu (WebGPU migration, phase B).
@@ -27,9 +32,10 @@ import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
  * (default OFF): when the flag is off, [eu.kanade.tachiyomi.ui.reader.setting.ReadingMode]
  * keeps building the ca.mpreg HQ viewers exactly as before.
  *
- * This stub runs the androidx.webgpu bring-up probe ([AndroidxWebGpuProbe]) and keeps
- * paging state with tap navigation. Page rendering, transitions and continuous mode stay
- * on the ca.mpreg HQ viewer until later migration phases. No ca.mpreg usage here.
+ * This stub runs the androidx.webgpu bring-up probe ([AndroidxWebGpuProbe]) and starts
+ * routing the page model's decoded bitmaps into the [GpuImageBackend] seam. Page rendering,
+ * transitions and the continuous mode stay on the ca.mpreg HQ viewer until later migration
+ * phases.
  */
 class AndroidxWebGpuViewer(
     val activity: ReaderActivity,
@@ -40,6 +46,12 @@ class AndroidxWebGpuViewer(
     private var chapters: ViewerChapters? = null
     private var current by mutableStateOf<ReaderPage?>(null)
     private var probePassed by mutableStateOf<Boolean?>(null)
+
+    private val imageBackend: GpuImageBackend<ca.mpreg.webgpuviewer.viewer.ImagePage> = MpregGpuImageBackend
+    private val gpuImages = mutableMapOf<ReaderPage, ca.mpreg.webgpuviewer.viewer.ImagePage>()
+    private var gpuImageCount by mutableStateOf(0)
+    private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var destroyed = false
 
     @Composable
     override fun Content(modifier: Modifier) {
@@ -55,7 +67,8 @@ class AndroidxWebGpuViewer(
                         val forward = if (isVertical) {
                             offset.y > size.height / 2f
                         } else {
-                            offset.x > size.width / 2f
+                            // Mirrored in RTL: the left half advances, the right half goes back.
+                            (offset.x > size.width / 2f) != isReversed
                         }
                         if (forward) moveForward() else moveBackward()
                     }
@@ -72,6 +85,7 @@ class AndroidxWebGpuViewer(
                 },
             )
             Text(current?.let { "Page ${it.index + 1}" } ?: "No page")
+            Text("GPU images: $gpuImageCount")
             Text(
                 when (probePassed) {
                     null -> "androidx.webgpu probe: running…"
@@ -86,6 +100,7 @@ class AndroidxWebGpuViewer(
     override fun setChapters(chapters: ViewerChapters) {
         this.chapters = chapters
         current = chapters.currChapter.pages?.firstOrNull()
+        uploadPageBitmaps()
     }
 
     override fun moveToPage(page: ReaderPage) {
@@ -97,8 +112,39 @@ class AndroidxWebGpuViewer(
     override fun moveBackward() = moveBy(-1)
 
     override fun destroy() {
+        destroyed = true
+        uploadScope.cancel()
         chapters = null
         current = null
+        synchronized(gpuImages) {
+            gpuImages.values.forEach { imageBackend.destroy(it) }
+            gpuImages.clear()
+        }
+    }
+
+    /**
+     * Migration step: hand the page model's decoded bitmaps to the GPU backend. Only
+     * bitmaps already present on the page model are uploaded; feeding this from the
+     * decode pipeline is a later step.
+     */
+    private fun uploadPageBitmaps() {
+        val pages = chapters?.currChapter?.pages ?: return
+        for (page in pages) {
+            val bitmap = page.bitmap ?: continue
+            val needsUpload = synchronized(gpuImages) { !destroyed && page !in gpuImages }
+            if (!needsUpload) continue
+            uploadScope.launch {
+                val image = imageBackend.createFromBitmap(bitmap)
+                synchronized(gpuImages) {
+                    if (destroyed) {
+                        imageBackend.destroy(image)
+                    } else {
+                        gpuImages[page] = image
+                        gpuImageCount = gpuImages.size
+                    }
+                }
+            }
+        }
     }
 
     private fun moveBy(delta: Int) {
