@@ -265,9 +265,22 @@ class AndroidxWebGpuContinuousViewer(
         }
     }
 
-    /** Tap zones for a vertical strip: the bottom half advances, the top half goes back. */
+    /**
+     * Delegates taps to the reader at a normalized position so the configured navigation
+     * overlay decides: the center zone opens the menu (default [Action.MENU]), the edges
+     * advance or go back per the chosen layout. Matches the stock viewers' tap hookups
+     * (PagerViewer's `pager.tapListener`, WebtoonViewer's `recycler.tapListener`), which
+     * all funnel into [ReaderActivity.onViewerTap]; a tap with no navigation overlay
+     * configured also falls back to [Action.MENU]. The previous in-viewer top/bottom-half
+     * decision meant the WebGPU continuous reader could never surface the app bars, the
+     * settings dialog or the chapter navigator.
+     */
     private fun onTap(offset: Offset, container: IntSize) {
-        if (offset.y > container.height / 2f) moveForward() else moveBackward()
+        val pos = Offset(
+            offset.x / container.width.coerceAtLeast(1),
+            offset.y / container.height.coerceAtLeast(1),
+        )
+        activity.onViewerTap(pos)
     }
 
     /** Rebuilds the document from the loaded chapters and their known page shapes. */

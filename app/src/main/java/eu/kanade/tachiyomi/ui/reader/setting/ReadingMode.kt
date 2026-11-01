@@ -85,9 +85,9 @@ enum class ReadingMode(
             // off: every mode keeps its current viewer below.
             if (!androidxWebGpuFallback && activity.appGraph.basePreferences.androidxWebGpuViewer.get()) {
                 return when (fromPreference(preference)) {
-                    LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity, isReversed = false, isVertical = false)
-                    RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity, isReversed = true, isVertical = false)
-                    VERTICAL -> AndroidxWebGpuViewer(activity, isReversed = false, isVertical = true)
+                    LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity)
+                    RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity)
+                    VERTICAL -> AndroidxWebGpuViewer(activity)
                     WEBTOON -> AndroidxWebGpuContinuousViewer(activity, useGap = false)
                     CONTINUOUS_VERTICAL -> AndroidxWebGpuContinuousViewer(activity, useGap = true)
                     DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")

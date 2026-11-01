@@ -34,11 +34,14 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
  * (default OFF): when the flag is off, [eu.kanade.tachiyomi.ui.reader.setting.ReadingMode]
  * keeps building the ca.mpreg HQ viewers exactly as before.
  *
- * The drawn page is a plain tap-and-zoom surface: taps turn pages by zone (mirrored in RTL), a
- * pinch zooms about its centroid, a one-finger drag pans a zoomed page, a double tap toggles
- * between fit and [DOUBLE_TAP_ZOOM] about the tapped point, and a long press opens the stock
- * page dialog. Every page starts fitted; zoom and pan never show empty margins around a zoomed
- * page ([AndroidxWebGpuSurfaceRenderer.setTransform] clamps per frame). While the current page
+ * The drawn page is a plain tap-and-zoom surface: taps are forwarded to
+ * [ReaderActivity.onViewerTap] at a normalized position so the configured navigation
+ * overlay decides (center opens the menu, edges advance or go back per layout — L, kindle,
+ * right-to-left, vertical), a pinch zooms about its centroid, a one-finger drag pans a
+ * zoomed page, a double tap toggles between fit and [DOUBLE_TAP_ZOOM] about the tapped
+ * point, and a long press opens the stock page dialog. Every page starts fitted;
+ * zoom and pan never show empty margins around a zoomed page
+ * ([AndroidxWebGpuSurfaceRenderer.setTransform] clamps per frame). While the current page
  * is not on the surface yet, the overlay shows its loader progress or, on failure, the stock
  * [ReaderError] whose Retry routes by the page's loader state.
  *
@@ -49,8 +52,6 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
  */
 class AndroidxWebGpuViewer(
     activity: ReaderActivity,
-    val isReversed: Boolean,
-    val isVertical: Boolean,
 ) : AndroidxWebGpuBaseViewer(activity) {
 
     /** Gesture state, main thread only: page zoom (1 fits) and pan in surface pixels. */
@@ -70,7 +71,7 @@ class AndroidxWebGpuViewer(
                         onTransform(centroid, pan, gestureZoom)
                     }
                 }
-                .pointerInput(isReversed, isVertical) {
+                .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { offset -> onTap(offset, size) },
                         onDoubleTap = ::onDoubleTap,
@@ -149,17 +150,22 @@ class AndroidxWebGpuViewer(
     }
 
     /**
-     * Turns pages by tap zone: bottom/right-half advances (top/left goes back), mirrored in RTL
-     * for horizontal modes and by screen half for vertical ones.
+     * Delegates taps to the reader at a normalized position so the configured navigation
+     * overlay decides: the center zone opens the menu (default [Action.MENU]), the edges
+     * advance or go back per the chosen layout (L / kindle / right-to-left / vertical). This
+     * matches the stock viewers' tap hookups (PagerViewer's `pager.tapListener`,
+     * WebtoonViewer's `recycler.tapListener`), which all funnel into
+     * [ReaderActivity.onViewerTap]; that is also where a tap with no navigation overlay
+     * configured falls back to [Action.MENU]. The previous in-viewer forward/backward
+     * decision meant the WebGPU readers could never surface the app bars, the settings
+     * dialog (color filter, reading mode, etc.) or the chapter navigator.
      */
     private fun onTap(offset: Offset, container: IntSize) {
-        val forward = if (isVertical) {
-            offset.y > container.height / 2f
-        } else {
-            // Mirrored in RTL: the left half advances, the right half goes back.
-            (offset.x > container.width / 2f) != isReversed
-        }
-        if (forward) moveForward() else moveBackward()
+        val pos = Offset(
+            offset.x / container.width.coerceAtLeast(1),
+            offset.y / container.height.coerceAtLeast(1),
+        )
+        activity.onViewerTap(pos)
     }
 
     /**
