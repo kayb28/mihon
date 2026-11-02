@@ -127,8 +127,8 @@ class AndroidxWebGpuContinuousViewer(
     /** Largest scroll position: document height minus viewport. Before either is known, no
      *  clamping - a chapter restore that lands before the first frame must survive. */
     private fun maxScrollPx(): Float {
-        val viewport = viewportSize.height.takeIf { it > 0 }
-            ?: imageBackend.surfaceHeightPx.takeIf { it > 0 }
+        val viewport = viewportSize.height.takeIf { it > 0 }?.toFloat()
+            ?: imageBackend.surfaceHeightPx.takeIf { it > 0 }?.toFloat()
             ?: totalHeight
         return (totalHeight - viewport).coerceAtLeast(0f)
     }
