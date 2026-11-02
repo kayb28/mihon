@@ -672,6 +672,13 @@ class ReaderActivity : BaseActivity() {
             }
             androidxWebGpuFallback = true
             updateViewer()
+            // updateViewer() alone leaves the rebuilt viewer chapter-less: the viewerChapters
+            // flow only re-emits on new ViewerChapters instances (distinctUntilChanged above),
+            // so nothing would call setChapters on the fallback viewer and the reader would sit
+            // on the loading screen forever. Re-push the current chapters like the
+            // ReloadViewerChapters handler does; a null simply means the first delivery is
+            // still on its way and that flow will populate the viewer.
+            viewModel.state.value.viewerChapters?.let(::setChapters)
         }
     }
 

@@ -4,8 +4,10 @@ import androidx.webgpu.ExperimentalWebGpuApi
 import androidx.webgpu.GPU
 import androidx.webgpu.helper.initLibrary
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Smoke probe for the androidx.webgpu runtime (WebGPU migration, phase 1).
@@ -43,8 +45,8 @@ object AndroidxWebGpuProbe {
         }
     }
 
-    private suspend fun probeRuntime(): Boolean {
-        return try {
+    private suspend fun probeRuntime(): Boolean = withContext(Dispatchers.Default) {
+        try {
             // GPU.createInstance is a native (JNI) method: the JVM can only resolve it after the
             // bundled Dawn library (libwebgpu_c_bundled.so) is loaded. The renderer's
             // createWebGpu() path does this inside androidx.webgpu.helper's internals; the probe

@@ -124,8 +124,13 @@ class AndroidxWebGpuContinuousViewer(
     private val aspects = ConcurrentHashMap<ReaderPage, Float>()
 
     /** The document: pages in reading order and each one's top offset in surface pixels. */
+    @Volatile
     private var layoutPages: List<ReaderPage> = emptyList()
+
+    @Volatile
     private var offsets: List<Float> = emptyList()
+
+    @Volatile
     private var totalHeight = 0f
 
     /** Bumped whenever the layout changes, so the scroll layer's height recomposes. */
@@ -149,7 +154,15 @@ class AndroidxWebGpuContinuousViewer(
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = { offset -> onTap(offset, size) },
-                            onLongPress = { current?.let(activity::onPageLongTap) },
+                            onLongPress = {
+                            // Same gate as the stock viewers and the HQ viewer: the long-tap
+                            // dialog is opt-in unless the menu is already open.
+                            if (activity.viewModel.state.value.menuVisible ||
+                                activity.settingsViewModel.general.value.longTapEnabled
+                            ) {
+                                current?.let(activity::onPageLongTap)
+                            }
+                        },
                         )
                     },
             ) {
@@ -228,10 +241,18 @@ class AndroidxWebGpuContinuousViewer(
         val index = layoutPages.indexOfFirst { it === page }
         if (index >= 0) {
             lastNotified = page
+            // External jumps (moveToPage, chapter re-sets) never pass through onPageScrolled
+            // at the target page — lastNotified suppresses it there — so report here or the
+            // reader would never see them (progress saving, chapter tracking).
+            activity.onPageSelected(page)
             viewerScope.launch {
                 scrollState.scrollTo(offsets[index].toInt().coerceAtLeast(0))
             }
         }
+    }
+
+    override fun onChaptersChanged() {
+        relayout()
     }
 
     override fun onWindowChanged() {

@@ -49,6 +49,7 @@ import androidx.webgpu.UncapturedErrorCallback
 import androidx.webgpu.WebGpuRuntimeException
 import androidx.webgpu.helper.WebGpu
 import androidx.webgpu.helper.createWebGpu
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -276,6 +277,9 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     val isRunning: Boolean
         get() = synchronized(lock) { webgpu != null }
 
+    /** True while [environment] is still the live one; stale jobs of a torn-down one no-op. */
+    private fun isCurrent(environment: WebGpu): Boolean = synchronized(lock) { webgpu === environment }
+
     /** Sets the page drawn by the next frame (`null` clears the surface). */
     fun setPage(image: PageImage?) {
         currentPage = image
@@ -308,7 +312,21 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         if (isRunning) stop()
         // Pass an explicit device descriptor (not the helper's no-requiredLimits default) so the
         // device's maxTextureDimension2D is bumped to 16384 — see buildWebGpuDeviceDescriptor().
-        val environment = createWebGpu(surface = surface, deviceDescriptor = buildWebGpuDeviceDescriptor())
+        val environment = try {
+            createWebGpu(surface = surface, deviceDescriptor = buildWebGpuDeviceDescriptor())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Some adapters only expose the WebGPU spec default for maxTextureDimension2D (8192)
+            // and reject a device request for more. Losing WebGPU entirely over a page-size
+            // limit is worse than the lower ceiling: retry on the helper's default descriptor
+            // and let pages taller than 8192 fail per page (their error overlay says why). Any
+            // other bring-up failure fails again here and surfaces to the viewer's fallback.
+            logcat(LogPriority.WARN, e) {
+                "device request with maxTextureDimension2D=16384 failed; retrying with adapter defaults"
+            }
+            createWebGpu(surface = surface)
+        }
         try {
             environment.execute {
                 surfaceFormat = pickSurfaceFormat(environment.webgpuSurface.getCapabilities(environment.adapter))
@@ -366,7 +384,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         renderScope.launch {
             renderMutex.withLock {
                 environment.execute {
-                    if (stopped) return@execute
+                    if (stopped || !isCurrent(environment)) return@execute
                     surfaceWidth = w
                     surfaceHeight = h
                     surfaceWidthPx = w
@@ -384,7 +402,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         renderScope.launch {
             renderMutex.withLock {
                 environment.execute {
-                    if (stopped) return@execute
+                    if (stopped || !isCurrent(environment)) return@execute
                     drawFrame(environment)
                 }
             }
@@ -772,6 +790,12 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             // Some decoder buffers arrive positioned at 0 without remaining() set.
             source.rewind()
         }
+        require(source.remaining() >= rowBytes * height) {
+            "Pixel buffer holds ${source.remaining()} bytes, need ${rowBytes * height} for ${width}x$height"
+        }
+        // The buffer's meaningful end: limit() is restored to it after every row below —
+        // capacity is not the data end for every decoder buffer.
+        val sourceEnd = source.limit()
         if (rowBytes % TEXTURE_COPY_ALIGNMENT == 0) {
             device.queue.writeTexture(
                 destination = GPUTexelCopyTextureInfo(texture = texture),
@@ -787,7 +811,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         repeat(height) {
             source.limit(source.position() + rowBytes)
             staging.put(source)
-            source.limit(source.capacity())
+            source.limit(sourceEnd)
             // Rows must land on the padded stride: put() advances by rowBytes only, so skip to
             // the next row's aligned start (the same slot-stride trick the uniform writes use).
             staging.position(staging.position() + paddedRowBytes - rowBytes)

@@ -29,6 +29,7 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import java.io.InputStream
+import kotlin.math.min
 
 /** What the Compose layer draws over the surface while a page is not on it (yet). */
 internal sealed interface PagePresentation {
@@ -120,6 +121,9 @@ abstract class AndroidxWebGpuBaseViewer(
     /** Runs when the current page changed, before the window re-anchors on it. */
     protected open fun onCurrentChanged() {}
 
+    /** Runs at the end of every [setChapters], even when it kept the current page. */
+    protected open fun onChaptersChanged() {}
+
     /** Runs at the end of every [updatePageWindow]: draw the surface from the page cache. */
     protected open fun onWindowChanged() {}
 
@@ -159,7 +163,11 @@ abstract class AndroidxWebGpuBaseViewer(
                     updatePageWindow()
                 } catch (e: CancellationException) {
                     throw e
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
+                    // Throwable, not Exception: the bring-up chain can throw LinkageErrors
+                    // (UnsatisfiedLinkError and friends are Errors, not Exceptions — the very
+                    // failure family that crashed the probe before it was hardened), and one
+                    // escaping this coroutine would kill the reader instead of falling back.
                     logcat(LogPriority.ERROR, e) { "WebGPU surface bring-up failed" }
                     requestFallback()
                 }
@@ -224,8 +232,27 @@ abstract class AndroidxWebGpuBaseViewer(
 
     final override fun setChapters(chapters: ViewerChapters) {
         this.loadedChapters = chapters
-        current = chapters.currChapter.pages?.firstOrNull()
-        onCurrentChanged()
+        val pages = buildList {
+            chapters.prevChapter?.let { addAll(it.pages.orEmpty()) }
+            addAll(chapters.currChapter.pages.orEmpty())
+            chapters.nextChapter?.let { addAll(it.pages.orEmpty()) }
+        }
+        // Re-setting the chapters must not move the reader (same as the stock viewers): keep
+        // the current page when it survived the swap — a chapter crossing or a reload replaces
+        // the ViewerChapters mid-read. Only anchor on the chapter's requestedPage (where the
+        // loader records lastPageRead, so a partially read chapter resumes where it stopped)
+        // when nothing shows yet or the page the reader was on is gone for good.
+        val previous = current
+        if (previous == null || pages.none { it === previous }) {
+            val currPages = chapters.currChapter.pages
+            current = if (currPages.isNullOrEmpty()) {
+                null
+            } else {
+                currPages[min(chapters.currChapter.requestedPage, currPages.lastIndex)]
+            }
+        }
+        if (current !== previous) onCurrentChanged()
+        onChaptersChanged()
         updatePageWindow()
     }
 
@@ -505,16 +532,13 @@ abstract class AndroidxWebGpuBaseViewer(
                 }
                 frame.use { full ->
                     val image = imageBackend.createFromImage(full.image, full.width, full.height)
+                    var rejected: AndroidxWebGpuSurfaceRenderer.PageImage? = null
                     val stored = synchronized(gpuImages) {
                         when {
-                            destroyed -> {
-                                imageBackend.destroy(image)
-                                false
-                            }
-
-                            // The chapters swapped while this page decoded: it is gone for good.
-                            readingOrder[page] == null -> {
-                                imageBackend.destroy(image)
+                            // Torn down, or the chapters swapped while this page decoded and it
+                            // is gone for good: reject the upload.
+                            destroyed || readingOrder[page] == null -> {
+                                rejected = image
                                 false
                             }
 
@@ -527,6 +551,9 @@ abstract class AndroidxWebGpuBaseViewer(
                             }
                         }
                     }
+                    // destroy() drains through the WebGPU dispatcher: keep that blocking wait
+                    // off the gpuImages monitor, like trimCache does.
+                    rejected?.let(imageBackend::destroy)
                     if (stored) {
                         onPageStored(page)
                         trimCache()
