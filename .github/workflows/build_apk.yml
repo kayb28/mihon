@@ -59,7 +59,7 @@ jobs:
           fi
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease -Pdist=ci
+        run: ./gradlew assembleRelease -Pdist=ci -Pinclude-telemetry=false
 
       - name: Upload Release APKs
         uses: actions/upload-artifact@v4
@@ -103,7 +103,7 @@ jobs:
           fi
 
       - name: Build Unminified APK
-        run: ./gradlew assembleRelease -Pdist=ci -PdisableMinify=true
+        run: ./gradlew assembleRelease -Pdist=ci -Pinclude-telemetry=false -PdisableMinify=true
 
       - name: Upload Unminified APKs
         uses: actions/upload-artifact@v4
