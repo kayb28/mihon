@@ -29,6 +29,14 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
     @Composable
     override fun Content(modifier: Modifier) {
         // Same viewport capture as the base: the node the strip fills, insets included.
+        //
+        // Modifier chain, verified against the decompiled library: the reader hands us
+        // fillMaxSize().windowInsetsPadding(insets) and this is passed through untouched;
+        // ImageViewerContinuous appends its own fillMaxSize + pointerInput and gives the
+        // result to ViewerSurface. So the gesture node IS the viewport-sized box and the
+        // tap offset it reports is viewport-local - the strip's document height never
+        // sizes a composable on our side (the long content lives inside the library's
+        // renderer, not in a Column we lay out).
         ImageViewerContinuous(
             modifier = modifier
                 .onSizeChanged { viewportSize = it }

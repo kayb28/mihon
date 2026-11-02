@@ -837,48 +837,55 @@ open class WebGpuViewer(
             }
 
             onTap = { offset ->
-                // ca.mpreg normalizes the tap by its own state.width/height (the surface it
-                // initialized/resized), so offset * size is the tap back in the library's
-                // pixel space. Zone matching needs VIEWPORT fractions instead:
+                // ca.mpreg delivers the tap as a fraction of its own state.width/height -
+                // the SURFACE BUFFER size (ViewerSurface -> renderer), which can differ
+                // from the screen. Multiplying back yields the tap in the gesture node's
+                // own pixels; decompiling the library shows that node is the reader
+                // viewport itself (the reader's fillMaxSize chain is what the library
+                // fills and hangs its pointerInput on), so localX/localY are
+                // viewport-local coordinates:
                 //
-                //   zonePos = Offset(rawX / viewportW, rawY / viewportH)
+                //   localX = offset.x * bufW        localY = offset.y * bufH
                 //
-                // where the viewport is the node the viewer fills (screen minus the reader
-                // insets) - captured by [viewportSize], display metrics as a fallback.
+                // Zones are decided in VIEWPORT fractions, never in strip/content space:
                 //
-                // The long strip adds one wrinkle: continuous states can report the WHOLE
-                // strip as their height (hundreds of thousands of px, e.g. 268919), which
-                // makes rawY a content-space Y - the tap's distance from the strip's top,
-                // not from the screen's. The library exposes that scroll as documentY, so
-                // converting back is rawY - documentY. The buffer height tells the two
-                // apart: a surface can never be 1.5x the viewport, content always is (a
-                // one-page strip sits at documentY 0 where the subtraction is a no-op).
-                // The paged viewers are always viewport-sized, so this is a pass-through
-                // for them - and rawX/viewportW keeps the buffer-to-screen rescale that
-                // fixed the X axis (it reduces to offset.x * bufW / screenWidth there).
+                //   zonePos = Offset(localX / viewportW, localY / viewportH)
+                //
+                // viewportSize is the reader node measured by onSizeChanged (display
+                // metrics only until first layout). localX/viewportW keeps the
+                // buffer-to-screen rescale that fixed the X axis - it reduces to
+                // offset.x * bufW / screenWidth whenever the viewport spans the screen.
+                //
+                // The strip's scroll (documentY: the content-space Y of the viewport top)
+                // belongs to the RENDER path alone - the renderer maps
+                // contentY = documentY + localY into its strip buffer, and the library
+                // owns that conversion. Zones must not touch documentY: subtracting it
+                // here would drag the zone toward the chapter's top as the user scrolls
+                // (a center tap far down the strip would resolve above the PREV line).
+                // contentY is only logged so the live probe shows the separation.
                 val dm = activity.resources.displayMetrics
                 val bufW = viewerState.width
                 val bufH = viewerState.height
                 val vpW = viewportSize.width.takeIf { it > 0 } ?: dm.widthPixels
                 val vpH = viewportSize.height.takeIf { it > 0 } ?: dm.heightPixels
                 val scrollY = contentScrollY
+                val localX = offset.x * bufW
+                val localY = offset.y * bufH
                 val pos = if (bufW > 0 && bufH > 0 && vpW > 0 && vpH > 0) {
-                    val rawX = offset.x * bufW
-                    val rawY = offset.y * bufH
-                    val tapY = if (bufH >= vpH * 1.5f) rawY - scrollY else rawY
                     Offset(
-                        (rawX / vpW).coerceIn(0f, 1f),
-                        (tapY / vpH).coerceIn(0f, 1f),
+                        (localX / vpW).coerceIn(0f, 1f),
+                        (localY / vpH).coerceIn(0f, 1f),
                     )
                 } else {
                     // No surface size yet: treat the library fraction as viewport-space.
                     Offset(offset.x.coerceIn(0f, 1f), offset.y.coerceIn(0f, 1f))
                 }
+                val contentY = scrollY + localY
                 // [DIAGNOSTIC probe 1] library offset + every space the decision uses.
                 // Kept (per request) until the overlay menu is confirmed working.
                 val probe =
                     "① tap=(${offset.x}, ${offset.y}) buf=${bufW}x${bufH} scr=${dm.widthPixels}x${dm.heightPixels} " +
-                        "viewport=${vpW}x${vpH} scroll=${scrollY.toInt()}"
+                        "viewport=${vpW}x${vpH} scroll=${scrollY.toInt()} contentY=${contentY.toInt()}"
                 Log.d(TAG, "$probe -> pos=(${pos.x}, ${pos.y})")
                 Toast.makeText(activity, probe, Toast.LENGTH_LONG).show()
                 activity.onViewerTap(pos)
