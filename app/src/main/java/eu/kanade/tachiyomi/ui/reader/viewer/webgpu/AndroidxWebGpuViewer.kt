@@ -145,6 +145,10 @@ class AndroidxWebGpuViewer(
      */
     override fun onCurrentChanged() {
         resetZoom()
+        // Stock pager behavior (PagerViewer's onPageSelected): a settled page turn hides the
+        // menu, unless the user is dragging through pages with the slider. Without this the
+        // menu stayed up after every tap-zone turn.
+        if (!activity.isScrollingThroughPages) activity.hideMenu()
         current?.let(activity::onPageSelected)
     }
 

@@ -820,8 +820,6 @@ class ReaderActivity : BaseActivity() {
      * viewer because each one implements its own touch and key events.
      */
     fun toggleMenu() {
-        // [DIAGNOSTIC probe 3] Menu visibility flip requested by the tap.
-        Toast.makeText(this, "③ toggleMenu → visible=${!viewModel.state.value.menuVisible}", Toast.LENGTH_SHORT).show()
         setMenuVisibility(!viewModel.state.value.menuVisible)
     }
 
@@ -838,8 +836,6 @@ class ReaderActivity : BaseActivity() {
      * Called from the viewer to hide the menu.
      */
     fun hideMenu() {
-        // [DIAGNOSTIC probe 4] Catches anything closing the menu right after probe 3.
-        Toast.makeText(this, "④ hideMenu", Toast.LENGTH_SHORT).show()
         if (viewModel.state.value.menuVisible) {
             setMenuVisibility(false)
         }

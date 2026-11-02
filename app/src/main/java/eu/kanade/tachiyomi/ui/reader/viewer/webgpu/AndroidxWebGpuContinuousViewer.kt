@@ -1,17 +1,22 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
-import androidx.compose.foundation.ScrollState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -19,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
@@ -34,11 +40,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import mihon.app.di.appGraph
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
 import android.view.Choreographer
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.abs
 
 /** Pages uploaded behind the scroll position; a screen shows parts of a few pages at once. */
 private const val CONTINUOUS_PRELOAD_BEHIND = 2
@@ -62,13 +70,23 @@ private const val CHAPTER_GAP_FRACTION = 0.1f
  *
  * The three loaded chapters are laid out as one long strip at surface width, pages stacked by
  * their decoded aspect (an assumed one until their texture arrives). One Compose scroll layer
- * owns the drag and fling gestures and the document height; the surface beneath it is redrawn
- * per scroll tick with every page intersecting the viewport ([PageDraw] placements), so the GPU
- * draws exactly what a scroll position shows. The page holding the viewport center is the
- * current one: it re-anchors the shared page window and reports to the reader through
- * [ReaderActivity.onPageSelected] like the HQ viewer does. Overlays ride the document: a page
- * still loading shows its spinner at its own position, and a failed one the stock [ReaderError]
- * with its Retry, both scrolling with the strip.
+ * owns the drag and fling gestures; the surface beneath it is redrawn per scroll tick with every
+ * page intersecting the viewport ([PageDraw] placements), so the GPU draws exactly what a scroll
+ * position shows. The page holding the viewport center is the current one: it re-anchors the
+ * shared page window and reports to the reader through [ReaderActivity.onPageSelected] like the
+ * HQ viewer does. Overlays ride the document: a page still loading shows its spinner at its own
+ * position, and a failed one the stock [ReaderError] with its Retry, both scrolling with the
+ * strip.
+ *
+ * The scroll position is a plain float ([scrollPos]), never a composable's measured height: a
+ * `verticalScroll` document sized to the strip's full pixel height overflows Compose's
+ * constraint limits on long chapters (build 39 crashed measuring a 274869px box with
+ * "Can't represent a width of 0 and height of 274869 in Constraints"), so the document exists
+ * only as numbers - the gesture layer is viewport-sized and the loading/error overlays are
+ * windowed to what the viewport currently shows.
+ *
+ * Like the stock webtoon tracker ([eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonPageTracker]),
+ * scrolling past the user's hide threshold hides the reader menu while it is up.
  *
  * Work in progress behind [eu.kanade.domain.base.BasePreferences.androidxWebGpuViewer]
  * (default OFF): when the flag is off, [eu.kanade.tachiyomi.ui.reader.setting.ReadingMode] keeps
@@ -86,12 +104,39 @@ class AndroidxWebGpuContinuousViewer(
 
     override val cacheSize: Int get() = CONTINUOUS_CACHE_SIZE
 
-    private val scrollState = ScrollState(0)
+    /** Document scroll position in surface pixels. The whole strip lives in this float; no
+     *  composable is ever measured at the document height, so chapter length cannot overflow
+     *  Compose's constraint limits (see the class doc for the build 39 crash). */
+    private var scrollPos by mutableFloatStateOf(0f)
+
+    /** The gesture layer, wired to [scrollPos] through [maxScrollPx] clamping. Drag and fling
+     *  both funnel into [scrollPos]; every reader reads back the same number. */
+    private val scrollableState = ScrollableState { delta ->
+        val target = (scrollPos + delta).coerceIn(0f, maxScrollPx())
+        val consumed = target - scrollPos
+        if (consumed != 0f) scrollPos = target
+        consumed
+    }
+
+    /** The gesture layer's pixel size, for scroll clamping before the surface reports its own. */
+    private var viewportSize by mutableStateOf(IntSize.Zero)
+
+    /** Position before the last scroll tick, for the menu auto-hide delta. */
+    private var lastScrollForMenu = 0f
+
+    /** Largest scroll position: document height minus viewport. Before either is known, no
+     *  clamping - a chapter restore that lands before the first frame must survive. */
+    private fun maxScrollPx(): Float {
+        val viewport = viewportSize.height.takeIf { it > 0 }
+            ?: imageBackend.surfaceHeightPx.takeIf { it > 0 }
+            ?: totalHeight
+        return (totalHeight - viewport).coerceAtLeast(0f)
+    }
 
     /**
      * Frame clock for [viewerScope]'s scroll animations.
      *
-     * `ScrollState.animateScrollTo` drives a frame-based animation that needs
+     * `animateScrollBy` drives a frame-based animation that needs
      * a [MonotonicFrameClock] in the coroutine context. Inside a composition
      * the clock is supplied by AndroidUiDispatcher, but this scope runs on the
      * plain Main dispatcher — without a clock, `shiftPage` crashed with
@@ -143,14 +188,23 @@ class AndroidxWebGpuContinuousViewer(
     override fun Content(modifier: Modifier) {
         val density = LocalDensity.current
         val context = LocalContext.current
-        // Reads the version so a relayout recomposes the scroll layer's height.
+        // Reads the version so a relayout recomposes the overlay window.
         val version = layoutVersion
-        Box(modifier = modifier.fillMaxSize()) {
+        val flingBehavior = ScrollableDefaults.flingBehavior()
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .onSizeChanged { viewportSize = it },
+        ) {
             SurfaceHost(Modifier.fillMaxSize(), surfaceDescription(current))
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
+                    .scrollable(
+                        state = scrollableState,
+                        orientation = Orientation.Vertical,
+                        flingBehavior = flingBehavior,
+                    )
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = { offset -> onTap(offset, size) },
@@ -166,68 +220,75 @@ class AndroidxWebGpuContinuousViewer(
                         )
                     },
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(with(density) { totalHeight.toInt().coerceAtLeast(0).toDp() }),
-                ) {
-                    layoutPages.forEachIndexed { index, page ->
-                        val state = presentation[page] ?: return@forEachIndexed
-                        val pageHeight = with(density) { pageHeightPx(index).toInt().toDp() }
-                        val pageTop = with(density) { offsets[index].toInt().coerceAtLeast(0).toDp() }
-                        when (state) {
-                            is PagePresentation.Failed -> Box(
-                                modifier = Modifier
-                                    .absoluteOffset(y = pageTop)
-                                    .fillMaxWidth()
-                                    .height(pageHeight),
-                            ) {
-                                ReaderError(
-                                    message = with(context) { state.error.formattedMessage },
-                                    onRetry = { retryPageLoad(page) },
-                                    onOpenInWebView = page.imageUrl
-                                        ?.takeIf { it.startsWith("http", ignoreCase = true) }
-                                        ?.let { url ->
-                                            {
-                                                context.startActivity(
-                                                    WebViewActivity.newIntent(
-                                                        context,
-                                                        url,
-                                                        activity.viewModel.manga?.source,
-                                                    ),
-                                                )
-                                            }
-                                        },
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-
-                            is PagePresentation.Loading, PagePresentation.Uploading -> Box(
-                                modifier = Modifier
-                                    .absoluteOffset(y = pageTop)
-                                    .fillMaxWidth()
-                                    .height(pageHeight),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                CombinedCircularProgressIndicator(
-                                    progress = {
-                                        if (state is PagePresentation.Loading) {
-                                            state.progress.coerceAtLeast(0) / 100f
-                                        } else {
-                                            0f
+                // Overlays are windowed to the viewport: only pages intersecting
+                // [scrollPos, scrollPos + viewportHeight) compose, each placed at its document
+                // offset minus the scroll. Nothing is ever measured at the strip's full height
+                // (a long chapter overflowed Compose's constraint limits - build 39 crashed with
+                // "Can't represent a width of 0 and height of 274869 in Constraints").
+                val scroll = scrollPos
+                val viewportBottom = scroll + viewportSize.height.coerceAtLeast(1)
+                layoutPages.forEachIndexed { index, page ->
+                    val state = presentation[page] ?: return@forEachIndexed
+                    if (state is PagePresentation.Drawn) return@forEachIndexed
+                    val pageTop = offsets[index]
+                    val pageHeight = pageHeightPx(index)
+                    if (pageTop + pageHeight <= scroll || pageTop >= viewportBottom) {
+                        return@forEachIndexed
+                    }
+                    val heightDp = with(density) { pageHeight.toInt().coerceAtLeast(1).toDp() }
+                    val topDp = with(density) { (pageTop - scroll).toInt().toDp() }
+                    when (state) {
+                        is PagePresentation.Failed -> Box(
+                            modifier = Modifier
+                                .absoluteOffset(y = topDp)
+                                .fillMaxWidth()
+                                .height(heightDp),
+                        ) {
+                            ReaderError(
+                                message = with(context) { state.error.formattedMessage },
+                                onRetry = { retryPageLoad(page) },
+                                onOpenInWebView = page.imageUrl
+                                    ?.takeIf { it.startsWith("http", ignoreCase = true) }
+                                    ?.let { url ->
+                                        {
+                                            context.startActivity(
+                                                WebViewActivity.newIntent(
+                                                    context,
+                                                    url,
+                                                    activity.viewModel.manga?.source,
+                                                ),
+                                            )
                                         }
                                     },
-                                )
-                            }
-
-                            PagePresentation.Drawn -> {}
+                                modifier = Modifier.fillMaxSize(),
+                            )
                         }
+
+                        is PagePresentation.Loading, PagePresentation.Uploading -> Box(
+                            modifier = Modifier
+                                .absoluteOffset(y = topDp)
+                                .fillMaxWidth()
+                                .height(heightDp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CombinedCircularProgressIndicator(
+                                progress = {
+                                    if (state is PagePresentation.Loading) {
+                                        state.progress.coerceAtLeast(0) / 100f
+                                    } else {
+                                        0f
+                                    }
+                                },
+                            )
+                        }
+
+                        PagePresentation.Drawn -> {}
                     }
                 }
             }
         }
         LaunchedEffect(Unit) {
-            snapshotFlow { scrollState.value }.collect { onPageScrolled() }
+            snapshotFlow { scrollPos }.collect { onPageScrolled() }
         }
     }
 
@@ -246,7 +307,7 @@ class AndroidxWebGpuContinuousViewer(
             // reader would never see them (progress saving, chapter tracking).
             activity.onPageSelected(page)
             viewerScope.launch {
-                scrollState.scrollTo(offsets[index].toInt().coerceAtLeast(0))
+                snapScrollTo(offsets.getOrNull(index)?.coerceAtLeast(0f) ?: return@launch)
             }
         }
     }
@@ -282,7 +343,16 @@ class AndroidxWebGpuContinuousViewer(
         val target = (index + delta).coerceIn(layoutPages.indices)
         if (target == index) return
         viewerScope.launch {
-            scrollState.animateScrollTo(offsets[target].toInt().coerceAtLeast(0))
+            val targetOffset = offsets.getOrNull(target)?.coerceAtLeast(0f) ?: return@launch
+            scrollableState.animateScrollBy(targetOffset - scrollPos, tween(durationMillis = 200))
+        }
+    }
+
+    /** Jumps the document to [target], going through [scrollableState] so any fling in
+     *  progress finishes first and the position passes through the same clamping. */
+    private suspend fun snapScrollTo(target: Float) {
+        scrollableState.scroll {
+            scrollBy(target - scrollPos)
         }
     }
 
@@ -341,12 +411,28 @@ class AndroidxWebGpuContinuousViewer(
             activity.onPageSelected(page)
         }
         drawVisible()
+        hideMenuOnScroll()
+    }
+
+    /**
+     * The stock webtoon viewer hides the menu once a scroll goes past the user's hide
+     * threshold (WebtoonPageTracker.onScrolledBy); without the same hook here the menu
+     * stayed up forever while scrolling, and reading on after opening it needed a second
+     * tap. Mirrors that behavior: only while the menu is up, only past the threshold.
+     */
+    private fun hideMenuOnScroll() {
+        val dy = scrollPos - lastScrollForMenu
+        lastScrollForMenu = scrollPos
+        val hideThreshold = activity.appGraph.readerPreferences.readerHideThreshold.get().threshold
+        if (abs(dy) > hideThreshold && activity.viewModel.state.value.menuVisible) {
+            activity.hideMenu()
+        }
     }
 
     /** The page holding the viewport center: the one the reader is on. */
     private fun pageAtCenter(): ReaderPage? {
         if (layoutPages.isEmpty()) return null
-        val center = scrollState.value + imageBackend.surfaceHeightPx / 2
+        val center = scrollPos + imageBackend.surfaceHeightPx / 2
         var lo = 0
         var hi = layoutPages.lastIndex
         var index = 0
@@ -371,7 +457,7 @@ class AndroidxWebGpuContinuousViewer(
         }
         val width = imageBackend.surfaceWidthPx.coerceAtLeast(1)
         val viewport = imageBackend.surfaceHeightPx.coerceAtLeast(1)
-        val scroll = scrollState.value.coerceAtLeast(0).toFloat()
+        val scroll = scrollPos.coerceAtLeast(0f)
         val top = scroll
         val bottom = scroll + viewport
         val draws = ArrayList<AndroidxWebGpuSurfaceRenderer.PageDraw>()
