@@ -303,7 +303,7 @@ class RepairLinksScreen : Screen() {
                         text = stringResource(
                             MR.strings.repair_links_confirm_message,
                             state.matchFoundCount,
-                        )
+                        ),
                     )
                 },
                 confirmButton = {
