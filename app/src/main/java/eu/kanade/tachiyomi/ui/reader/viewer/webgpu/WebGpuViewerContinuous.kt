@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import ca.mpreg.webgpuviewer.viewer.ImagePage
 import ca.mpreg.webgpuviewer.viewer.ImageViewerContinuous
 import ca.mpreg.webgpuviewer.viewer.ImageViewerContinuousState
@@ -27,7 +28,13 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
 
     @Composable
     override fun Content(modifier: Modifier) {
-        ImageViewerContinuous(modifier = modifier.mouseWheelPaging(this), state = state)
+        // Same viewport capture as the base: the node the strip fills, insets included.
+        ImageViewerContinuous(
+            modifier = modifier
+                .onSizeChanged { viewportSize = it }
+                .mouseWheelPaging(this),
+            state = state,
+        )
     }
 
     init {

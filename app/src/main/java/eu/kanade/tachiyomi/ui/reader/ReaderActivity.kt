@@ -544,13 +544,11 @@ class ReaderActivity : BaseActivity() {
         val nav = settingsViewModel.navigation.value
         val action = nav?.getAction(pos) ?: Action.MENU
         // [DIAGNOSTIC probe 2] exact position reaching the decision, matched region
-        // (rect is AFTER inversion), and resolved action.
+        // (rect is AFTER inversion), and resolved action. Same text goes to logcat.
         val region = nav?.getRegions()?.find { pos in it.rect }
-        Toast.makeText(
-            this,
-            "② pos=(${pos.x}, ${pos.y}) → $action zona=${region?.type} rect=${region?.rect}",
-            Toast.LENGTH_LONG,
-        ).show()
+        val probe = "② pos=(${pos.x}, ${pos.y}) → $action zona=${region?.type} rect=${region?.rect}"
+        logcat(LogPriority.DEBUG) { probe }
+        Toast.makeText(this, probe, Toast.LENGTH_LONG).show()
         when (action) {
             Action.MENU -> toggleMenu()
             Action.FORWARD -> viewer?.moveForward()

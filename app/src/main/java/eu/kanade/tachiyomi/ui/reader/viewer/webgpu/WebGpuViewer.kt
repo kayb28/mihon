@@ -3,10 +3,13 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 import android.content.Context
 import android.graphics.Rect
 import android.os.SystemClock
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import ca.mpreg.imagedecoder.ImageDecoder
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
@@ -80,6 +83,8 @@ private const val STREAM_WAIT_MS = 1000L
 
 /** Least time between feeds, so a trickle of small reads decodes and uploads in batches. */
 private const val STREAM_BATCH_MS = 33L
+
+private const val TAG = "WebGpuViewer"
 
 open class WebGpuViewer(
     val activity: ReaderActivity,
@@ -308,6 +313,20 @@ open class WebGpuViewer(
         get() = paged.page.zoomStart.position(
             auto = if (isReversed) ZoomStartPosition.RIGHT else ZoomStartPosition.LEFT,
         )
+
+    /**
+     * The reader viewport in pixels: the node the viewer actually fills (screen minus the
+     * reader's insets). Captured from Content's own modifier - never the display metrics,
+     * which include system bars the reader may not use. Falls back to them until first layout.
+     */
+    protected var viewportSize: IntSize = IntSize.Zero
+
+    /**
+     * Scroll position of the viewport's top edge in the library's content space (the long
+     * strip's document coordinates). Zero for the paged viewers, which have no strip.
+     */
+    protected val contentScrollY: Float
+        get() = (viewerState as? ImageViewerContinuousState)?.documentY ?: 0f
 
     // Read from the render and decode threads, via the prevChapter/nextChapter getters.
     @Volatile
@@ -818,29 +837,50 @@ open class WebGpuViewer(
             }
 
             onTap = { offset ->
-                // ca.mpreg divides the raw pointer position by state.width/height - the
-                // SURFACE BUFFER size (ViewerSurface.onSurface -> state.resize), which
-                // can differ from the screen. A buffer wider than the screen shrinks the
-                // fraction, so a center tap lands as a tiny value (top-left -> BACKWARD),
-                // exactly the reported symptom. Rescale from buffer space to screen
-                // space; when the buffer matches the screen this is a pass-through.
+                // ca.mpreg normalizes the tap by its own state.width/height (the surface it
+                // initialized/resized), so offset * size is the tap back in the library's
+                // pixel space. Zone matching needs VIEWPORT fractions instead:
+                //
+                //   zonePos = Offset(rawX / viewportW, rawY / viewportH)
+                //
+                // where the viewport is the node the viewer fills (screen minus the reader
+                // insets) - captured by [viewportSize], display metrics as a fallback.
+                //
+                // The long strip adds one wrinkle: continuous states can report the WHOLE
+                // strip as their height (hundreds of thousands of px, e.g. 268919), which
+                // makes rawY a content-space Y - the tap's distance from the strip's top,
+                // not from the screen's. The library exposes that scroll as documentY, so
+                // converting back is rawY - documentY. The buffer height tells the two
+                // apart: a surface can never be 1.5x the viewport, content always is (a
+                // one-page strip sits at documentY 0 where the subtraction is a no-op).
+                // The paged viewers are always viewport-sized, so this is a pass-through
+                // for them - and rawX/viewportW keeps the buffer-to-screen rescale that
+                // fixed the X axis (it reduces to offset.x * bufW / screenWidth there).
                 val dm = activity.resources.displayMetrics
                 val bufW = viewerState.width
                 val bufH = viewerState.height
-                val pos = if (bufW > 0 && bufH > 0 && (bufW != dm.widthPixels || bufH != dm.heightPixels)) {
+                val vpW = viewportSize.width.takeIf { it > 0 } ?: dm.widthPixels
+                val vpH = viewportSize.height.takeIf { it > 0 } ?: dm.heightPixels
+                val scrollY = contentScrollY
+                val pos = if (bufW > 0 && bufH > 0 && vpW > 0 && vpH > 0) {
+                    val rawX = offset.x * bufW
+                    val rawY = offset.y * bufH
+                    val tapY = if (bufH >= vpH * 1.5f) rawY - scrollY else rawY
                     Offset(
-                        (offset.x * bufW / dm.widthPixels).coerceIn(0f, 1f),
-                        (offset.y * bufH / dm.heightPixels).coerceIn(0f, 1f),
+                        (rawX / vpW).coerceIn(0f, 1f),
+                        (tapY / vpH).coerceIn(0f, 1f),
                     )
                 } else {
-                    offset
+                    // No surface size yet: treat the library fraction as viewport-space.
+                    Offset(offset.x.coerceIn(0f, 1f), offset.y.coerceIn(0f, 1f))
                 }
-                // [DIAGNOSTIC probe 1] library offset + buffer vs screen size.
-                Toast.makeText(
-                    activity,
-                    "① tap=(${offset.x}, ${offset.y}) buf=${bufW}x${bufH} scr=${dm.widthPixels}x${dm.heightPixels}",
-                    Toast.LENGTH_LONG,
-                ).show()
+                // [DIAGNOSTIC probe 1] library offset + every space the decision uses.
+                // Kept (per request) until the overlay menu is confirmed working.
+                val probe =
+                    "① tap=(${offset.x}, ${offset.y}) buf=${bufW}x${bufH} scr=${dm.widthPixels}x${dm.heightPixels} " +
+                        "viewport=${vpW}x${vpH} scroll=${scrollY.toInt()}"
+                Log.d(TAG, "$probe -> pos=(${pos.x}, ${pos.y})")
+                Toast.makeText(activity, probe, Toast.LENGTH_LONG).show()
                 activity.onViewerTap(pos)
             }
 
@@ -1026,7 +1066,14 @@ open class WebGpuViewer(
 
     @Composable
     override fun Content(modifier: Modifier) {
-        ImageViewer(modifier = modifier.mouseWheelPaging(this), state = viewerState)
+        // The viewport is whatever this node ends up being - the reader passes fillMaxSize
+        // plus its insets, so this is the true tap-zone space.
+        ImageViewer(
+            modifier = modifier
+                .onSizeChanged { viewportSize = it }
+                .mouseWheelPaging(this),
+            state = viewerState,
+        )
     }
 
     private val cropBorders: Boolean
