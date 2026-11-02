@@ -22,6 +22,7 @@ data class UpdateError(
     val message: String? = null,
     val type: ErrorType,
     val timestamp: Long = System.currentTimeMillis(),
+    val retryCount: Int = 0,
 ) {
     @Serializable
     enum class ErrorType {
@@ -52,8 +53,58 @@ class UpdateErrorStore(
         return _errorsFlow.value.mapTo(HashSet()) { it.mangaId }
     }
 
+    /**
+     * Reemplaza todos los errores (comportamiento original).
+     */
     @Synchronized
     fun setErrors(errors: List<UpdateError>) {
+        saveToFile(errors)
+    }
+
+    /**
+     * Merge de errores nuevos con los existentes.
+     * Los errores de la misma manga se actualizan (no duplican).
+     */
+    @Synchronized
+    fun addErrors(newErrors: List<UpdateError>) {
+        val existing = _errorsFlow.value
+        val merged = (existing + newErrors)
+            .groupBy { it.mangaId }
+            .map { (_, errorsForManga) ->
+                errorsForManga.maxByOrNull { it.timestamp }!!
+            }
+        saveToFile(merged)
+    }
+
+    /**
+     * Incrementar retryCount para un manga específico.
+     */
+    @Synchronized
+    fun incrementRetryCount(mangaId: Long) {
+        val updated = _errorsFlow.value.map { error ->
+            if (error.mangaId == mangaId) {
+                error.copy(retryCount = error.retryCount + 1)
+            } else {
+                error
+            }
+        }
+        saveToFile(updated)
+    }
+
+    @Synchronized
+    fun removeErrorsForManga(mangaId: Long) {
+        val updated = _errorsFlow.value.filterNot { it.mangaId == mangaId }
+        saveToFile(updated)
+    }
+
+    @Synchronized
+    fun clear() {
+        saveToFile(emptyList())
+    }
+
+    // Guardado atómico (feature del fork): escribe a un .tmp y hace rename; si el rename
+    // falla, reintenta tras borrar el destino; como último recurso, escritura directa.
+    private fun saveToFile(errors: List<UpdateError>) {
         try {
             val content = json.encodeToString(errors)
             val file = errorFile
@@ -72,17 +123,6 @@ class UpdateErrorStore(
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to save update errors" }
         }
-    }
-
-    @Synchronized
-    fun removeErrorsForManga(mangaId: Long) {
-        val updated = _errorsFlow.value.filterNot { it.mangaId == mangaId }
-        setErrors(updated)
-    }
-
-    @Synchronized
-    fun clear() {
-        setErrors(emptyList())
     }
 
     private fun loadErrors(): List<UpdateError> {

@@ -172,6 +172,7 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
+        resValues = true
         aidl = true
         resValues = true
     }
@@ -278,6 +279,7 @@ dependencies {
     implementation(libs.jsoup)
 
     // Disk
+    implementation(libs.diskLruCache)
     implementation(libs.unifile)
 
     // Preferences

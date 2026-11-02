@@ -13,7 +13,9 @@ import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +34,6 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
-import kotlin.time.Duration.Companion.milliseconds
 
 data class ProposedRepair(
     val currentManga: Manga,
@@ -165,109 +166,112 @@ class RepairLinksViewModel(
                 )
             }
 
+            // Concurrencia real: coroutineScope + async(Dispatchers.IO) + awaitAll, con
+            // Semaphore(3) solo como límite de paralelismo. Sin delays artificiales: las
+            // búsquedas de todas las mangas se lanzan de inmediato y avanzan en paralelo.
             val semaphore = Semaphore(3)
-            val updatedItems = initialItems.toMutableList()
+            coroutineScope {
+                brokenMangas.mapIndexed { index, manga ->
+                    async(Dispatchers.IO) {
+                        val source = sourceManager.get(manga.source)
 
-            for (index in brokenMangas.indices) {
-                val manga = brokenMangas[index]
-                val source = sourceManager.get(manga.source)
-
-                val exactResult = if (source != null) {
-                    semaphore.withPermit {
-                        delay(400.milliseconds)
-                        try {
-                            val results = withContext(Dispatchers.IO) {
-                                source.getSearchManga(1, manga.title, source.getFilterList()).mangas
+                        val exactResult = if (source != null) {
+                            semaphore.withPermit {
+                                try {
+                                    val results = withContext(Dispatchers.IO) {
+                                        source.getSearchManga(1, manga.title, source.getFilterList()).mangas
+                                    }
+                                    TitleMatcher.findMatch(manga.title, manga.url, results)
+                                } catch (e: Exception) {
+                                    TitleMatcher.MatchResult.NeedsReview(
+                                        TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
+                                    )
+                                }
                             }
-                            TitleMatcher.findMatch(manga.title, manga.url, results)
-                        } catch (e: Exception) {
+                        } else {
                             TitleMatcher.MatchResult.NeedsReview(
                                 TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
                             )
                         }
-                    }
-                } else {
-                    TitleMatcher.MatchResult.NeedsReview(
-                        TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
-                    )
-                }
 
-                // Deep-search fallback: only when the strict exact-title pass found nothing at all.
-                // MULTIPLE_EXACT_MATCHES / SAME_URL stay manual-review (a fuzzy pick can't resolve
-                // a tie or a self-link). NO_MATCH gets a second chance through the same engine the
-                // bulk migration list uses — it re-runs the search with cleaned-title and word-
-                // fragment queries and applies the user's configured similarity threshold, so a
-                // title the exact pass missed (typo, parenthetical subtitle, romanization variant)
-                // can still surface. Fuzzy picks are auto-accepted but carry their score so the
-                // user can judge them on the screen and via "Repair first 10".
-                val proposedRepair: ProposedRepair = when (exactResult) {
-                    is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
-                        currentManga = manga,
-                        proposedManga = exactResult.candidate,
-                        status = ProposedRepair.Status.MATCH_FOUND,
-                        isExactMatch = true,
-                    )
-                    is TitleMatcher.MatchResult.NeedsReview -> {
-                        if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
-                            source != null
-                        ) {
-                            val fuzzy = try {
-                                semaphore.withPermit {
-                                    delay(400.milliseconds)
-                                    smartSearchEngine.deepSearch(source, manga.title, manga.url)
-                                }
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (_: Exception) {
-                                null
-                            }
-                            if (fuzzy != null) {
-                                ProposedRepair(
-                                    currentManga = manga,
-                                    proposedManga = fuzzy.manga.toSManga(),
-                                    status = ProposedRepair.Status.MATCH_FOUND,
-                                    isExactMatch = false,
-                                    matchScore = fuzzy.similarity,
-                                )
-                            } else {
-                                ProposedRepair(
-                                    currentManga = manga,
-                                    status = ProposedRepair.Status.NO_MATCH,
-                                )
-                            }
-                        } else if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
-                            ProposedRepair(
+                        // Deep-search fallback: only when the strict exact-title pass found nothing at all.
+                        // MULTIPLE_EXACT_MATCHES / SAME_URL stay manual-review (a fuzzy pick can't resolve
+                        // a tie or a self-link). NO_MATCH gets a second chance through the same engine the
+                        // bulk migration list uses — it re-runs the search with cleaned-title and word-
+                        // fragment queries and applies the user's configured similarity threshold, so a
+                        // title the exact pass missed (typo, parenthetical subtitle, romanization variant)
+                        // can still surface. Fuzzy picks are auto-accepted but carry their score so the
+                        // user can judge them on the screen and via "Repair first 10".
+                        val proposedRepair: ProposedRepair = when (exactResult) {
+                            is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
                                 currentManga = manga,
-                                status = ProposedRepair.Status.NO_MATCH,
+                                proposedManga = exactResult.candidate,
+                                status = ProposedRepair.Status.MATCH_FOUND,
+                                isExactMatch = true,
                             )
-                        } else {
-                            ProposedRepair(
-                                currentManga = manga,
-                                status = ProposedRepair.Status.NEEDS_REVIEW,
-                                reason = when (exactResult.reason) {
-                                    Reason.MULTIPLE_EXACT_MATCHES -> "Multiple identical titles"
-                                    Reason.SAME_URL -> "Same URL as current"
-                                    else -> null
-                                },
+                            is TitleMatcher.MatchResult.NeedsReview -> {
+                                if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
+                                    source != null
+                                ) {
+                                    val fuzzy = try {
+                                        semaphore.withPermit {
+                                            smartSearchEngine.deepSearch(source, manga.title, manga.url)
+                                        }
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                    if (fuzzy != null) {
+                                        ProposedRepair(
+                                            currentManga = manga,
+                                            proposedManga = fuzzy.manga.toSManga(),
+                                            status = ProposedRepair.Status.MATCH_FOUND,
+                                            isExactMatch = false,
+                                            matchScore = fuzzy.similarity,
+                                        )
+                                    } else {
+                                        ProposedRepair(
+                                            currentManga = manga,
+                                            status = ProposedRepair.Status.NO_MATCH,
+                                        )
+                                    }
+                                } else if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
+                                    ProposedRepair(
+                                        currentManga = manga,
+                                        status = ProposedRepair.Status.NO_MATCH,
+                                    )
+                                } else {
+                                    ProposedRepair(
+                                        currentManga = manga,
+                                        status = ProposedRepair.Status.NEEDS_REVIEW,
+                                        reason = when (exactResult.reason) {
+                                            Reason.MULTIPLE_EXACT_MATCHES -> "Multiple identical titles"
+                                            Reason.SAME_URL -> "Same URL as current"
+                                            else -> null
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Publicar el resultado de este item de forma atómica; el progreso
+                        // avanza a medida que cada corrutina termina.
+                        _state.update { current ->
+                            val updatedList = current.items.toMutableList()
+                            updatedList[index] = proposedRepair
+                            val updatedGroups = rebuildGroups(updatedList)
+                            current.copy(
+                                progressCurrent = current.progressCurrent + 1,
+                                items = updatedList,
+                                groups = updatedGroups,
+                                matchFoundCount = updatedList.count { it.status == ProposedRepair.Status.MATCH_FOUND },
+                                pendingReviewCount = updatedList.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
+                                noMatchCount = updatedList.count { it.status == ProposedRepair.Status.NO_MATCH },
                             )
                         }
                     }
-                }
-
-                updatedItems[index] = proposedRepair
-                val updatedList = updatedItems.toList()
-                val updatedGroups = rebuildGroups(updatedList)
-
-                _state.update { current ->
-                    current.copy(
-                        progressCurrent = index + 1,
-                        items = updatedList,
-                        groups = updatedGroups,
-                        matchFoundCount = updatedItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
-                        pendingReviewCount = updatedItems.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
-                        noMatchCount = updatedItems.count { it.status == ProposedRepair.Status.NO_MATCH },
-                    )
-                }
+                }.awaitAll()
             }
 
             _state.update { it.copy(isSimulating = false) }
@@ -334,6 +338,7 @@ class RepairLinksViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
+                    updateErrorStore.incrementRetryCount(item.currentManga.id)
                     currentItems[index] = item.copy(status = ProposedRepair.Status.FAILED)
                 }
 

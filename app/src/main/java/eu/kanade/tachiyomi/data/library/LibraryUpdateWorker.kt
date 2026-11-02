@@ -316,8 +316,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
                                             ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
                                         val httpCode = httpException?.code
-                                        val errorType = when (httpCode) {
-                                            404, 410 -> UpdateError.ErrorType.BROKEN_LINK
+                                        val errorType = when {
+                                            e is SourceNotInstalledException -> UpdateError.ErrorType.BROKEN_LINK
+                                            httpCode in listOf(404, 410) -> UpdateError.ErrorType.BROKEN_LINK
                                             else -> UpdateError.ErrorType.TEMPORARY
                                         }
                                         val errorMessage = when (e) {
@@ -359,7 +360,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         }
 
         notifier.cancelProgressNotification()
-        updateErrorStore.setErrors(updateErrors.toList())
+        updateErrorStore.addErrors(updateErrors.toList())
 
         if (newUpdates.isNotEmpty()) {
             notifier.showUpdateNotifications(newUpdates)
