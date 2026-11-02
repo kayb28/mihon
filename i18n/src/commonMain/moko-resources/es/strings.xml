@@ -29,6 +29,9 @@
     <string name="repair_links_action_manual">Búsqueda manual</string>
     <string name="repair_links_summary">%1$d reparados • %2$d pendientes • %3$d sin resultado</string>
     <string name="repair_links_running">Procesando: %1$d / %2$d</string>
+    <string name="repair_links_status_failed">Migración fallida</string>
+    <string name="repair_links_confirm_title">¿Reparar todos los enlaces rotos?</string>
+    <string name="repair_links_confirm_message">Se migrarán %1$d mangas a sus nuevas fuentes. Esta acción no se puede deshacer.</string>
     <string name="action_trust_all_untrusted">Confiar en todas las pendientes</string>
     <string name="trust_all_dialog_title">¿Confiar en todas las extensiones pendientes?</string>
     <string name="trust_all_dialog_message">¿Deseas confiar en %d extensión(es) no confiable(s)? Confía solo en extensiones de fuentes seguras. Las extensiones que instales en el futuro seguirán requiriendo confirmación individual.</string>

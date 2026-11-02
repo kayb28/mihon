@@ -10,7 +10,9 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +27,6 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
-import kotlin.time.Duration.Companion.milliseconds
 
 data class ProposedRepair(
     val currentManga: Manga,
@@ -103,33 +104,41 @@ class RepairLinksViewModel(
                 )
             }
 
+            // Concurrency real: coroutineScope + async + Semaphore(3)
             val semaphore = Semaphore(3)
-            val updatedItems = initialItems.toMutableList()
+            val results = coroutineScope {
+                brokenMangas.mapIndexed { index, manga ->
+                    async(Dispatchers.IO) {
+                        val source = sourceManager.get(manga.source)
 
-            for (index in brokenMangas.indices) {
-                val manga = brokenMangas[index]
-                val source = sourceManager.get(manga.source)
-
-                val result = if (source != null) {
-                    semaphore.withPermit {
-                        delay(400.milliseconds)
-                        try {
-                            val results = withContext(Dispatchers.IO) {
-                                source.getSearchManga(1, manga.title, source.getFilterList()).mangas
+                        val result = if (source != null) {
+                            semaphore.withPermit {
+                                try {
+                                    val searchResults = withContext(Dispatchers.IO) {
+                                        source.getSearchManga(1, manga.title, source.getFilterList()).mangas
+                                    }
+                                    TitleMatcher.findMatch(manga.title, manga.url, searchResults)
+                                } catch (e: Exception) {
+                                    TitleMatcher.MatchResult.NeedsReview(
+                                        TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
+                                    )
+                                }
                             }
-                            TitleMatcher.findMatch(manga.title, manga.url, results)
-                        } catch (e: Exception) {
+                        } else {
                             TitleMatcher.MatchResult.NeedsReview(
                                 TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
                             )
                         }
-                    }
-                } else {
-                    TitleMatcher.MatchResult.NeedsReview(
-                        TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
-                    )
-                }
 
+                        index to result
+                    }
+                }.awaitAll()
+            }
+
+            // Procesar resultados en orden
+            val updatedItems = initialItems.toMutableList()
+            for ((index, result) in results) {
+                val manga = brokenMangas[index]
                 val proposedRepair = when (result) {
                     is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
                         currentManga = manga,
@@ -156,21 +165,18 @@ class RepairLinksViewModel(
                         }
                     }
                 }
-
                 updatedItems[index] = proposedRepair
-
-                _state.update { current ->
-                    current.copy(
-                        progressCurrent = index + 1,
-                        items = updatedItems.toList(),
-                        matchFoundCount = updatedItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
-                        pendingReviewCount = updatedItems.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
-                        noMatchCount = updatedItems.count { it.status == ProposedRepair.Status.NO_MATCH },
-                    )
-                }
             }
 
-            _state.update { it.copy(isSimulating = false) }
+            _state.update {
+                it.copy(
+                    isSimulating = false,
+                    items = updatedItems.toList(),
+                    matchFoundCount = updatedItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
+                    pendingReviewCount = updatedItems.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
+                    noMatchCount = updatedItems.count { it.status == ProposedRepair.Status.NO_MATCH },
+                )
+            }
         }
     }
 
@@ -220,6 +226,7 @@ class RepairLinksViewModel(
                     updateErrorStore.removeErrorsForManga(item.currentManga.id)
                     currentItems[index] = item.copy(status = ProposedRepair.Status.REPAIRED)
                 } catch (_: Exception) {
+                    updateErrorStore.incrementRetryCount(item.currentManga.id)
                     currentItems[index] = item.copy(status = ProposedRepair.Status.FAILED)
                 }
 

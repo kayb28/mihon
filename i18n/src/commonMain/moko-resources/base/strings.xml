@@ -77,6 +77,9 @@
     <string name="repair_links_action_manual">Manual search</string>
     <string name="repair_links_summary">%1$d repaired • %2$d pending • %3$d no match</string>
     <string name="repair_links_running">Processing: %1$d / %2$d</string>
+    <string name="repair_links_status_failed">Migration failed</string>
+    <string name="repair_links_confirm_title">Repair all broken links?</string>
+    <string name="repair_links_confirm_message">This will migrate %1$d manga to their new sources. This action cannot be undone.</string>
     <string name="action_trust_all_untrusted">Trust all pending</string>
     <string name="trust_all_dialog_title">Trust all pending extensions?</string>
     <string name="trust_all_dialog_message">Are you sure you want to trust %d untrusted extension(s)? Future extensions will still require individual confirmation.</string>
