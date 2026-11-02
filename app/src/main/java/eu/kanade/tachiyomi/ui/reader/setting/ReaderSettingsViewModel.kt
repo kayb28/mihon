@@ -260,8 +260,11 @@ class ReaderSettingsViewModel(
         .flatMapLatest { viewerMode ->
             if (viewerMode == null) return@flatMapLatest flowOf(null)
 
-            val usesWebtoonZones = viewerMode.readingMode.type == ReadingMode.ViewerType.Webtoon &&
-                !viewerMode.isWebGpu
+            // Strip viewers share the webtoon tap-zone settings, stock or WebGPU alike: the
+            // in-reader "Tap zones" dialog writes navigationModeWebtoon, so the androidx
+            // WebGPU strip viewers must read the same preference or the user's choice
+            // silently does not apply to them (both settings dialogs share the same title).
+            val usesWebtoonZones = viewerMode.readingMode.type == ReadingMode.ViewerType.Webtoon
             val settings = if (usesWebtoonZones) {
                 simpleLongStrip.map { it.navigation }
             } else {
