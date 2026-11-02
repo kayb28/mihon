@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Rect
 import android.os.SystemClock
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -882,12 +881,12 @@ open class WebGpuViewer(
                 }
                 val contentY = scrollY + localY
                 // [DIAGNOSTIC probe 1] library offset + every space the decision uses.
-                // Kept (per request) until the overlay menu is confirmed working.
+                // The tap mapping is validated: this stays as a logcat line only — the
+                // on-screen toast made every tap look like an error to the tester.
                 val probe =
                     "① tap=(${offset.x}, ${offset.y}) buf=${bufW}x${bufH} scr=${dm.widthPixels}x${dm.heightPixels} " +
                         "viewport=${vpW}x${vpH} scroll=${scrollY.toInt()} contentY=${contentY.toInt()}"
                 Log.d(TAG, "$probe -> pos=(${pos.x}, ${pos.y})")
-                Toast.makeText(activity, probe, Toast.LENGTH_LONG).show()
                 activity.onViewerTap(pos)
             }
 
