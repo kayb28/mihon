@@ -28,8 +28,12 @@ import java.text.NumberFormat
 internal fun ColumnScope.ReadingModePage(viewModel: ReaderSettingsViewModel) {
     val isWebGpu by viewModel.isWebGpu.collectAsState()
     if (isWebGpu) {
+        // WebGPU-only extras (GPU filters, transition animations, dual page, strip
+        // width/gap). Shown ALONGSIDE the stock sections below, never instead of
+        // them: the WebGPU viewers consume those stock settings too (tap zones,
+        // scale type, crop borders, side padding...), so an early return here hid
+        // the reader's own options from this dialog whenever the HQ renderer was on.
         WebGpuViewerSettings(viewModel)
-        return
     }
 
     HeadingItem(MR.strings.pref_category_for_this_series)
