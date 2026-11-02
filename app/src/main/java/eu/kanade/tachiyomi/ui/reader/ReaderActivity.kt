@@ -542,6 +542,8 @@ class ReaderActivity : BaseActivity() {
      */
     fun onViewerTap(pos: Offset) {
         val action = settingsViewModel.navigation.value?.getAction(pos) ?: Action.MENU
+        // [DIAGNOSTIC probe 2] Which ViewerNavigation.Action the tap resolves to.
+        Toast.makeText(this, "② onViewerTap → $action", Toast.LENGTH_SHORT).show()
         when (action) {
             Action.MENU -> toggleMenu()
             Action.FORWARD -> viewer?.moveForward()
@@ -813,6 +815,8 @@ class ReaderActivity : BaseActivity() {
      * viewer because each one implements its own touch and key events.
      */
     fun toggleMenu() {
+        // [DIAGNOSTIC probe 3] Menu visibility flip requested by the tap.
+        Toast.makeText(this, "③ toggleMenu → visible=${!viewModel.state.value.menuVisible}", Toast.LENGTH_SHORT).show()
         setMenuVisibility(!viewModel.state.value.menuVisible)
     }
 
@@ -829,6 +833,8 @@ class ReaderActivity : BaseActivity() {
      * Called from the viewer to hide the menu.
      */
     fun hideMenu() {
+        // [DIAGNOSTIC probe 4] Catches anything closing the menu right after probe 3.
+        Toast.makeText(this, "④ hideMenu", Toast.LENGTH_SHORT).show()
         if (viewModel.state.value.menuVisible) {
             setMenuVisibility(false)
         }

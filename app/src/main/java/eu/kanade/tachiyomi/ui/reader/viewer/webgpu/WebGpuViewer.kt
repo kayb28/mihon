@@ -3,9 +3,9 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 import android.content.Context
 import android.graphics.Rect
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import ca.mpreg.imagedecoder.ImageDecoder
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
@@ -817,18 +817,16 @@ open class WebGpuViewer(
             }
 
             onTap = { offset ->
-                // Normalize to [0,1] so ViewerNavigation.getAction(pos) can match the
-                // configured tap zones (which are Rects in normalized space) and so the
-                // fallback `?: Action.MENU` fires for taps that fall outside any zone
-                // (the center, by default). Passing the raw pixel offset meant no
-                // region in [0,1] ever matched, which left only the fallback — and any
-                // navigation overlay the user picked (L / kindle / right-to-left / edge)
-                // was effectively dead. Mirrors PagerViewer.kt:123-127 and
-                // WebtoonViewer.kt:127-131, and the fix already applied to the
-                // androidx.webgpu viewers in commit 297a905.
-                val w = viewerState.width.coerceAtLeast(1)
-                val h = viewerState.height.coerceAtLeast(1)
-                activity.onViewerTap(Offset(offset.x / w, offset.y / h))
+                // [DIAGNOSTIC probe 1] Shows whether the library callback fires and what
+                // coordinates it delivers. Remove once the overlay is confirmed working.
+                Toast.makeText(activity, "① onTap (${offset.x}, ${offset.y})", Toast.LENGTH_SHORT).show()
+                // ca.mpreg webgpuviewer already delivers a NORMALIZED offset here:
+                // decompiling ImageViewerKt shows onTap fires with
+                // (firstDown.x / state.width, firstDown.y / state.height), same for the
+                // continuous viewer and for onLongTap. Pass it through untouched —
+                // dividing again (399a3fc) turned a center tap into ~(0, 0), the
+                // top-left corner, which resolves to BACKWARD instead of MENU.
+                activity.onViewerTap(offset)
             }
 
             onLongTap = { _ ->
