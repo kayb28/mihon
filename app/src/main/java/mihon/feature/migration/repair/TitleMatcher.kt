@@ -21,7 +21,7 @@ object TitleMatcher {
     fun normalize(title: String): String {
         val nfd = Normalizer.normalize(title.lowercase().trim(), Normalizer.Form.NFD)
         val withoutAccents = DIACRITICS_PATTERN.matcher(nfd).replaceAll("")
-        val withoutSymbols = SYMBOLS_PATTERN.matcher(withoutAccents).replaceAll(" ")
+        val withoutSymbols = SYMBOLS_PATTERN.matcher(withoutAccents).replaceAll("")
         return MULTI_SPACE_PATTERN.matcher(withoutSymbols).replaceAll(" ").trim()
     }
 
