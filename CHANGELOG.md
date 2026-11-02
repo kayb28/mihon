@@ -10,6 +10,33 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `aa86a43`] - 2026-11-03
+
+> Rama `feature/webgpu-clean` · applicationId `app.mihonfix` (nombre visible: "Mihon Fix") · versionCode 39 · CI run 41488023525 (verde).
+> Primera entrada del fork en este changelog: resume todo lo acumulado hasta esta build. Las secciones de abajo ([Unreleased]) corresponden a Mihon original, no al fork.
+
+### Added
+- Lector con render GPU/WebGPU: familia ca.mpreg (`WebGpuViewer` pagado y `WebGpuViewerContinuous` para tiras/webtoon, sobre `ca.mpreg:webgpuviewer` v54), activada con «Use high quality renderer» (Ajustes → Avanzados); y familia experimental androidx.webgpu con fallback automático al lector clásico cuando no puede dibujar.
+- Extensiones embebidas en el repo y compiladas por CI: MHScans (reconstruida desde su sitio, con filtros Type/Status) y Emperor Scan (v1.6.76, source id preservado para no perder entradas de biblioteca).
+- Reparador de enlaces de migración: pantalla de errores de actualización, emparejamiento híbrido (exacto + difuso con umbral ajustable) y botón de confianza masiva para fuentes pendientes.
+- Gestión de fuentes: clasificación y salud de fuentes, filtro de contenido y agrupación de la biblioteca por fuente.
+- Workflow de CI `build_apk.yml`: en cada push publica artefactos con el APK de la app (release y sin ofuscar) y el de las dos extensiones.
+
+### Changed
+- applicationId `app.mihon` → `app.mihonfix` (se instala como app independiente junto a Mihon original); telemetría/Firebase desactivados y actualizador de la app desactivado.
+- Sondas de diagnóstico del lector (Toasts ①②③④) activas temporalmente para validar el menú central; se retirarán en cuanto se confirme su funcionamiento.
+
+### Fixed
+- Taps del lector WebGPU: eje X reescalado de buffer a pantalla (f842080) y zonas de tap normalizadas al viewport real, con el scroll de la tira (`documentY`) reservado solo al render (bd84e7e + aa86a43) — pendiente de validar en dispositivo.
+- Crash `NoClassDefFoundError` al abrir extensiones y crash de `MonotonicFrameClock` en el lector WebGPU.
+- Crash de Constraints de Compose con tiras muy largas (altura 268919 px) abordado: la tira vive dentro del renderer y ya no se mide como Column de Compose.
+- `createTexture` fallaba con páginas webtoon muy altas → `maxTextureDimension2D=16384`.
+- Parser de Emperor Scan (nombres de campos del DTO).
+
+### Other
+- Sin cambios de esquema de base de datos: actualizar no afecta a biblioteca, historial ni copias de seguridad.
+- versionCode se mantiene fijo en 39; las builds se identifican por el hash de commit que muestra "Acerca de".
+
 ## [Unreleased]
 ### Added
 - Add experimental high quality reader renderer (Settings → Advanced → Use high quality renderer) with better image scaling, page transition animations, dual page view and display cutout handling ([@wwww-wwww](https://github.com/wwww-wwww)) ([#3388](https://github.com/mihonapp/mihon/pull/3388))
