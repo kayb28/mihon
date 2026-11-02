@@ -90,7 +90,6 @@ fun extensionsTab(
                 onClickTrustAll = extensionsViewModel::trustAllUntrusted,
                 onUninstallExtension = { extensionsViewModel.uninstallExtension(it) },
                 onUpdateExtension = extensionsViewModel::updateExtension,
-                onClickTrustAll = extensionsViewModel::trustAllUntrusted,
                 onRefresh = extensionsViewModel::findAvailableExtensions,
             )
 
