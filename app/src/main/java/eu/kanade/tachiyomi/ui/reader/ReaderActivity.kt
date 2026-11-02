@@ -541,9 +541,16 @@ class ReaderActivity : BaseActivity() {
      * Called from the viewer when it's tapped at [pos], given as a fraction of its size.
      */
     fun onViewerTap(pos: Offset) {
-        val action = settingsViewModel.navigation.value?.getAction(pos) ?: Action.MENU
-        // [DIAGNOSTIC probe 2] Which ViewerNavigation.Action the tap resolves to.
-        Toast.makeText(this, "② onViewerTap → $action", Toast.LENGTH_SHORT).show()
+        val nav = settingsViewModel.navigation.value
+        val action = nav?.getAction(pos) ?: Action.MENU
+        // [DIAGNOSTIC probe 2] exact position reaching the decision, matched region
+        // (rect is AFTER inversion), and resolved action.
+        val region = nav?.getRegions()?.find { pos in it.rect }
+        Toast.makeText(
+            this,
+            "② pos=(${pos.x}, ${pos.y}) → $action zona=${region?.type} rect=${region?.rect}",
+            Toast.LENGTH_LONG,
+        ).show()
         when (action) {
             Action.MENU -> toggleMenu()
             Action.FORWARD -> viewer?.moveForward()

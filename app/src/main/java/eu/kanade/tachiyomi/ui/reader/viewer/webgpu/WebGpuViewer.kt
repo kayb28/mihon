@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import ca.mpreg.imagedecoder.ImageDecoder
 import ca.mpreg.webgpuviewer.closeTo
 import ca.mpreg.webgpuviewer.renderer.GainmapInput
@@ -817,16 +818,30 @@ open class WebGpuViewer(
             }
 
             onTap = { offset ->
-                // [DIAGNOSTIC probe 1] Shows whether the library callback fires and what
-                // coordinates it delivers. Remove once the overlay is confirmed working.
-                Toast.makeText(activity, "① onTap (${offset.x}, ${offset.y})", Toast.LENGTH_SHORT).show()
-                // ca.mpreg webgpuviewer already delivers a NORMALIZED offset here:
-                // decompiling ImageViewerKt shows onTap fires with
-                // (firstDown.x / state.width, firstDown.y / state.height), same for the
-                // continuous viewer and for onLongTap. Pass it through untouched —
-                // dividing again (399a3fc) turned a center tap into ~(0, 0), the
-                // top-left corner, which resolves to BACKWARD instead of MENU.
-                activity.onViewerTap(offset)
+                // ca.mpreg divides the raw pointer position by state.width/height - the
+                // SURFACE BUFFER size (ViewerSurface.onSurface -> state.resize), which
+                // can differ from the screen. A buffer wider than the screen shrinks the
+                // fraction, so a center tap lands as a tiny value (top-left -> BACKWARD),
+                // exactly the reported symptom. Rescale from buffer space to screen
+                // space; when the buffer matches the screen this is a pass-through.
+                val dm = activity.resources.displayMetrics
+                val bufW = viewerState.width
+                val bufH = viewerState.height
+                val pos = if (bufW > 0 && bufH > 0 && (bufW != dm.widthPixels || bufH != dm.heightPixels)) {
+                    Offset(
+                        (offset.x * bufW / dm.widthPixels).coerceIn(0f, 1f),
+                        (offset.y * bufH / dm.heightPixels).coerceIn(0f, 1f),
+                    )
+                } else {
+                    offset
+                }
+                // [DIAGNOSTIC probe 1] library offset + buffer vs screen size.
+                Toast.makeText(
+                    activity,
+                    "① tap=(${offset.x}, ${offset.y}) buf=${bufW}x${bufH} scr=${dm.widthPixels}x${dm.heightPixels}",
+                    Toast.LENGTH_LONG,
+                ).show()
+                activity.onViewerTap(pos)
             }
 
             onLongTap = { _ ->
