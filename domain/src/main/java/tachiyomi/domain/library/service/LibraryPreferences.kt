@@ -100,6 +100,11 @@ class LibraryPreferences(
         TriState.DISABLED,
     )
 
+    val filterUpdateError: Preference<TriState> = preferenceStore.getEnum(
+        "pref_filter_library_update_error",
+        TriState.DISABLED,
+    )
+
     fun filterTracking(id: Int): Preference<TriState> = preferenceStore.getEnum(
         "pref_filter_library_tracked_${id}_v2",
         TriState.DISABLED,
