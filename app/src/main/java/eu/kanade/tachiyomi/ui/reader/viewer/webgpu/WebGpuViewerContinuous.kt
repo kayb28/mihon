@@ -104,13 +104,25 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
         super.destroy()
     }
 
-    private fun scrollByHalfPage(direction: Int) {
-        state.animateScroll(direction * state.height / 2f)
+    /**
+     * What one tap advances the strip. Stock webtoon scrolls 3/4 of the screen height
+     * (WebtoonViewer.scrollDistance = heightPixels * 3 / 4), animated when the user keeps page
+     * transitions on and instant when they turn them off. The previous half-screen spring made
+     * every tap cover less ground than the stock reader, which read as the tap zones not
+     * responding to their settings.
+     */
+    private fun scrollByTapDistance(direction: Int) {
+        val distance = state.height * 3f / 4f
+        if (settingsViewModel.general.value.usePageTransitions) {
+            state.animateScroll(direction * distance)
+        } else {
+            state.scrollBy(direction * distance)
+        }
     }
 
-    override fun moveRight() = scrollByHalfPage(1)
+    override fun moveRight() = scrollByTapDistance(1)
 
-    override fun moveLeft() = scrollByHalfPage(-1)
+    override fun moveLeft() = scrollByTapDistance(-1)
 
     override fun moveToPage(page: ReaderPage) {
         super.moveToPage(page)
