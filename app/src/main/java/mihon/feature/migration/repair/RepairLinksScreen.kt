@@ -294,6 +294,13 @@ class RepairLinksScreen : Screen() {
                                                 color = MaterialTheme.colorScheme.outline,
                                             )
                                         }
+                                        ProposedRepair.Status.SEARCH_ERROR -> {
+                                            Text(
+                                                text = stringResource(MR.strings.repair_links_status_search_error),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                            )
+                                        }
                                         ProposedRepair.Status.FAILED -> {
                                             Text(
                                                 text = stringResource(MR.strings.repair_links_status_failed),
@@ -306,8 +313,27 @@ class RepairLinksScreen : Screen() {
                             },
                             actions = {
                                 if (item.status == ProposedRepair.Status.NEEDS_REVIEW ||
-                                    item.status == ProposedRepair.Status.NO_MATCH
+                                    item.status == ProposedRepair.Status.NO_MATCH ||
+                                    item.status == ProposedRepair.Status.SEARCH_ERROR
                                 ) {
+                                    if (item.status == ProposedRepair.Status.SEARCH_ERROR) {
+                                        // The pass failed (network, source down): re-running it may
+                                        // simply succeed, so retry comes before the manual search.
+                                        OutlinedButton(
+                                            onClick = { viewModel.retrySearch(item.currentManga.id) },
+                                            modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                                        ) {
+                                            Icon(
+                                                imageVector = MaterialSymbols.Rounded.Refresh,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(end = 4.dp),
+                                            )
+                                            Text(
+                                                text = stringResource(MR.strings.repair_links_action_retry),
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
                                     OutlinedButton(
                                         onClick = {
                                             navigator.push(MigrateSearchScreen(item.currentManga.id))

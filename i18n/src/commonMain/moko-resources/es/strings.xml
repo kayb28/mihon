@@ -26,7 +26,9 @@
     <string name="repair_links_status_repaired">Reparado</string>
     <string name="repair_links_status_pending">Pendiente de revisión</string>
     <string name="repair_links_status_no_match">Sin resultado</string>
+    <string name="repair_links_status_search_error">Error de búsqueda</string>
     <string name="repair_links_action_manual">Búsqueda manual</string>
+    <string name="repair_links_action_retry">Reintentar</string>
     <string name="repair_links_summary">%1$d reparados • %2$d pendientes • %3$d sin resultado</string>
     <string name="repair_links_running">Procesando: %1$d / %2$d</string>
     <string name="repair_links_status_failed">Migración fallida</string>
@@ -888,6 +890,8 @@
     <string name="migrationListScreen.progressDialog.cancelLabel">Cancelar</string>
     <string name="migrationListScreen.copyActionLabel">Copiar</string>
     <string name="migrationListScreen.noMatchFoundText">No se encontraron títulos alternativos</string>
+    <string name="migrationListScreen.searchErrorText">Error de búsqueda</string>
+    <string name="migrationListScreen.retrySearchActionLabel">Reintentar búsqueda</string>
     <string name="migrationListScreenTitleWithProgress">Migrando (%1$d/%2$d)</string>
     <string name="migrationListScreen.migrateNowActionLabel">Migrar ahora</string>
     <string name="pref_hide_missing_chapter_indicators">Ocultar los indicadores de capítulos que falten</string>

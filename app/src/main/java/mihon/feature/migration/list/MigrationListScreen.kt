@@ -68,6 +68,7 @@ class MigrationListScreen(private val mangaIds: Collection<Long>, private val ex
             onSkip = { viewModel.removeManga(it) },
             onMigrate = { viewModel.migrateNow(mangaId = it, replace = true) },
             onCopy = { viewModel.migrateNow(mangaId = it, replace = false) },
+            onRetry = { viewModel.retrySearch(it) },
             openMigrationDialog = viewModel::showMigrateDialog,
         )
 

@@ -21,6 +21,13 @@ class MigratingManga(
     sealed interface SearchResult {
         data object Searching : SearchResult
         data object NotFound : SearchResult
+
+        /**
+         * Every source's search failed (network, source down) — distinct from [NotFound], which
+         * means the sources answered and none had the title. The list keeps the item visible
+         * with a retry action instead of counting it as a clean miss.
+         */
+        data object Error : SearchResult
         data class Success(
             val manga: Manga,
             val chapterCount: Int,

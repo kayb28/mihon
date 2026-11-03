@@ -131,12 +131,13 @@ class MigrationListViewModel(
         )
     }
 
-    private suspend fun runMigrations(mangas: List<MigratingManga>) {
-        val prioritizeByChapters = preferences.migrationPrioritizeByChapters.get()
-        val deepSearchMode = preferences.migrationDeepSearchMode.get()
-
+    private fun migrationSources(): List<Source> {
         val sourceIds = preferences.eligibleMigrationSourceIds(preferences.migrationSources.get())
-        val sources = sourceIds.mapNotNull { sourceManager.get(it) }
+        return sourceIds.mapNotNull { sourceManager.get(it) }
+    }
+
+    private suspend fun runMigrations(mangas: List<MigratingManga>) {
+        val sources = migrationSources()
         if (sources.isEmpty()) {
             mangas.forEach { it.searchResult.value = SearchResult.NotFound }
             state.update { it.copy(finishedCount = mangas.size, noEligibleSources = true) }
@@ -146,96 +147,146 @@ class MigrationListViewModel(
         for (manga in mangas) {
             if (!currentCoroutineContext().isActive) break
             if (manga.manga.id !in state.value.mangaIds) continue
-            if (manga.searchResult.value != SearchResult.Searching) continue
-            if (!manga.migrationScope.isActive) continue
-
-            val result = try {
-                manga.migrationScope.async {
-                    if (prioritizeByChapters) {
-                        val sourceSemaphore = Semaphore(5)
-                        sources.map { source ->
-                            async innerAsync@{
-                                sourceSemaphore.withPermit {
-                                    val result = searchSource(manga.manga, source, deepSearchMode)
-                                    if (result == null || result.second.chapterCount == 0) return@innerAsync null
-                                    result
-                                }
-                            }
-                        }
-                            .mapNotNull { it.await() }
-                            .maxByOrNull { it.second.latestChapter ?: 0.0 }
-                    } else {
-                        sources.forEach { source ->
-                            val result = searchSource(manga.manga, source, deepSearchMode)
-                            if (result != null) return@async result
-                        }
-                        null
-                    }
-                }
-                    .await()
-            } catch (_: CancellationException) {
-                continue
-            }
-
-            if (result != null && result.first.manga.thumbnailUrl == null) {
-                try {
-                    updateMangaFromRemote(result.first.manga, fetchDetails = true, manualFetch = true).getOrThrow().manga
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                }
-            }
-
-            manga.searchResult.value = result?.let { (scored, _) ->
-                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle)
-            } ?: SearchResult.NotFound
-
-            if (result == null && hideUnmatched) {
-                removeManga(manga)
-            }
-            if (result != null &&
-                hideWithoutUpdates &&
-                (result.second.latestChapter ?: 0.0) <= (manga.latestChapter ?: 0.0)
-            ) {
-                removeManga(manga)
-            }
-
-            updateMigrationProgress()
+            runSearch(manga, sources)
         }
     }
 
+    /**
+     * Searches one manga across [sources] and reports the outcome on it. A source that throws
+     * (network down, source error) is logged and remembered: if no source produced a match but
+     * at least one failed, the item lands on [SearchResult.Error] — visible, with a retry —
+     * instead of [SearchResult.NotFound], which used to pass a network outage off as a clean
+     * "no alternatives found". Reused by [retrySearch] so a failed pass runs the exact same
+     * code as the initial one.
+     */
+    private suspend fun runSearch(manga: MigratingManga, sources: List<Source>) {
+        if (manga.searchResult.value != SearchResult.Searching) return
+        if (!manga.migrationScope.isActive) return
+
+        val prioritizeByChapters = preferences.migrationPrioritizeByChapters.get()
+        val deepSearchMode = preferences.migrationDeepSearchMode.get()
+
+        var searchHadError = false
+        val result = try {
+            manga.migrationScope.async {
+                if (prioritizeByChapters) {
+                    val sourceSemaphore = Semaphore(5)
+                    sources.map { source ->
+                        async innerAsync@{
+                            sourceSemaphore.withPermit {
+                                try {
+                                    val result = searchSource(manga.manga, source, deepSearchMode)
+                                    if (result == null || result.second.chapterCount == 0) return@innerAsync null
+                                    result
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    logcat(LogPriority.WARN, e) { "Source ${source.id} search failed for ${manga.manga.id}" }
+                                    searchHadError = true
+                                    null
+                                }
+                            }
+                        }
+                    }
+                        .mapNotNull { it.await() }
+                        .maxByOrNull { it.second.latestChapter ?: 0.0 }
+                } else {
+                    sources.forEach { source ->
+                        val result = try {
+                            searchSource(manga.manga, source, deepSearchMode)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            logcat(LogPriority.WARN, e) { "Source ${source.id} search failed for ${manga.manga.id}" }
+                            searchHadError = true
+                            null
+                        }
+                        if (result != null) return@async result
+                    }
+                    null
+                }
+            }
+                .await()
+        } catch (_: CancellationException) {
+            return
+        }
+
+        if (result != null && result.first.manga.thumbnailUrl == null) {
+            try {
+                updateMangaFromRemote(result.first.manga, fetchDetails = true, manualFetch = true).getOrThrow().manga
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
+        }
+
+        manga.searchResult.value = when {
+            result != null -> {
+                val (scored, _) = result
+                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle)
+            }
+            searchHadError -> SearchResult.Error
+            else -> SearchResult.NotFound
+        }
+
+        // "Hide unmatched" only hides clean misses: an errored search is not a "no match", and
+        // hiding it would take the retry away with it.
+        if (result == null && !searchHadError && hideUnmatched) {
+            removeManga(manga)
+        }
+        if (result != null &&
+            hideWithoutUpdates &&
+            (result.second.latestChapter ?: 0.0) <= (manga.latestChapter ?: 0.0)
+        ) {
+            removeManga(manga)
+        }
+
+        updateMigrationProgress()
+    }
+
+    /** Re-runs the search of an item whose previous pass ended in [SearchResult.Error]. */
+    fun retrySearch(mangaId: Long) {
+        val manga = items.find { it.manga.id == mangaId } ?: return
+        if (manga.searchResult.value != SearchResult.Error) return
+        manga.searchResult.value = SearchResult.Searching
+        viewModelScope.launch(Dispatchers.IO) {
+            runSearch(manga, migrationSources())
+        }
+    }
+
+    /**
+     * Search errors propagate on purpose: the callers mark the failing source, so a network
+     * outage lands on [SearchResult.Error] (retryable) instead of silently reading as a clean
+     * "no match". Only a match that turns out to be the manga itself returns null.
+     */
     private suspend fun searchSource(
         manga: Manga,
         source: Source,
         deepSearchMode: Boolean,
     ): Pair<ScoredManga, ChapterInfo>? {
-        return try {
-            // The exact-match pass (hybrid pick) must only reject same-URL candidates on the manga's
-            // own source: a matching URL on a different site is a different manga, not the current one.
-            val currentUrl = if (source.id == manga.source) manga.url else null
-            val searchResult = if (deepSearchMode) {
-                smartSearchEngine.deepSearch(source, manga.title, currentUrl)
-            } else {
-                smartSearchEngine.regularSearch(source, manga.title, currentUrl)
-            }
-
-            if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
-
-            val localManga = networkToLocalManga(searchResult.manga)
-            try {
-                updateMangaFromRemote(localManga, fetchChapters = true).getOrThrow()
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR, e)
-            }
-            // Preserve the engine's verdict (exact vs fuzzy + its score) on the local manga it
-            // resolved to — networkToLocalManga returns the persisted row, same title/url.
-            val scored = ScoredManga(localManga, searchResult.similarity, searchResult.isExactTitle)
-            scored to getChapterInfo(localManga.id)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
+        // The exact-match pass (hybrid pick) must only reject same-URL candidates on the manga's
+        // own source: a matching URL on a different site is a different manga, not the current one.
+        val currentUrl = if (source.id == manga.source) manga.url else null
+        val searchResult = if (deepSearchMode) {
+            smartSearchEngine.deepSearch(source, manga.title, currentUrl)
+        } else {
+            smartSearchEngine.regularSearch(source, manga.title, currentUrl)
         }
+
+        if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
+
+        val localManga = networkToLocalManga(searchResult.manga)
+        try {
+            updateMangaFromRemote(localManga, fetchChapters = true).getOrThrow()
+        } catch (e: Exception) {
+            // A chapter-fetch failure does not invalidate the match itself; the migration
+            // refetches chapters when it runs.
+            logcat(LogPriority.ERROR, e)
+        }
+        // Preserve the engine's verdict (exact vs fuzzy + its score) on the local manga it
+        // resolved to — networkToLocalManga returns the persisted row, same title/url.
+        val scored = ScoredManga(localManga, searchResult.similarity, searchResult.isExactTitle)
+        return scored to getChapterInfo(localManga.id)
     }
 
     private suspend fun updateMigrationProgress() {

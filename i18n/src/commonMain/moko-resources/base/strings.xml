@@ -74,7 +74,9 @@
     <string name="repair_links_status_repaired">Repaired</string>
     <string name="repair_links_status_pending">Pending review</string>
     <string name="repair_links_status_no_match">No match</string>
+    <string name="repair_links_status_search_error">Search error</string>
     <string name="repair_links_action_manual">Manual search</string>
+    <string name="repair_links_action_retry">Retry</string>
     <string name="repair_links_summary">%1$d repaired • %2$d pending • %3$d no match</string>
     <string name="repair_links_running">Processing: %1$d / %2$d</string>
     <string name="repair_links_status_failed">Migration failed</string>
@@ -1102,6 +1104,8 @@
     <string name="migrationListScreen.copyActionLabel">Copy</string>
     <string name="migrationListScreen.migrateActionLabel">Migrate</string>
     <string name="migrationListScreen.noMatchFoundText">No alternatives found</string>
+    <string name="migrationListScreen.searchErrorText">Search failed</string>
+    <string name="migrationListScreen.retrySearchActionLabel">Retry search</string>
     <string name="migrationListScreen.latestChapterLabel">Latest: %1$s</string>
     <string name="migrationListScreen.unknownLatestChapter">Unknown</string>
     <string name="migrationListScreen.searchManuallyActionLabel">Search manually</string>

@@ -77,6 +77,7 @@ fun MigrationListScreenContent(
     onSkip: (Long) -> Unit,
     onMigrate: (Long) -> Unit,
     onCopy: (Long) -> Unit,
+    onRetry: (Long) -> Unit,
     openMigrationDialog: (Boolean) -> Unit,
 ) {
     Scaffold(
@@ -179,6 +180,7 @@ fun MigrationListScreenContent(
                         onSkip = { onSkip(item.manga.id) },
                         onMigrate = { onMigrate(item.manga.id) },
                         onCopy = { onCopy(item.manga.id) },
+                        onRetry = { onRetry(item.manga.id) },
                     )
                 }
             }
@@ -322,6 +324,32 @@ fun MigrationListItemResult(
                     )
                 }
             }
+            MigratingManga.SearchResult.Error -> {
+                // A failed pass (network, source down) is not a clean miss: same layout, but
+                // the text says so and the action menu offers a retry.
+                Column(
+                    Modifier
+                        .widthIn(max = 150.dp)
+                        .fillMaxSize()
+                        .padding(4.dp),
+                ) {
+                    Image(
+                        painter = rememberResourceBitmapPainter(id = R.drawable.cover_error),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(MangaCover.Book.ratio)
+                            .clip(MaterialTheme.shapes.extraSmall),
+                        contentScale = ContentScale.Crop,
+                    )
+                    Text(
+                        text = stringResource(MR.strings.migrationListScreen_searchErrorText),
+                        modifier = Modifier.padding(MaterialTheme.padding.extraSmall),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             is MigratingManga.SearchResult.Success -> {
                 MigrationListItem(
                     modifier = Modifier.fillMaxSize(),
@@ -346,6 +374,7 @@ private fun MigrationListItemAction(
     onSkip: () -> Unit,
     onMigrate: () -> Unit,
     onCopy: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     var menuExpanded by rememberSaveable { mutableStateOf(false) }
     val closeMenu = { menuExpanded = false }
@@ -359,7 +388,9 @@ private fun MigrationListItemAction(
                     )
                 }
             }
-            MigratingManga.SearchResult.NotFound, is MigratingManga.SearchResult.Success -> {
+            MigratingManga.SearchResult.NotFound, is MigratingManga.SearchResult.Error,
+            is MigratingManga.SearchResult.Success,
+            -> {
                 IconButton(onClick = { menuExpanded = true }) {
                     Icon(
                         imageVector = MaterialSymbols.Rounded.MoreVert,
@@ -371,6 +402,15 @@ private fun MigrationListItemAction(
                     onDismissRequest = closeMenu,
                     offset = DpOffset(8.dp, (-56).dp),
                 ) {
+                    if (result is MigratingManga.SearchResult.Error) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(MR.strings.migrationListScreen_retrySearchActionLabel)) },
+                            onClick = {
+                                closeMenu()
+                                onRetry()
+                            },
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(MR.strings.migrationListScreen_searchManuallyActionLabel)) },
                         onClick = {
