@@ -16,12 +16,19 @@ import tachiyomi.domain.manga.model.Manga
  * pass (which beats any fuzzy score) or by the fuzzy fallback.
  *
  * [isExactTitle] being true implies [similarity] is 1.0; a fuzzy pick keeps whatever score the
- * Levenshtein pass gave it, clamped to the engine's eligible threshold.
+ * Levenshtein pass gave it, clamped to the engine's eligible threshold. A single-result
+ * auto-accept also carries 1.0, but [isSingleResult] marks it so the UI never presents it as a
+ * verified title match.
  */
 data class ScoredManga(
     val manga: Manga,
     val similarity: Double,
     val isExactTitle: Boolean,
+    /**
+     * True when the candidate was auto-accepted because the query returned exactly one result —
+     * no title comparison happened, so 1.0 here means "only result", not "same title".
+     */
+    val isSingleResult: Boolean = false,
 )
 
 class SmartSourceSearchEngine(
@@ -72,7 +79,12 @@ class SmartSourceSearchEngine(
             }
         }
         val best = entries.maxByOrNull { it.distance } ?: return null
-        return ScoredManga(best.entry.toDomainManga(sourceId), best.distance, isExactTitle = false)
+        return ScoredManga(
+            best.entry.toDomainManga(sourceId),
+            best.distance,
+            isExactTitle = false,
+            isSingleResult = best.autoAccepted,
+        )
     }
 
     // Sources aren't main-safe: their default implementations block on the network

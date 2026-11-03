@@ -39,14 +39,14 @@ abstract class BaseSmartSearchEngine<T>(
                     }
 
                     val candidates = searchAction(builtQuery)
+                    // Single query returning a single candidate: the legacy auto-accept keeps it
+                    // eligible without scoring, but the flag records WHY it got distance 1.0 so the
+                    // UI can say "only result" instead of claiming a title match it never checked.
+                    val autoAccept = queries.size <= 1 && candidates.size <= 1
                     candidates
                         .map {
-                            val distance = if (queries.size > 1 || candidates.size > 1) {
-                                calculateDistance(it)
-                            } else {
-                                1.0
-                            }
-                            SearchEntry(it, distance)
+                            val distance = if (!autoAccept) calculateDistance(it) else 1.0
+                            SearchEntry(it, distance, autoAccepted = autoAccept)
                         }
                         .filter { it.distance >= eligibleThreshold }
                 }
@@ -142,4 +142,12 @@ abstract class BaseSmartSearchEngine<T>(
     }
 }
 
-data class SearchEntry<T>(val entry: T, val distance: Double)
+data class SearchEntry<T>(
+    val entry: T,
+    val distance: Double,
+    /**
+     * True when the legacy single-query/single-candidate auto-accept assigned distance 1.0
+     * without comparing titles — the score means "only result", not "same title".
+     */
+    val autoAccepted: Boolean = false,
+)

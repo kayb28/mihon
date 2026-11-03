@@ -46,6 +46,12 @@ class MigratingManga(
              * flagged as fuzzy either.
              */
             val isExactTitle: Boolean = false,
+            /**
+             * True when the match was auto-accepted because the source returned a single result:
+             * the 1.0 score means "only result found", not a verified title match. Distinct from
+             * [isExactTitle] (titles actually compared equal) and from a manual override (null).
+             */
+            val isSingleResult: Boolean = false,
         ) : SearchResult
     }
 }

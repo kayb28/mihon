@@ -118,6 +118,7 @@ class MigrationListViewModel(
     private suspend fun Manga.toSuccessSearchResult(
         similarity: Double? = null,
         isExactTitle: Boolean = false,
+        isSingleResult: Boolean = false,
     ): SearchResult.Success {
         val chapterInfo = getChapterInfo(id)
         val source = sourceManager.getOrStub(source).getNameForMangaInfo()
@@ -128,6 +129,7 @@ class MigrationListViewModel(
             source = source,
             similarity = similarity,
             isExactTitle = isExactTitle,
+            isSingleResult = isSingleResult,
         )
     }
 
@@ -225,7 +227,7 @@ class MigrationListViewModel(
         manga.searchResult.value = when {
             result != null -> {
                 val (scored, _) = result
-                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle)
+                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle, scored.isSingleResult)
             }
             searchHadError -> SearchResult.Error
             else -> SearchResult.NotFound
@@ -274,7 +276,6 @@ class MigrationListViewModel(
         } else {
             smartSearchEngine.regularSearch(source, manga.title, currentUrl)
         }
-
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
         val localManga = networkToLocalManga(searchResult.manga)
@@ -285,9 +286,15 @@ class MigrationListViewModel(
             // refetches chapters when it runs.
             logcat(LogPriority.ERROR, e)
         }
-        // Preserve the engine's verdict (exact vs fuzzy + its score) on the local manga it
-        // resolved to — networkToLocalManga returns the persisted row, same title/url.
-        val scored = ScoredManga(localManga, searchResult.similarity, searchResult.isExactTitle)
+        // Preserve the engine's verdict (exact vs fuzzy + its score, and whether it was a
+        // single-result auto-accept) on the local manga it resolved to — networkToLocalManga
+        // returns the persisted row, same title/url.
+        val scored = ScoredManga(
+            localManga,
+            searchResult.similarity,
+            searchResult.isExactTitle,
+            isSingleResult = searchResult.isSingleResult,
+        )
         return scored to getChapterInfo(localManga.id)
     }
 

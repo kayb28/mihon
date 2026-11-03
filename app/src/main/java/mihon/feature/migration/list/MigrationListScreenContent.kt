@@ -198,6 +198,7 @@ fun MigrationListItem(
     onClick: () -> Unit,
     similarity: Double? = null,
     isExactTitle: Boolean = false,
+    isSingleResult: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -241,16 +242,29 @@ fun MigrationListItem(
             BadgeGroup(modifier = Modifier.padding(4.dp)) {
                 Badge(text = "$chapterCount")
                 // Match-confidence badge on the target side only. Exact picks (the strict
-                // normalized-title pass) get a plain EXACT label so users can trust them at a
-                // glance; fuzzy picks show their Levenshtein percent so a 42% match is visibly
-                // shakier than a 91% one.
+                // normalized-title pass) get a plain EXACT label; auto-accepted single results
+                // (the source returned one entry and NO title comparison happened) get an amber
+                // ONLY RESULT label so the user verifies the cover; fuzzy picks show their
+                // Levenshtein percent so a 42% match is visibly shakier than a 91% one.
                 if (similarity != null) {
-                    val label = if (isExactTitle) {
-                        stringResource(MR.strings.migrationListScreen_exactMatchBadge)
-                    } else {
-                        "${(similarity * 100).toInt()}%"
+                    val label = when {
+                        isExactTitle -> stringResource(MR.strings.migrationListScreen_exactMatchBadge)
+                        isSingleResult -> stringResource(MR.strings.migrationListScreen_singleResultBadge)
+                        else -> "${(similarity * 100).toInt()}%"
                     }
-                    Badge(text = label)
+                    Badge(
+                        text = label,
+                        color = if (isSingleResult) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.secondary
+                        },
+                        textColor = if (isSingleResult) {
+                            MaterialTheme.colorScheme.onTertiary
+                        } else {
+                            MaterialTheme.colorScheme.onSecondary
+                        },
+                    )
                 }
             }
         }
@@ -360,6 +374,7 @@ fun MigrationListItemResult(
                     onClick = { onItemClick(result.manga) },
                     similarity = result.similarity,
                     isExactTitle = result.isExactTitle,
+                    isSingleResult = result.isSingleResult,
                 )
             }
         }

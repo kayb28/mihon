@@ -1121,6 +1121,7 @@
     <string name="migrationListScreen.progressDialog.cancelLabel">Cancel</string>
     <string name="migrationListScreen.matchWithoutChapterToast">No chapters found, this entry cannot be used for migration</string>
     <string name="migrationListScreen.exactMatchBadge">EXACT</string>
+    <string name="migrationListScreen.singleResultBadge">ONLY RESULT</string>
 
     <string name="supportUsScreen.perks">Patrons get access to exclusive channels, with more perks to come.</string>
     <string name="supportUsScreen.donationPlatform.patreon">Patreon (preferred)</string>
