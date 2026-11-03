@@ -297,6 +297,7 @@ class AndroidxWebGpuContinuousViewer(
         LaunchedEffect(Unit) {
             snapshotFlow { scrollPos }.collect { onPageScrolled() }
         }
+        ReaderColorFilterEffect { drawVisible() }
     }
 
     override fun moveForward() = shiftPage(1)
@@ -491,6 +492,9 @@ class AndroidxWebGpuContinuousViewer(
 
     /** Draws every page intersecting the viewport, placed at its document position. */
     private fun drawVisible() {
+        // The shader applies the reader's grayscale/inverted settings; push them per draw so a
+        // settings change mid-read is honored by the very next frame.
+        applyColorFilter()
         if (layoutPages.isEmpty()) {
             imageBackend.setPages(emptyList())
             imageBackend.requestRender()

@@ -25,6 +25,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -232,6 +233,31 @@ abstract class AndroidxWebGpuBaseViewer(
 
             else -> stringResource(MR.strings.webgpu_surface_page, page.number)
         }
+    }
+
+    /**
+     * Reacts to the reader's grayscale / inverted-color settings changing while the reader is
+     * open: [onChange] re-pushes them into the renderer and redraws. The stock viewers receive
+     * the same pair through [eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter]; the
+     * androidx viewers draw on a SurfaceView, so the transform happens in the renderer's shader
+     * ([AndroidxWebGpuSurfaceRenderer.setColorFilter]) instead.
+     */
+    @Composable
+    protected fun ReaderColorFilterEffect(onChange: () -> Unit) {
+        val prefs = activity.appGraph.readerPreferences
+        LaunchedEffect(prefs) {
+            launch { prefs.grayscale.changes().collect { onChange() } }
+            launch { prefs.invertedColors.changes().collect { onChange() } }
+        }
+    }
+
+    /** Pushes the current grayscale/inverted settings into the renderer for the next frame. */
+    protected fun applyColorFilter() {
+        val prefs = activity.appGraph.readerPreferences
+        imageBackend.setColorFilter(
+            grayscale = if (prefs.grayscale.get()) 1f else 0f,
+            inverted = if (prefs.invertedColors.get()) 1f else 0f,
+        )
     }
 
     final override fun setChapters(chapters: ViewerChapters) {

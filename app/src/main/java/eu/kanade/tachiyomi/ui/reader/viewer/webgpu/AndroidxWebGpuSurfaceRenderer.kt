@@ -65,8 +65,8 @@ import java.nio.ByteOrder
 import java.util.concurrent.Executor
 import kotlin.math.min
 
-/** vec2f scale + vec2f offset, both in NDC units. */
-private const val PARAMS_STRUCT_SIZE = 16L
+/** vec2f scale + vec2f offset + vec4f color ops, all NDC/flag units; size stays 16-byte aligned. */
+private const val PARAMS_STRUCT_SIZE = 32L
 
 /** Uniform buffer slots are 256 bytes apart: uniform bind group offsets align to 256. */
 private const val PARAMS_SLOT = 256
@@ -140,6 +140,9 @@ private val VIEWER_WGSL = """
     struct Params {
         scale: vec2f,
         offset: vec2f,
+        // x: grayscale amount, y: invert amount — the stock reader's grayscale/inverted-colors
+        // settings, applied here because a SurfaceView cannot take a Compose ColorFilter.
+        colorOp: vec4f,
     };
 
     @group(0) @binding(0) var<uniform> params: Params;
@@ -171,7 +174,13 @@ private val VIEWER_WGSL = """
 
     @fragment
     fn fsMain(in: VertexOut) -> @location(0) vec4f {
-        return textureSample(pageTexture, pageSampler, in.uv);
+        var color = textureSample(pageTexture, pageSampler, in.uv);
+        // Same order the stock ColorMatrix composes them: grayscale first (saturation 0, the
+        // same luminance weights ColorMatrix.setToSaturation uses), then color inversion.
+        let gray = dot(color.rgb, vec3f(0.213, 0.715, 0.072));
+        color = vec4f(mix(color.rgb, vec3f(gray), params.colorOp.x), color.a);
+        color = vec4f(mix(color.rgb, vec3f(1.0) - color.rgb, params.colorOp.y), color.a);
+        return color;
     }
 """.trimIndent()
 
@@ -274,6 +283,14 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     @Volatile
     private var pagePanY = 0f
 
+    /** Grayscale amount (0-1) the fragment shader mixes toward luminance. */
+    @Volatile
+    private var colorGrayscale = 0f
+
+    /** Invert amount (0-1) the fragment shader flips colors by. */
+    @Volatile
+    private var colorInvert = 0f
+
     val isRunning: Boolean
         get() = synchronized(lock) { webgpu != null }
 
@@ -302,6 +319,17 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
      */
     fun setPages(pages: List<PageDraw>) {
         placedPages = pages
+    }
+
+    /**
+     * Sets the color transform every drawn page gets: [grayscale] and [inverted] mix amounts in
+     * [0, 1] (the stock reader passes booleans, so 0/1 from the viewers). Applied per fragment
+     * in the shader — a SurfaceView cannot take a Compose [android.graphics.ColorFilter], which
+     * is why the androidx viewers lost the reader's grayscale/inverted settings until now.
+     */
+    fun setColorFilter(grayscale: Float, inverted: Float) {
+        colorGrayscale = grayscale.coerceIn(0f, 1f)
+        colorInvert = inverted.coerceIn(0f, 1f)
     }
 
     /**
@@ -593,11 +621,15 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             data.putFloat(draw.scaleY)
             data.putFloat(draw.offsetX)
             data.putFloat(draw.offsetY)
+            data.putFloat(colorGrayscale)
+            data.putFloat(colorInvert)
+            data.putFloat(0f)
+            data.putFloat(0f)
             data.position(data.position() + PARAMS_SLOT - PARAMS_STRUCT_SIZE.toInt())
         }
         data.flip()
         // The JNI sizes queue writes by capacity, not remaining: confine first or Dawn rejects
-        // the write once the grow-only scratch has outgrown this 16-byte payload.
+        // the write once the grow-only scratch has outgrown this 32-byte payload.
         device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
     }
 
@@ -688,6 +720,10 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         data.putFloat(scaleY)
         data.putFloat(offsetX)
         data.putFloat(offsetY)
+        data.putFloat(colorGrayscale)
+        data.putFloat(colorInvert)
+        data.putFloat(0f)
+        data.putFloat(0f)
         data.flip()
         device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
     }

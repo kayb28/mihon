@@ -131,6 +131,7 @@ class AndroidxWebGpuViewer(
                 }
             }
         }
+        ReaderColorFilterEffect { renderCurrentPage() }
     }
 
     override fun moveForward() = moveBy(1)
@@ -165,6 +166,9 @@ class AndroidxWebGpuViewer(
 
     /** Points the renderer at the current page's texture (null clears) and draws a frame. */
     private fun renderCurrentPage() {
+        // The shader applies the reader's grayscale/inverted settings; push them per draw so a
+        // settings change mid-read is honored by the very next frame.
+        applyColorFilter()
         val image = current?.let { page -> synchronized(gpuImages) { gpuImages[page] } }
         imageBackend.setPage(image)
         imageBackend.requestRender()
