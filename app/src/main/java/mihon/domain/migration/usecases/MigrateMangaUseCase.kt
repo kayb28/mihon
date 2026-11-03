@@ -48,7 +48,14 @@ class MigrateMangaUseCase(
     private val enhancedServices by lazy { trackerManager.trackers.filterIsInstance<EnhancedTracker>() }
 
     suspend operator fun invoke(current: Manga, target: Manga, replace: Boolean) {
-        val targetSource = sourceManager.get(target.source) ?: return
+        // A missing target source used to `return` silently: callers marked the migration as
+        // done while nothing was copied (the manga kept its old source, chapters/tracks never
+        // moved). Every caller (bulk migration list, single "migrate now", link repairer) now
+        // reports failures, so a source that is not installed fails loudly instead.
+        val targetSource = sourceManager.get(target.source)
+            ?: throw IllegalStateException(
+                "Cannot migrate '${target.title}' (${target.id}): source ${target.source} is not installed",
+            )
         val currentSource = sourceManager.get(current.source)
         val flags = sourcePreferences.migrationFlags.get()
 
