@@ -313,6 +313,7 @@ class AndroidxWebGpuContinuousViewer(
             // at the target page — lastNotified suppresses it there — so report here or the
             // reader would never see them (progress saving, chapter tracking).
             activity.onPageSelected(page)
+            maybePreloadNextChapter(page)
             viewerScope.launch {
                 snapScrollTo(offsets.getOrNull(index)?.coerceAtLeast(0f) ?: return@launch)
             }
@@ -406,19 +407,52 @@ class AndroidxWebGpuContinuousViewer(
         layoutVersion++
     }
 
-    /** Tracks the scroll: re-anchor the window on the center page and report it to the reader. */
+    /**
+     * Tracks the scroll: re-anchors the page window on the center page and reports to the reader
+     * the deepest page on screen (stock webtoon semantics — see [reportedPage]) plus the
+     * end-of-chapter preload check that goes with it.
+     */
     private fun onPageScrolled() {
         val page = pageAtCenter() ?: return
         if (current !== page) {
             current = page
             updatePageWindow()
         }
-        if (lastNotified !== page) {
-            lastNotified = page
-            activity.onPageSelected(page)
+        val reported = reportedPage()
+        if (reported != null && lastNotified !== reported) {
+            lastNotified = reported
+            activity.onPageSelected(reported)
+            maybePreloadNextChapter(reported)
         }
         drawVisible()
         hideMenuOnScroll()
+    }
+
+    /**
+     * The deepest page intersecting the viewport — the page stock webtoon reports as active
+     * (WebtoonLayoutManager.findLastEndVisibleItemPosition, the last item whose end side is on
+     * screen). Reporting this instead of the center page is what makes a chapter count as read
+     * the moment its final page reaches the bottom of the screen, like stock: the center only
+     * lands on the last page at the very bottom of the scroll, and for shorter last pages it
+     * never does, so finished chapters stayed unread while progress saved fine. [current] stays
+     * center-based — it anchors the page window and the page-step taps.
+     */
+    private fun reportedPage(): ReaderPage? {
+        if (layoutPages.isEmpty()) return null
+        val viewportBottom = scrollPos + imageBackend.surfaceHeightPx.coerceAtLeast(1)
+        var lo = 0
+        var hi = layoutPages.lastIndex
+        var index = 0
+        while (lo <= hi) {
+            val mid = (lo + hi) / 2
+            if (offsets[mid] < viewportBottom) {
+                index = mid
+                lo = mid + 1
+            } else {
+                hi = mid - 1
+            }
+        }
+        return layoutPages[index]
     }
 
     /**

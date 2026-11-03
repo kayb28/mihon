@@ -149,7 +149,10 @@ class AndroidxWebGpuViewer(
         // menu, unless the user is dragging through pages with the slider. Without this the
         // menu stayed up after every tap-zone turn.
         if (!activity.isScrollingThroughPages) activity.hideMenu()
-        current?.let(activity::onPageSelected)
+        current?.let {
+            activity.onPageSelected(it)
+            maybePreloadNextChapter(it)
+        }
     }
 
     override fun onWindowChanged() {

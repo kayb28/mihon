@@ -52,6 +52,10 @@ private const val PRELOAD_BEHIND = 2
 /** Pages uploaded ahead of the current one, mirroring the HQ viewer's preload window. */
 private const val PRELOAD_AHEAD = 3
 
+/** How close to a chapter's end (pages left after the current one) the next chapter is
+ *  preloaded; the same range the stock trackers use. */
+private const val NEXT_CHAPTER_PRELOAD_PAGES = 5
+
 /**
  * Shared page lifecycle for the androidx.webgpu viewers (WebGPU migration phases 4-8): owning the
  * render surface and the GPU environment behind it, presenting the pages around the current one
@@ -415,6 +419,21 @@ abstract class AndroidxWebGpuBaseViewer(
             if (destroyed || watchJobs[page]?.isActive == true) return
             watchJobs[page] = uploadScope.launch {
                 try {
+                    // Stock holders ask the loader for their page on bind (PagerPageHolder and
+                    // WebtoonPageHolder both call loadPage, the HQ viewer follows them), and
+                    // that call is what drives the loader's rolling chunk chain forward. Without
+                    // it nothing ever re-triggers online downloads past the loader's initial
+                    // batch, so watched pages would sit in Queue forever, spinning. Safe to
+                    // repeat: launchLoadOnce dedupes in-flight pages, and recycled loaders are
+                    // skipped (ArchivePageLoader.loadPage throws on them).
+                    try {
+                        val loader = page.chapter.pageLoader
+                        if (loader != null && !loader.isRecycled) loader.loadPage(page)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        logcat(LogPriority.WARN, e) { "loadPage request failed for page ${page.number}" }
+                    }
                     val progressJob = launch {
                         page.progressFlow.collect { value ->
                             presentation[page]?.let { state ->
@@ -457,6 +476,25 @@ abstract class AndroidxWebGpuBaseViewer(
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Stock trackers ask the reader to preload the next chapter once the reported page is within
+     * the last few of the current one (WebtoonPageTracker.onPageSelected: fewer than 5 pages
+     * left), so its page list is ready and reading flows past the chapter end. The androidx
+     * viewers carry no transition items to make that request — without this hook, on connections
+     * where loading ahead is not allowed the next chapter is never fetched and the strip
+     * dead-ends on the last page. [ReaderViewModel.preload] skips loaded/loading chapters, so
+     * repeat calls while flipping through those pages are cheap.
+     */
+    protected fun maybePreloadNextChapter(page: ReaderPage) {
+        val chapters = loadedChapters ?: return
+        val nextChapter = chapters.nextChapter ?: return
+        if (page.chapter !== chapters.currChapter) return
+        val pages = chapters.currChapter.pages ?: return
+        if (pages.size - page.number < NEXT_CHAPTER_PRELOAD_PAGES) {
+            activity.requestPreloadChapter(nextChapter)
         }
     }
 
