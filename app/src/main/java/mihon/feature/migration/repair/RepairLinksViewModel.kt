@@ -224,7 +224,7 @@ class RepairLinksViewModel(
     }
 
     /** Publishes [updatedList] atomically, recomputing every status counter from it. */
-    private fun publishRepairs(
+    private suspend fun publishRepairs(
         current: RepairState,
         updatedList: List<ProposedRepair>,
         progressDone: Int,

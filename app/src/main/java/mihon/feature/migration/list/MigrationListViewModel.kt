@@ -131,7 +131,7 @@ class MigrationListViewModel(
         )
     }
 
-    private fun migrationSources(): List<Source> {
+    private suspend fun migrationSources(): List<Source> {
         val sourceIds = preferences.eligibleMigrationSourceIds(preferences.migrationSources.get())
         return sourceIds.mapNotNull { sourceManager.get(it) }
     }
