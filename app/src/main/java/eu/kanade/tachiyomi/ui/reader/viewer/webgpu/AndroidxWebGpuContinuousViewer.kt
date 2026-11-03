@@ -297,6 +297,15 @@ class AndroidxWebGpuContinuousViewer(
         LaunchedEffect(Unit) {
             snapshotFlow { scrollPos }.collect { onPageScrolled() }
         }
+        LaunchedEffect(Unit) {
+            // The strip's shapes depend on the side padding: relayout, keep the current page
+            // anchored and redraw when it changes mid-read.
+            activity.appGraph.readerPreferences.webtoonSidePadding.changes().collect {
+                relayout()
+                reanchorCurrent()
+                drawVisible()
+            }
+        }
         ReaderColorFilterEffect { drawVisible() }
     }
 
@@ -387,6 +396,7 @@ class AndroidxWebGpuContinuousViewer(
     private fun relayout() {
         val chapters = this.loadedChapters ?: return
         val width = imageBackend.surfaceWidthPx.coerceAtLeast(1)
+        val pageWidth = stripPageWidthPx()
         val pages = buildList {
             chapters.prevChapter?.let { addAll(it.pages.orEmpty()) }
             addAll(chapters.currChapter.pages.orEmpty())
@@ -399,13 +409,24 @@ class AndroidxWebGpuContinuousViewer(
         pages.forEach { page ->
             if (lastChapter != null && page.chapter !== lastChapter) y += gap
             newOffsets.add(y)
-            y += width / (aspects[page] ?: DEFAULT_PAGE_ASPECT).coerceAtLeast(0.05f)
+            y += pageWidth / (aspects[page] ?: DEFAULT_PAGE_ASPECT).coerceAtLeast(0.05f)
             lastChapter = page.chapter
         }
         layoutPages = pages
         offsets = newOffsets
         totalHeight = y
         layoutVersion++
+    }
+
+    /** Keeps the current page anchored after a relayout that changed the strip's shapes. */
+    private fun reanchorCurrent() {
+        val page = current ?: return
+        val index = layoutPages.indexOfFirst { it === page }
+        if (index >= 0) {
+            viewerScope.launch {
+                snapScrollTo(offsets.getOrNull(index)?.coerceAtLeast(0f) ?: return@launch)
+            }
+        }
     }
 
     /**
@@ -501,6 +522,7 @@ class AndroidxWebGpuContinuousViewer(
             return
         }
         val width = imageBackend.surfaceWidthPx.coerceAtLeast(1)
+        val pageWidth = stripPageWidthPx()
         val viewport = imageBackend.surfaceHeightPx.coerceAtLeast(1)
         val scroll = scrollPos.coerceAtLeast(0f)
         val top = scroll
@@ -508,20 +530,36 @@ class AndroidxWebGpuContinuousViewer(
         val draws = ArrayList<AndroidxWebGpuSurfaceRenderer.PageDraw>()
         for (index in layoutPages.indices) {
             val pageTop = offsets[index]
-            val pageHeight = pageHeightPx(index, width)
+            val pageHeight = pageHeightPx(index, pageWidth)
             if (pageTop + pageHeight <= top) continue
             if (pageTop >= bottom) break
             val image = synchronized(gpuImages) { gpuImages[layoutPages[index]] } ?: continue
-            // Full surface width; the page center sits at its document position minus the scroll.
+            // Pages draw centered at the padded strip width (stripPageWidthPx); the page center
+            // sits at its document position minus the scroll.
+            val scaleX = pageWidth / width
             val scaleY = pageHeight / viewport
             val offsetY = (viewport / 2f - (pageTop + pageHeight / 2f - scroll)) / viewport * 2f
-            draws.add(AndroidxWebGpuSurfaceRenderer.PageDraw(image, 1f, scaleY, 0f, offsetY))
+            draws.add(AndroidxWebGpuSurfaceRenderer.PageDraw(image, scaleX, scaleY, 0f, offsetY))
         }
         imageBackend.setPages(draws)
         imageBackend.requestRender()
     }
 
-    private fun pageHeightPx(index: Int, width: Int = imageBackend.surfaceWidthPx.coerceAtLeast(1)): Float {
+    private fun pageHeightPx(index: Int, width: Float = stripPageWidthPx()): Float {
         return width / (aspects[layoutPages[index]] ?: DEFAULT_PAGE_ASPECT).coerceAtLeast(0.05f)
+    }
+
+    /**
+     * The width pages are drawn at: the surface width shrunk by the stock webtoon side-padding
+     * preference on each side ([eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+     * .webtoonSidePadding], 0-25 per side). The stock viewer applies the same value as per-page
+     * horizontal margins (WebtoonRecyclerView's sidePadding is one margin per side), so a 25%
+     * setting leaves half the width for the strip, centered. Layout heights and draw placements
+     * both read this, so they always agree.
+     */
+    private fun stripPageWidthPx(): Float {
+        val width = imageBackend.surfaceWidthPx.coerceAtLeast(1)
+        val paddingFraction = activity.appGraph.readerPreferences.webtoonSidePadding.get() / 100f
+        return width * (1f - 2f * paddingFraction).coerceIn(0.1f, 1f)
     }
 }
