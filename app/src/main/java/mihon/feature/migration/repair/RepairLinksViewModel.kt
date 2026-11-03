@@ -48,8 +48,10 @@ data class ProposedRepair(
     val matchScore: Double? = null,
     /**
      * True when the candidate was found by the strict exact-title pass (titles equal after
-     * normalization). False for fuzzy deep-search picks, which are auto-accepted but visibly
-     * less certain. Defaults to true to keep exact matches the common, trusted case.
+     * normalization) — the only kind a bulk repair button may migrate. False for fuzzy
+     * deep-search picks, which stay in NEEDS_REVIEW: their similarity can be as low as the
+     * user's migration threshold (default 40%), so accepting one happens item by item.
+     * Defaults to true to keep exact matches the common, trusted case.
      */
     val isExactMatch: Boolean = true,
 ) {
@@ -200,8 +202,12 @@ class RepairLinksViewModel(
                         // bulk migration list uses — it re-runs the search with cleaned-title and word-
                         // fragment queries and applies the user's configured similarity threshold, so a
                         // title the exact pass missed (typo, parenthetical subtitle, romanization variant)
-                        // can still surface. Fuzzy picks are auto-accepted but carry their score so the
-                        // user can judge them on the screen and via "Repair first 10".
+                        // can still surface. A fuzzy pick never lands in MATCH_FOUND: it stays
+                        // NEEDS_REVIEW with its score as the reason, so "Repair first 10" and
+                        // "Repair all" — which only take MATCH_FOUND — can never migrate a
+                        // similar-but-different series without the user confirming it first. An exact-title
+                        // hit found via the deep pass (ScoredManga.isExactTitle) is as trustworthy as the
+                        // strict pass and does go to MATCH_FOUND.
                         val proposedRepair: ProposedRepair = when (exactResult) {
                             is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
                                 currentManga = manga,
@@ -222,18 +228,28 @@ class RepairLinksViewModel(
                                     } catch (_: Exception) {
                                         null
                                     }
-                                    if (fuzzy != null) {
+                                    if (fuzzy == null) {
+                                        ProposedRepair(
+                                            currentManga = manga,
+                                            status = ProposedRepair.Status.NO_MATCH,
+                                        )
+                                    } else if (fuzzy.isExactTitle) {
+                                        // The deep pass re-checked titles with TitleMatcher and found a
+                                        // single normalized-title match on a different URL: as trustworthy
+                                        // as the strict pass, just discovered through a cleaned query.
                                         ProposedRepair(
                                             currentManga = manga,
                                             proposedManga = fuzzy.manga.toSManga(),
                                             status = ProposedRepair.Status.MATCH_FOUND,
-                                            isExactMatch = false,
-                                            matchScore = fuzzy.similarity,
                                         )
                                     } else {
                                         ProposedRepair(
                                             currentManga = manga,
-                                            status = ProposedRepair.Status.NO_MATCH,
+                                            proposedManga = fuzzy.manga.toSManga(),
+                                            status = ProposedRepair.Status.NEEDS_REVIEW,
+                                            isExactMatch = false,
+                                            matchScore = fuzzy.similarity,
+                                            reason = "Fuzzy match ${(fuzzy.similarity * 100).toInt()}%",
                                         )
                                     }
                                 } else if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
