@@ -276,7 +276,7 @@ open class WebGpuViewer(
         }
     }
 
-    private val settingsViewModel = activity.settingsViewModel
+    protected val settingsViewModel = activity.settingsViewModel
 
     /**
      * Settings every paged viewer uses, like scale mode on images or tap zones, which the long strip uses too.
