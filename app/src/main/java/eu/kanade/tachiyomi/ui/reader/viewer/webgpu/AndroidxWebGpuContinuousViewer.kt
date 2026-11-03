@@ -298,12 +298,22 @@ class AndroidxWebGpuContinuousViewer(
             snapshotFlow { scrollPos }.collect { onPageScrolled() }
         }
         LaunchedEffect(Unit) {
-            // The strip's shapes depend on the side padding: relayout, keep the current page
-            // anchored and redraw when it changes mid-read.
-            activity.appGraph.readerPreferences.webtoonSidePadding.changes().collect {
-                relayout()
-                reanchorCurrent()
-                drawVisible()
+            // The strip's shapes depend on the side padding and the strip scale: relayout, keep
+            // the current page anchored and redraw when either changes mid-read.
+            val prefs = activity.appGraph.readerPreferences
+            launch {
+                prefs.webtoonSidePadding.changes().collect {
+                    relayout()
+                    reanchorCurrent()
+                    drawVisible()
+                }
+            }
+            launch {
+                prefs.continuousMinWidth.changes().collect {
+                    relayout()
+                    reanchorCurrent()
+                    drawVisible()
+                }
             }
         }
         ReaderColorFilterEffect { drawVisible() }
@@ -552,14 +562,18 @@ class AndroidxWebGpuContinuousViewer(
     /**
      * The width pages are drawn at: the surface width shrunk by the stock webtoon side-padding
      * preference on each side ([eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
-     * .webtoonSidePadding], 0-25 per side). The stock viewer applies the same value as per-page
-     * horizontal margins (WebtoonRecyclerView's sidePadding is one margin per side), so a 25%
-     * setting leaves half the width for the strip, centered. Layout heights and draw placements
-     * both read this, so they always agree.
+     * .webtoonSidePadding], 0-25 per side), times the strip scale the HQ continuous viewer
+     * applies as homeScale ([ReaderPreferences.continuousMinWidth], 1-100%; 100 by default, so
+     * the stock-parity behavior fills the width exactly). The stock viewer applies the padding
+     * value as per-page horizontal margins (WebtoonRecyclerView's sidePadding is one margin per
+     * side), so a 25% setting leaves half the width for the strip, centered. Layout heights and
+     * draw placements both read this, so they always agree.
      */
     private fun stripPageWidthPx(): Float {
         val width = imageBackend.surfaceWidthPx.coerceAtLeast(1)
-        val paddingFraction = activity.appGraph.readerPreferences.webtoonSidePadding.get() / 100f
-        return width * (1f - 2f * paddingFraction).coerceIn(0.1f, 1f)
+        val prefs = activity.appGraph.readerPreferences
+        val paddingFraction = prefs.webtoonSidePadding.get() / 100f
+        val stripScale = prefs.continuousMinWidth.get() / 100f
+        return width * (1f - 2f * paddingFraction).coerceIn(0.1f, 1f) * stripScale.coerceIn(0.05f, 1f)
     }
 }
