@@ -1122,6 +1122,8 @@
     <string name="migrationListScreen.matchWithoutChapterToast">No chapters found, this entry cannot be used for migration</string>
     <string name="migrationListScreen.exactMatchBadge">EXACT</string>
     <string name="migrationListScreen.singleResultBadge">ONLY RESULT</string>
+    <string name="migrationListScreen.failedDialog.title">Some migrations failed</string>
+    <string name="migrationListScreen.failedDialog.message">%1$d of %2$d entries could not be migrated. Check the list and try again with the Migrate button.</string>
 
     <string name="supportUsScreen.perks">Patrons get access to exclusive channels, with more perks to come.</string>
     <string name="supportUsScreen.donationPlatform.patreon">Patreon (preferred)</string>

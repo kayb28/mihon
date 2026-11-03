@@ -881,6 +881,8 @@
     <string name="migrationListScreen.matchWithoutChapterToast">No se ha encontrado ningún capítulo, por lo que no se puede utilizar para migrar</string>
     <string name="migrationListScreen.exactMatchBadge">EXACTO</string>
     <string name="migrationListScreen.singleResultBadge">ÚNICO RESULTADO</string>
+    <string name="migrationListScreen.failedDialog.title">Algunas migraciones fallaron</string>
+    <string name="migrationListScreen.failedDialog.message">%1$d de %2$d entradas no se pudieron migrar. Revisa la lista y vuelve a intentarlo con el botón Migrar.</string>
     <string name="migrationListScreen.migrateDialog.migrateLabel">Migrar</string>
     <string name="migrationConfigScreen.prioritizeByChaptersSubtitle">Al activarlo elige la coincidencia mayor, si no elige la primera que encuentre por prioridad de fuente.</string>
     <string name="migrationConfigScreen.similarityThresholdTitle">Precisión de coincidencia</string>

@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.ui.browse.migration.search.MigrateSearchScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.util.system.toast
 import mihon.feature.migration.list.components.MigrationExitDialog
+import mihon.feature.migration.list.components.MigrationFailedDialog
 import mihon.feature.migration.list.components.MigrationMangaDialog
 import mihon.feature.migration.list.components.MigrationProgressDialog
 import tachiyomi.i18n.MR
@@ -92,6 +93,13 @@ class MigrationListScreen(private val mangaIds: Collection<Long>, private val ex
                 MigrationProgressDialog(
                     progress = dialog.progress,
                     exitMigration = viewModel::cancelMigrate,
+                )
+            }
+            is MigrationListViewModel.Dialog.MigrateFailed -> {
+                MigrationFailedDialog(
+                    failedCount = dialog.failedCount,
+                    totalCount = dialog.totalCount,
+                    onDismissRequest = viewModel::dismissDialog,
                 )
             }
             MigrationListViewModel.Dialog.Exit -> {

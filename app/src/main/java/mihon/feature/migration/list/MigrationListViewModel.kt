@@ -351,6 +351,7 @@ class MigrationListViewModel(
         migrateJob = viewModelScope.launch(Dispatchers.IO) {
             state.update { it.copy(dialog = Dialog.Progress(0f)) }
             val items = items
+            var failedCount = 0
             try {
                 items.forEachIndexed { index, manga ->
                     try {
@@ -367,17 +368,37 @@ class MigrationListViewModel(
                         }
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
+                        // MigrateMangaUseCase propagates failures; count them instead of letting
+                        // the run end as if every entry had been copied.
+                        failedCount++
                         logcat(LogPriority.WARN, throwable = e)
                     }
                     state.update {
                         it.copy(dialog = Dialog.Progress((index.toFloat() / items.size).coerceAtMost(1f)))
                     }
                 }
-
-                navigateBack()
             } finally {
                 state.update { it.copy(dialog = null) }
                 migrateJob = null
+            }
+
+            if (failedCount > 0) {
+                // Stay on the list and tell the user what failed instead of navigateBack(), which
+                // looked like a fully successful run. Entries that DID migrate are dropped so a
+                // retry only re-processes the failures; failed entries keep their search result.
+                items.filter { it.searchResult.value is SearchResult.Success }
+                    .forEach { removeManga(it) }
+                updateMigrationProgress()
+                state.update {
+                    it.copy(
+                        dialog = Dialog.MigrateFailed(
+                            failedCount = failedCount,
+                            totalCount = items.size,
+                        ),
+                    )
+                }
+            } else {
+                navigateBack()
             }
         }
     }
@@ -458,6 +479,7 @@ class MigrationListViewModel(
     sealed interface Dialog {
         data class Migrate(val copy: Boolean, val totalCount: Int, val skippedCount: Int) : Dialog
         data class Progress(@FloatRange(0.0, 1.0) val progress: Float) : Dialog
+        data class MigrateFailed(val failedCount: Int, val totalCount: Int) : Dialog
         data object Exit : Dialog
     }
 
