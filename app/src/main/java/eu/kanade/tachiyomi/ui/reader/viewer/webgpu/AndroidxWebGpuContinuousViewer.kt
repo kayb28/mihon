@@ -203,6 +203,13 @@ class AndroidxWebGpuContinuousViewer(
                     .scrollable(
                         state = scrollableState,
                         orientation = Orientation.Vertical,
+                        // Compose does not invert touch deltas on its own: the natural flip only
+                        // happens with reverseDirection = true, which verticalScroll and
+                        // LazyColumn always pass for vertical (ScrollableDefaults.reverseDirection
+                        // resolves `true`). Left at its default (false), dragging down advanced
+                        // and dragging up went back - inverted against the finger, unlike every
+                        // other viewer in the app.
+                        reverseDirection = true,
                         flingBehavior = flingBehavior,
                     )
                     .pointerInput(Unit) {
