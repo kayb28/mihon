@@ -12,11 +12,11 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Mihon Fix 0.21.3 — fork kayb28, build `0800479`] - 2026-11-04
 
-> versionCode 39 (sin cambios) · los commits de código de esta entrada son `e370cb0` y `0800479`; el resto del ciclo es documentación (CHANGELOG/TRASPASO). La build instalable se identifica por el hash que muestra «Acerca de».
+> versionCode 39 (sin cambios) · los commits de código de esta entrada son `e370cb0`, `0800479` y `9758ddc`; el resto del ciclo es documentación (CHANGELOG/TRASPASO). La build instalable se identifica por el hash que muestra «Acerca de».
 
 ### Fixed
 - Migración: una coincidencia auto-aceptada porque la fuente devolvió un único resultado ya no se muestra como «100 %» (nunca se comparó el título); ahora muestra «ÚNICO RESULTADO» en ámbar para que se verifique la portada antes de migrar (e370cb0). Detectado en la prueba real del 2026-11-03: «Las conspiraciones del mercenario» apareció en Kagane como «Return of the Heavenly Monarch» con un 100 % engañoso.
-- Migración masiva: si una entrada falla al migrar, al final se muestra un diálogo con el resumen («X de Y entradas no se pudieron migrar») y la lista queda con las falladas listas para reintentar con «Migrar»; antes la pantalla simplemente se cerraba como si todo hubiera salido bien (0800479).
+- Migración masiva: si una entrada falla al migrar, al final se muestra un diálogo con el resumen («X de Y entradas no se pudieron migrar») y la lista queda con las falladas listas para reintentar con «Migrar»; antes la pantalla simplemente se cerraba como si todo hubiera salido bien (0800479, textos corregidos en 9758ddc).
 
 ### Other
 - Prueba del usuario (2026-11-03/04, build `41a3c74` instalada desde el chat): cambio de capítulo al deslizar y marcaje de capítulo leído confirmados como resueltos en el teléfono; la búsqueda de migración encontró candidato para 12/12 mangas (prueba abortada a propósito antes de confirmar, para medir solo la búsqueda).

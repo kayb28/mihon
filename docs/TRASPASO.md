@@ -7,7 +7,7 @@
 
 ## 1. Estado de la rama
 
-- **HEAD al generar este documento:** `0800479` (último commit de código; el commit de este documento va encima).
+- **HEAD al generar este documento:** `9758ddc` (último commit de código; el commit de este documento va encima).
 - Aviso de sesión: la copia local quedó desactualizada (sin los commits `65a8c65..41a3c74` de la actualización general ya publicada); se recuperó con `git fetch` y los dos commits nuevos de este ciclo se reaplicaron con cherry-pick sobre `41a3c74`. El fix de fuente destino no instalada no se reaplicó porque el remoto ya lo traía (`d64f550`).
 - La prueba del teléfono del 03/11 por la tarde usó el APK del run 41720335566 (`41a3c74`, solo documentación encima de `5f82393`), entregado por el chat, no descargado de GitHub.
 
@@ -15,6 +15,7 @@
 
 | Hash | Fecha (UTC) | Mensaje |
 |---|---|---|
+| `9758ddc` | 2026-11-04 | fix: nombres correctos de los textos del dialogo de fallos |
 | `0800479` | 2026-11-04 | fix: la migracion masiva avisa de los fallos en vez de terminar como si nada |
 | `e370cb0` | 2026-11-04 | fix: el 100% de resultado unico ya no se disfraza de coincidencia de titulo |
 | `41a3c74` | 2026-11-03 21:16 | docs: traspaso de estado tras la actualizacion general (5f82393) |
@@ -38,6 +39,7 @@ El usuario probó la búsqueda de la migración con 12 mangas (abortando a prop�
 |---|---|
 | `e370cb0` | La insignia miente menos: un candidato auto-aceptado por ser el único resultado ya se muestra como «ÚNICO RESULTADO» (ámbar) en vez de «100 %»; EXACTO y los porcentajes reales no cambian. Sin cambio de comportamiento: el candidato sigue utilizable, pero la señal visual dice la verdad |
 | `0800479` | La migración masiva ya no termina en silencio: si hay fallos, muestra «X de Y entradas no se pudieron migrar», quita de la lista las que sí migraron y deja la lista lista para reintentar solo las fallidas (conservan su coincidencia). Antes navegaba hacia atrás aunque la mitad del lote hubiera fallado |
+| `9758ddc` | Nombres de los textos del diálogo de fallos corregidos (moko: puntos → guiones bajos); detectado en la compilación local de verificación |
 
 ## 2. «Actualización general» del 03/11 (ya publicada y en el teléfono del usuario)
 
@@ -55,7 +57,7 @@ El usuario probó la búsqueda de la migración con 12 mangas (abortando a prop�
 ## 3. Aplicado y compilado en CI
 
 - **CI verde anterior: Run 41720335566 sobre `41a3c74` (conclusion: success)** — la build que el usuario tiene instalada. Run 41716634026 (`5f82393`) también verde.
-- Ciclo del 04/11 (`e370cb0` + `0800479`): compilación local de verificación antes de empujar; el run de CI se dispara con el push de este traspaso (resultado pendiente al escribir esto).
+- Ciclo del 04/11 (`e370cb0` + `0800479` + `9758ddc`): **compilación local de verificación ✅** (`:app:compileReleaseKotlin` y `spotlessCheck` en verde antes de empujar); el run de CI se dispara con el push de este traspaso (resultado pendiente al escribir esto).
 - Verificación local del ciclo anterior (no sustituye CI ni teléfono): `spotlessCheck` ✅, `compileReleaseKotlin` ✅, `:app:testDebugUnitTest --tests TitleMatcherTest` ✅ 11/11 (la suite completa no cabió en el sandbox: 4 GB RAM, se atascó; CI no ejecuta tests).
 
 ## 4. Confirmado por el usuario en su teléfono
