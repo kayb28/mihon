@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
+import android.view.Choreographer
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.ScrollableDefaults
@@ -42,7 +43,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import mihon.app.di.appGraph
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
-import android.view.Choreographer
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -216,14 +216,14 @@ class AndroidxWebGpuContinuousViewer(
                         detectTapGestures(
                             onTap = { offset -> onTap(offset, size) },
                             onLongPress = {
-                            // Same gate as the stock viewers and the HQ viewer: the long-tap
-                            // dialog is opt-in unless the menu is already open.
-                            if (activity.viewModel.state.value.menuVisible ||
-                                activity.settingsViewModel.general.value.longTapEnabled
-                            ) {
-                                current?.let(activity::onPageLongTap)
-                            }
-                        },
+                                // Same gate as the stock viewers and the HQ viewer: the long-tap
+                                // dialog is opt-in unless the menu is already open.
+                                if (activity.viewModel.state.value.menuVisible ||
+                                    activity.settingsViewModel.general.value.longTapEnabled
+                                ) {
+                                    current?.let(activity::onPageLongTap)
+                                }
+                            },
                         )
                     },
             ) {

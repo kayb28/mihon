@@ -21,7 +21,10 @@ import org.junit.jupiter.api.Test
 class TitleMatcherTest {
 
     private fun smanga(title: String, url: String = "u-$title"): SManga =
-        SManga.create().apply { this.title = title; this.url = url }
+        SManga.create().apply {
+            this.title = title
+            this.url = url
+        }
 
     @Test
     fun `identical kanji title with different url is auto-accepted`() {

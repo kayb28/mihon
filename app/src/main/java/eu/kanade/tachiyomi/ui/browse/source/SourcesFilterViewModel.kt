@@ -80,7 +80,8 @@ class SourcesFilterViewModel(
         languagesWithSources.forEach { (language, sources) ->
             val visibleSources = sources.filter { source ->
                 classificationFilter.isEmpty() ||
-                    sourceClassificationFor(source.id, classifications, contentWarningBySourceId[source.id]) in classificationFilter
+                    sourceClassificationFor(source.id, classifications, contentWarningBySourceId[source.id]) in
+                    classificationFilter
             }
             if (visibleSources.isNotEmpty()) filteredItems[language] = visibleSources
         }

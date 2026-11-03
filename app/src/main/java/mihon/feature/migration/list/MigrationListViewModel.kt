@@ -181,7 +181,9 @@ class MigrationListViewModel(
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    logcat(LogPriority.WARN, e) { "Source ${source.id} search failed for ${manga.manga.id}" }
+                                    logcat(LogPriority.WARN, e) {
+                                        "Source ${source.id} search failed for ${manga.manga.id}"
+                                    }
                                     searchHadError = true
                                     null
                                 }
