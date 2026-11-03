@@ -131,7 +131,11 @@ abstract class BaseSmartSearchEngine<T>(
     companion object {
         const val MIN_ELIGIBLE_THRESHOLD = 0.4
 
-        private val titleRegex = Regex("[^a-zA-Z0-9- ]")
+        // Unicode-aware, like TitleMatcher now is: the old [a-zA-Z0-9- ] strip dropped whole
+        // CJK/Cyrillic tails, so "Tokyo Revengers 特別編" and "Tokyo Revengers 番外編" both cleaned
+        // to "tokyo revengers" and scored as identical fuzzy candidates. The short-title fallback
+        // below becomes a no-op for those titles, which is fine — nothing needs recovering.
+        private val titleRegex = Regex("[^\\p{L}\\p{Nd}\\- ]")
         private val titleCyrillicRegex = Regex("[^\\p{L}0-9- ]")
         private val consecutiveSpacesRegex = Regex(" +")
         private val chapterRefCyrillicRegexp = Regex("""((- часть|- глава) \d*)""")

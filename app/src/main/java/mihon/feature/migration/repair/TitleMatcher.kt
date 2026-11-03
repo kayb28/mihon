@@ -7,7 +7,14 @@ import java.util.regex.Pattern
 object TitleMatcher {
 
     private val DIACRITICS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
-    private val SYMBOLS_PATTERN = Pattern.compile("[^\\p{Alnum}\\s]")
+
+    // \p{Alnum} is a POSIX class: ASCII-only in Java. Kanji, hangul and Cyrillic were therefore
+    // stripped as "symbols" — every CJK title normalized to "" and two different series sharing a
+    // Latin prefix ("Berserk 冒険" vs "Berserk 記録") collapsed onto the same key and joined as an
+    // exact match. Compare against Unicode letters and digits instead, and keep the kana voicing
+    // marks U+3099/U+309A that NFD leaves floating (they distinguish ハ/バ/パ, and the diacritics
+    // pass above only strips the 0300-036F block, so they arrive here and must survive).
+    private val SYMBOLS_PATTERN = Pattern.compile("[^\\p{IsAlphabetic}\\p{IsDigit}\\u3099\\u309A\\s]")
     private val MULTI_SPACE_PATTERN = Pattern.compile("\\s+")
 
     /**
