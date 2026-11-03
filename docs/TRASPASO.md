@@ -2,19 +2,22 @@
 
 - Repositorio: `kayb28/mihon` (fork WebGPU de Mihon)
 - Rama: `feature/webgpu-clean`
-- Fecha del traspaso: 03/11/2026, 18:20 (hora de São Paulo)
+- Fecha del traspaso: 04/11/2026, 08:30 (hora de São Paulo)
 - Regla de oro de este traspaso: solo se marca «verificado» lo que pasó por CI verde o se probó en el teléfono del usuario. Revisar código no cuenta como verificado.
 
 ## 1. Estado de la rama
 
-- **HEAD al generar este documento:** `5f82393` (`5f82393d49e4f94b6c339efe5c52d14e69763e6f`).
-- La rama local y `origin/feature/webgpu-clean` están sincronizadas en `5f82393` (verificado con push y CI).
-- Entre el traspaso anterior (`d1a776d`) y este hubo una divergencia resuelta con merge: la sesión de trabajo tenía un commit local sin publicar (`1bdd3e9`, integración del loader) y el remoto traía el documento (`d1a776d`); se incorporó con `02cf7d5` (merge ort, sin conflictos).
+- **HEAD al generar este documento:** `0800479` (último commit de código; el commit de este documento va encima).
+- Aviso de sesión: la copia local quedó desactualizada (sin los commits `65a8c65..41a3c74` de la actualización general ya publicada); se recuperó con `git fetch` y los dos commits nuevos de este ciclo se reaplicaron con cherry-pick sobre `41a3c74`. El fix de fuente destino no instalada no se reaplicó porque el remoto ya lo traía (`d64f550`).
+- La prueba del teléfono del 03/11 por la tarde usó el APK del run 41720335566 (`41a3c74`, solo documentación encima de `5f82393`), entregado por el chat, no descargado de GitHub.
 
 Últimos commits, de más reciente a más antiguo (fechas en UTC):
 
 | Hash | Fecha (UTC) | Mensaje |
 |---|---|---|
+| `0800479` | 2026-11-04 | fix: la migracion masiva avisa de los fallos en vez de terminar como si nada |
+| `e370cb0` | 2026-11-04 | fix: el 100% de resultado unico ya no se disfraza de coincidencia de titulo |
+| `41a3c74` | 2026-11-03 21:16 | docs: traspaso de estado tras la actualizacion general (5f82393) |
 | `5f82393` | 2026-11-03 21:10 | fix: hacer suspend los helpers nuevos que consultan el SourceManager |
 | `be5c763` | 2026-11-03 21:05 | style: ajustes de formato de spotless (locales y arrastrados) |
 | `7c3dff0` | 2026-11-03 20:35 | fix: honrar la escala de tira (Min width) en la tira androidx |
@@ -27,9 +30,16 @@
 
 \* `1bdd3e9` fue creado en una sesión anterior (2026-11-03 19:18 UTC) y quedó sin publicar; este ciclo lo incorporó.
 
-## 2. La «actualización general» (aprobada por el usuario y aplicada)
+### Ciclo del 04/11 (este traspaso) — motivado por la prueba de migración del usuario
 
-El usuario aprobó («tienes tu ok») una actualización general que combinara los pendientes del visor androidx y de la migración en un solo ciclo de build+instalación (instalar en el teléfono le cuesta ~1 hora). Se aplicó un commit por cambio para poder revertirlos por separado:
+El usuario probó la búsqueda de la migración con 12 mangas (abortando a propósito antes de confirmar) y reportó dos problemas del lector como resueltos. En sus capturas se vio el caso que quedaba pendiente (§6.7): «Las conspiraciones del mercenario» (LeerCapitulo, 113 caps) apareció en Kagane como «Return of the Heavenly Monarch» (21 caps) con un 100 % que no significaba nada — es la auto-aceptación de resultado único, que asigna 1.0 sin comparar títulos (el parche de `702f10f`/`65a8c65` arregló los falsos 100 % por normalización, pero no esta vía).
+
+| Commit | Qué hace |
+|---|---|
+| `e370cb0` | La insignia miente menos: un candidato auto-aceptado por ser el único resultado ya se muestra como «ÚNICO RESULTADO» (ámbar) en vez de «100 %»; EXACTO y los porcentajes reales no cambian. Sin cambio de comportamiento: el candidato sigue utilizable, pero la señal visual dice la verdad |
+| `0800479` | La migración masiva ya no termina en silencio: si hay fallos, muestra «X de Y entradas no se pudieron migrar», quita de la lista las que sí migraron y deja la lista lista para reintentar solo las fallidas (conservan su coincidencia). Antes navegaba hacia atrás aunque la mitad del lote hubiera fallado |
+
+## 2. «Actualización general» del 03/11 (ya publicada y en el teléfono del usuario)
 
 | Commit | Qué hace | Pendiente TRASPASO anterior que cubre |
 |---|---|---|
@@ -44,20 +54,23 @@ El usuario aprobó («tienes tu ok») una actualización general que combinara l
 
 ## 3. Aplicado y compilado en CI
 
-- **CI verde: Run 41716634026 sobre `5f82393` (conclusion: success).** Ese run publicó los artefactos:
-  - `mihon-release-apks-<sha>` (APKs firmados: arm64-v8a 37 MB, etc.)
-  - `mihon-unminified-apks-<sha>`, `emperorscan-extension-apk-<sha>`, `mhscans-extension-apk-<sha>`.
-- Verificación local antes de empujar (no sustituye CI ni teléfono): `spotlessCheck` ✅, `compileReleaseKotlin` ✅, `:app:testDebugUnitTest --tests TitleMatcherTest` ✅ 11/11 (la suite completa no cabió en el sandbox: 4 GB RAM, se atascó; CI no ejecuta tests).
+- **CI verde anterior: Run 41720335566 sobre `41a3c74` (conclusion: success)** — la build que el usuario tiene instalada. Run 41716634026 (`5f82393`) también verde.
+- Ciclo del 04/11 (`e370cb0` + `0800479`): compilación local de verificación antes de empujar; el run de CI se dispara con el push de este traspaso (resultado pendiente al escribir esto).
+- Verificación local del ciclo anterior (no sustituye CI ni teléfono): `spotlessCheck` ✅, `compileReleaseKotlin` ✅, `:app:testDebugUnitTest --tests TitleMatcherTest` ✅ 11/11 (la suite completa no cabió en el sandbox: 4 GB RAM, se atascó; CI no ejecuta tests).
 
 ## 4. Confirmado por el usuario en su teléfono
 
 - En tira vertical, deslizar hacia arriba sube la página y hacia abajo la regresa (verificado en ambos modos).
 - El menú del lector abre y se cierra.
 - Las zonas de toque funcionan en modo «Por páginas».
+- **Nuevo (04/11, build `41a3c74`):** el cambio de capítulo al deslizar al final del capítulo ya funciona, y el capítulo se marca como leído — los dos problemas reportados el 03/11 están resueltos según el usuario.
+- **Nuevo (04/11):** la búsqueda de migración encontró candidato en las fuentes destino para 12/12 mangas (con porcentajes visibles); la prueba se abortó a propósito antes de confirmar, así que la migración real en sí sigue sin ejecutarse en el teléfono.
 
 ## 5. Pendiente de confirmar en teléfono
 
-- Todo lo de la sección 2 (build `5f82393` o el artefacto del run 41716634026): lectura online sin «cargando» infinito, paso y marcaje de capítulo, grises/invertidos, espacio lateral, escala de tira, reintentos de búsqueda en migración/reparador, migración a fuente no instalada que falla con aviso.
+- De la actualización general del 03/11: lectura online sin «cargando» infinito (el usuario no lo volvió a reportar, pero tampoco lo confirmó explícitamente), grises/invertidos, espacio lateral, escala de tira, reintentos de búsqueda en migración/reparador, migración a fuente no instalada que falla con aviso.
+- Del ciclo del 04/11: insignia «ÚNICO RESULTADO» en las parejas donde la fuente devolvió un solo resultado, y diálogo de resumen de fallos de la migración masiva.
+- La migración real (confirmar y completar al menos una) sigue sin hacerse: los datos (categorías, leídos, marcadores) no se han validado en el teléfono.
 - El crash de 274.869 px en el visor androidx: falta reproducirlo en el teléfono para confirmar si sigue ocurriendo.
 
 ## 6. Pendientes de código, en orden
@@ -68,7 +81,8 @@ El usuario aprobó («tienes tu ok») una actualización general que combinara l
 4. ~~`MigrateMangaUseCase` sale sin error si la fuente destino no está instalada~~ → aplicada (`d64f550`).
 5. La migración no es atómica (varias escrituras separadas). Sin cambio: requiere un diseño propio (transacción por pasos + compensaciones) y aprobación del usuario.
 6. ~~Un fallo de red en el reparador se muestra como «sin coincidencia»~~ → aplicada (`bf779ad`).
-7. Pendiente de decisión del usuario: si la migración masiva debe preseleccionar solo coincidencias exactas (hoy usa todo resultado «Success», exacto o aproximado, con la insignia de porcentaje como única señal visual). El parche de títulos de `702f10f`/`65a8c65` ya elimina los falsos 100 %; falta la prueba de los 9 mangas (§8) antes de decidir si se endurece más.
+7. Decisión pendiente del usuario: si la migración masiva debe preseleccionar solo coincidencias exactas. La vía restante de falsos 100 % (auto-aceptación de resultado único) ya se identifica en pantalla con «ÚNICO RESULTADO» (`e370cb0`); falta la prueba de los 9 mangas (§8) para decidir si se endurece más la preselección.
+8. ~~La migración masiva termina en silencio aunque haya fallos~~ → aplicado (`0800479`); pendiente de confirmar en teléfono.
 
 ## 7. Lo que NO se debe hacer sin confirmación del usuario
 
@@ -79,18 +93,20 @@ El usuario aprobó («tienes tu ok») una actualización general que combinara l
 
 ## 8. Pruebas pendientes del usuario (pasos concretos)
 
-1. Instalar el APK arm64 del run 41716634026 (`5f82393`) — instalación completa, ~1 hora.
-2. Lector online (tira): abrir un capítulo en línea y comprobar que las páginas cargan al avanzar (ya no se queda en «cargando»), que al final del capítulo el siguiente se precarga y cambia solo, y que el capítulo se marca leído al pasar su última página.
+1. Instalar el APK arm64 del run de CI de este ciclo (commit `0800479`) — instalación completa, ~1 hora. Ya confirmado antes (no repetir): cambio de capítulo al deslizar y marcaje de leído ✅.
+2. Lector online (tira): abrir un capítulo en línea y comprobar que las páginas cargan al avanzar (ya no se queda en «cargando»).
 3. Grises e invertidos: activar «Escala de grises» y «Invertir colores» en los ajustes del lector con el visor androidx activo: debe aplicarse al instante en ambos modos (paginado y tira).
 4. Espacio lateral y escala: en ajustes webtoon, mover «Espacio lateral» (0-25 %) y en ajustes del visor «Min width» (1-100 %): la tira debe estrecharse/centrarse en vivo y mantener la página actual.
-5. Repetir la migración con los 9 mangas de la prueba anterior —entre ellos ZomGan, Zui Qiang Shen y Zettai ni Damage wo…— y revisar el porcentaje de cada pareja.
+5. Repetir la búsqueda de migración con los 9 mangas de referencia —entre ellos ZomGan, Zui Qiang Shen y Zettai ni Damage wo…— y revisar la insignia de cada pareja. En la prueba del 03/11 con 12 mangas todas encontraron candidato; en esta build, una pareja con título distinto debe mostrar «ÚNICO RESULTADO» (ámbar), no «100 %».
 6. Resultados de referencia (simulación local en PC/JVM, **no verificados en teléfono**):
    - ZomGan → LectorXD: ~100 % (coincidencia real; debe seguir alta).
    - Zui Qiang Shen → Feng Shen Ji (Kumanga): ~0 % tras el parche (antes mostraba un 100 % falso).
    - Zettai ni Damage wo… → Level Drain (Emperor Scan): ~4,5 % tras el parche (antes mostraba un 100 % falso).
    - Umbral de la migración masiva: 40 %.
-7. Prueba nueva del reintento: con datos móviles cortados, lanzar una búsqueda en el reparador o migración: debe verse «Error de búsqueda» con botón Reintentar (no «sin coincidencia»). Reconectar y reintentar: debe buscar de verdad.
-8. Si alguna pareja vuelve a mostrar un 100 % sospechoso, anotar el título exacto guardado en la biblioteca para poder depurarlo.
+7. Reintento de búsqueda: con datos móviles cortados, lanzar una búsqueda en el reparador o migración: debe verse «Error de búsqueda» con botón Reintentar (no «sin coincidencia»). Reconectar y reintentar: debe buscar de verdad.
+8. Reintento de migración masiva (nuevo): si el diálogo dice «X de Y entradas no se pudieron migrar», la lista queda solo con las fallidas y «Migrar» reintenta solo esas.
+9. Primera migración REAL de un manga (elegir uno con EXACTO): confirmar y revisar en la ficha nueva que conservan categorías, capítulos leídos y marcadores. Así se valida el flujo completo que la prueba del 03/11 dejó sin ejecutar.
+10. Si alguna pareja vuelve a mostrar un 100 % sospechoso, anotar el título exacto guardado en la biblioteca para poder depurarlo.
 
 ---
 
