@@ -21,12 +21,12 @@ fun MigrationFailedDialog(
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = {
-            Text(text = stringResource(MR.strings.migrationListScreen_failedDialogTitle))
+            Text(text = stringResource(MR.strings.migrationListScreen_failedDialog_title))
         },
         text = {
             Text(
                 text = stringResource(
-                    MR.strings.migrationListScreen_failedDialogMessage,
+                    MR.strings.migrationListScreen_failedDialog_message,
                     failedCount,
                     totalCount,
                 ),
