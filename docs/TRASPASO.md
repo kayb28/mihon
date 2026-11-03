@@ -110,6 +110,14 @@ El usuario probó la búsqueda de la migración con 12 mangas (abortando a prop�
 9. Primera migración REAL de un manga (elegir uno con EXACTO): confirmar y revisar en la ficha nueva que conservan categorías, capítulos leídos y marcadores. Así se valida el flujo completo que la prueba del 03/11 dejó sin ejecutar.
 10. Si alguna pareja vuelve a mostrar un 100 % sospechoso, anotar el título exacto guardado en la biblioteca para poder depurarlo.
 
+## 9. Notas de la sesión del 04/11 (tarde) — solo consultas, sin cambios de código
+
+- **Run 41736690161 (commit `69769b1`): VERDE** (comprobado en la web de GitHub Actions). APK arm64 descargado del artefacto y entregado por el chat como `MihonFix-0.21.3-build-69769b1-arm64.apk` (~56 MB, desminificado).
+- La tarea programada del chat para descargar ese APK (run 41736690161) se quedó atascada sin ejecutarse nunca (run_count 0); se borró y la descarga se hizo a mano. Si se usa una tarea programada de nuevo, comprobar al día siguiente que de verdad corrió.
+- **Explicado al usuario (sin código):** (1) el porcentaje de actualización de biblioteca es «series revisadas / total» y las series se revisan por fuente, de la más grande a la menor, una por una dentro de cada fuente: el tramo final lo dominan las fuentes lentas, con límite de peticiones y tiempos de espera de red; (2) el «colgado en 100 %» corresponde a la fase de cierre que el porcentaje no cuenta: guardar errores, montar las notificaciones de capítulos nuevos (una portada por serie, en serie, contra los sitios lentos) y arrancar la descarga automática; (3) la notificación de errores de actualización sigue enviándose (ruta intacta en el worker) pero su canal es IMPORTANCE_LOW y One UI puede ocultar las notificaciones silenciosas o tener la categoría apagada: revisar Ajustes → Aplicaciones → MihonFix → Notificaciones → grupo «Biblioteca». Si el usuario quiere, propuesta futura: canal de errores con importancia por defecto (requiere ID de canal nuevo para instalaciones existentes; necesita aprobación).
+- **Reparador de enlaces:** usa el mismo motor que la migración (pase estricto + pase profundo con variantes del título y TitleMatcher), pero busca el título GUARDADO en la MISMA fuente. Un cambio de nombre total (sin palabras en común) es imposible de emparejar por texto; para eso sirve Migrar con el nombre nuevo a mano.
+- Espacio del proyecto liberado: borrados los dos .deb de OpenJDK (121 MB) que quedaron de la instalación de Java. Proyecto en ~455 MB de 2 GB. El ZIP del artefacto CI (218 MB) se descargó en /tmp y ya se borró.
+
 ---
 
 Nota de seguridad: este documento se revisó antes de guardarse; no contiene tokens, claves, contraseñas ni URLs con credenciales.
