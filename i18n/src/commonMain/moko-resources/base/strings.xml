@@ -994,9 +994,9 @@
     <string name="notification_cover_update_failed">Failed to update cover</string>
     <string name="notification_first_add_to_library">Please add the entry to your library before doing this</string>
     <string name="library_errors_help">For help on how to fix library update errors, see %1$s</string>
-    <string name="library_update_difficult_sources_section">Sources with trouble in this update (slow or failing):</string>
-    <string name="library_update_difficult_source_line">%1$d series, %2$d failures, ~%3$d s per series</string>
-    <string name="notification_update_difficult_sources_text">Slowest or failing sources: %1$s</string>
+    <string name="update_difficult_sources_section">Sources with problems (series, failures, avg seconds per series)</string>
+    <string name="update_difficult_sources_entry">%1$s — %2$d series, %3$d failures, ~%4$s s/series</string>
+    <string name="update_difficult_sources_more">…and %1$d more</string>
     <string name="skipped_reason_completed">Skipped because series is complete</string>
     <string name="skipped_reason_not_caught_up">Skipped because there are unread chapters</string>
     <string name="skipped_reason_not_started">Skipped because no chapters are read</string>

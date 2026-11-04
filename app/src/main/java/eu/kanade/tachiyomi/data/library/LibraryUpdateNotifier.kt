@@ -177,17 +177,40 @@ class LibraryUpdateNotifier(
     }
 
     /**
-     * Shows the report of sources that were slow or flaky during the last library update, for
-     * the runs that finished with zero outright failures (otherwise the error notification
-     * already covers it and the file carries the report too). Tapping opens the same log file,
-     * which has the full breakdown per source.
+     * Shows a notification pointing to the error log file, which contains the sources that
+     * were slow or failed during the last full library update. Only used when there were no
+     * series failures, as the error notification already covers that case.
+     *
+     * @param sources sources with problems, worst first.
+     * @param uri Uri for error log file containing the difficult sources report.
      */
-    fun showDifficultSourcesNotification(sources: List<SourceUpdateStat>, uri: Uri) {
+    suspend fun showDifficultSourcesNotification(sources: List<SourceUpdateStat>, uri: Uri) {
         if (sources.isEmpty()) {
             return
         }
 
-        val names = sources.joinToString(", ") { sourceManager.getOrStub(it.sourceId).toString() }
+        // The suspend calls below must happen outside the notify block: its lambda is not inline,
+        // so it is not a coroutine body (NON_LOCAL_SUSPENSION_POINT otherwise).
+        val details = sources.take(NOTIF_DIFFICULT_SOURCES_MAX)
+            .map { stat ->
+                val source = sourceManager.getOrStub(stat.sourceId)
+                val avgSeconds = stat.durationMs / 1000.0 / stat.attempted.coerceAtLeast(1)
+                context.stringResource(
+                    MR.strings.update_difficult_sources_entry,
+                    "$source",
+                    stat.attempted,
+                    stat.failures,
+                    "%.0f".format(avgSeconds),
+                )
+            }
+            .joinToString("\n")
+        val extraCount = sources.size - NOTIF_DIFFICULT_SOURCES_MAX
+        val text = if (extraCount > 0) {
+            details + "\n" + context.stringResource(MR.strings.update_difficult_sources_more, extraCount)
+        } else {
+            details
+        }
+
         context.notify(
             Notifications.ID_LIBRARY_ERROR,
             Notifications.CHANNEL_LIBRARY_ERROR,
@@ -199,15 +222,10 @@ class LibraryUpdateNotifier(
                     sources.size,
                 ),
             )
-            setContentText(
-                context.stringResource(MR.strings.notification_update_difficult_sources_text, names.chop(NOTIF_NAMES_MAX_LEN)),
-            )
-            setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    context.stringResource(MR.strings.notification_update_difficult_sources_text, names),
-                ),
-            )
             setSmallIcon(R.drawable.ic_mihon)
+
+            setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            setContentText(context.stringResource(MR.strings.action_show_errors))
 
             setContentIntent(NotificationReceiver.openErrorLogPendingActivity(context, uri))
         }
@@ -434,8 +452,8 @@ class LibraryUpdateNotifier(
 }
 
 private const val NOTIF_MAX_CHAPTERS = 5
+private const val NOTIF_DIFFICULT_SOURCES_MAX = 5
 private const val NOTIF_TITLE_MAX_LEN = 45
-private const val NOTIF_NAMES_MAX_LEN = 60
 private const val NOTIF_ICON_SIZE = 192
 private const val MANGA_PER_SOURCE_QUEUE_WARNING_THRESHOLD = 60
 private const val NOTIF_PROGRESS_INTERVAL_MS = 500L

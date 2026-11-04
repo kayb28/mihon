@@ -568,9 +568,9 @@
     <string name="privacy_policy">Política de privacidad</string>
     <string name="pref_update_only_completely_read">Saltarse títulos con capítulos por leer</string>
     <string name="library_errors_help">Si necesitas ayuda para resolver los errores de actualización de la biblioteca mira en %1$s</string>
-    <string name="library_update_difficult_sources_section">Fuentes con problemas en esta actualización (lentas o con fallos):</string>
-    <string name="library_update_difficult_source_line">%1$d series, %2$d fallos, ~%3$d s por serie</string>
-    <string name="notification_update_difficult_sources_text">Fuentes más lentas o con fallos: %1$s</string>
+    <string name="update_difficult_sources_section">Fuentes con problemas (series, fallos, segundos por serie)</string>
+    <string name="update_difficult_sources_entry">%1$s — %2$d series, %3$d fallos, ~%4$s s/serie</string>
+    <string name="update_difficult_sources_more">…y %1$d más</string>
     <string name="save_chapter_as_cbz">Guardar como archivo CBZ</string>
     <string name="on_hiatus">En pausa</string>
     <string name="publishing_finished">Publicación finalizada</string>
