@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +30,8 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.settings.widget.SwitchPreferenceWidget
 import eu.kanade.tachiyomi.ui.browse.source.SourcesFilterViewModel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.MoreVert
 import tachiyomi.domain.source.model.Source
 import tachiyomi.domain.source.model.SourceClassification
 import tachiyomi.domain.source.model.SourceContentFilterEntry
@@ -46,12 +51,21 @@ fun SourcesFilterScreen(
     onClickClassificationFilter: (SourceClassification) -> Unit,
     onSetClassification: (Long, SourceClassification) -> Unit,
     onToggleContentFilter: (Long, String) -> Unit,
+    onSetVisibleSourcesEnabled: (Boolean) -> Unit,
 ) {
     Scaffold(
         topBar = { scrollBehavior ->
             AppBar(
                 title = stringResource(MR.strings.label_sources),
                 navigateUp = navigateUp,
+                actions = {
+                    if (state.items.isNotEmpty()) {
+                        BulkActionsMenu(
+                            visibleCount = state.items.values.sumOf { it.size },
+                            onSetVisibleSourcesEnabled = onSetVisibleSourcesEnabled,
+                        )
+                    }
+                },
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -75,6 +89,7 @@ fun SourcesFilterScreen(
             onClickClassificationFilter = onClickClassificationFilter,
             onSetClassification = onSetClassification,
             onToggleContentFilter = onToggleContentFilter,
+            onSetVisibleSourcesEnabled = onSetVisibleSourcesEnabled,
         )
     }
 }
@@ -88,6 +103,7 @@ private fun SourcesFilterContent(
     onClickClassificationFilter: (SourceClassification) -> Unit,
     onSetClassification: (Long, SourceClassification) -> Unit,
     onToggleContentFilter: (Long, String) -> Unit,
+    onSetVisibleSourcesEnabled: (Boolean) -> Unit,
 ) {
     FastScrollLazyColumn(
         contentPadding = contentPadding,
@@ -239,6 +255,70 @@ private fun SourcesFilterItem(
             Checkbox(checked = enabled, onCheckedChange = null)
         },
     )
+}
+
+@Composable
+private fun BulkActionsMenu(
+    visibleCount: Int,
+    onSetVisibleSourcesEnabled: (Boolean) -> Unit,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    var pendingEnable by remember { mutableStateOf<Boolean?>(null) }
+
+    IconButton(onClick = { menuExpanded = true }) {
+        Icon(
+            imageVector = MaterialSymbols.Rounded.MoreVert,
+            contentDescription = stringResource(MR.strings.source_filter_bulk_title),
+        )
+    }
+    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(MR.strings.source_filter_bulk_enable)) },
+            onClick = {
+                menuExpanded = false
+                pendingEnable = true
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(MR.strings.source_filter_bulk_disable)) },
+            onClick = {
+                menuExpanded = false
+                pendingEnable = false
+            },
+        )
+    }
+    pendingEnable?.let { enable ->
+        AlertDialog(
+            onDismissRequest = { pendingEnable = null },
+            title = { Text(stringResource(MR.strings.source_filter_bulk_title)) },
+            text = {
+                Column {
+                    Text(
+                        text = if (enable) {
+                            stringResource(MR.strings.source_filter_bulk_enable_confirm, visibleCount)
+                        } else {
+                            stringResource(MR.strings.source_filter_bulk_disable_confirm, visibleCount)
+                        },
+                    )
+                    Text(
+                        text = stringResource(MR.strings.source_filter_bulk_hint),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onSetVisibleSourcesEnabled(enable)
+                        pendingEnable = null
+                    },
+                ) { Text(stringResource(MR.strings.action_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingEnable = null }) { Text(stringResource(MR.strings.action_cancel)) }
+            },
+        )
+    }
 }
 
 private fun SourceClassification.labelResource() = when (this) {

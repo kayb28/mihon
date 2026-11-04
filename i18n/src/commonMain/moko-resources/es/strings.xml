@@ -947,6 +947,12 @@
     <string name="source_classification_warning">Estas etiquetas son personales y no garantizan el contenido de cada título.</string>
     <string name="source_classification_migration_title">Categorías de fuente permitidas en migraciones</string>
     <string name="source_classification_migration_summary">Las fuentes nuevas o sin clasificar se consideran Mixtas. Todas las categorías se permiten inicialmente para conservar el comportamiento existente.</string>
+    <string name="source_filter_bulk_title">Cambio en lote de fuentes</string>
+    <string name="source_filter_bulk_enable">Activar las fuentes de la lista</string>
+    <string name="source_filter_bulk_disable">Desactivar las fuentes de la lista</string>
+    <string name="source_filter_bulk_enable_confirm">Fuentes que se activarán: %1$d</string>
+    <string name="source_filter_bulk_disable_confirm">Fuentes que se desactivarán: %1$d</string>
+    <string name="source_filter_bulk_hint">Consejo: aplica primero un filtro de categoría (General, Adulto o Mixto) para cambiar solo esa categoría.</string>
     <string name="migration_no_eligible_sources">Ninguna fuente de migración coincide con las categorías seleccionadas. Cambia las opciones o elige otra fuente.</string>
     <string name="source_action_update_library">Actualizar la biblioteca de esta fuente</string>
     <string name="source_action_check_health">Comprobar fuente ahora</string>

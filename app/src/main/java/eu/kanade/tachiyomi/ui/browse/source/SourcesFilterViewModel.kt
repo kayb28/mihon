@@ -127,6 +127,11 @@ class SourcesFilterViewModel(
         )
     }
 
+    fun setAllVisibleSources(enabled: Boolean) {
+        val current = state.value as? State.Success ?: return
+        toggleSource.await(current.items.values.flatten().map { it.id }, enabled)
+    }
+
     sealed interface State {
 
         @Immutable

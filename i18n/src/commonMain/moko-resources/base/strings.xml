@@ -1187,6 +1187,12 @@
     <string name="source_classification_warning">These are your own source labels, not a guarantee about a title’s content.</string>
     <string name="source_classification_migration_title">Sources allowed for migration</string>
     <string name="source_classification_migration_summary">New and unclassified sources default to Mixed. All categories are allowed by default to preserve existing behavior.</string>
+    <string name="source_filter_bulk_title">Bulk change listed sources</string>
+    <string name="source_filter_bulk_enable">Enable listed sources</string>
+    <string name="source_filter_bulk_disable">Disable listed sources</string>
+    <string name="source_filter_bulk_enable_confirm">Sources to be enabled: %1$d</string>
+    <string name="source_filter_bulk_disable_confirm">Sources to be disabled: %1$d</string>
+    <string name="source_filter_bulk_hint">Tip: apply a category filter first (General, Adult, Mixed) to change only that category.</string>
     <string name="migration_no_eligible_sources">No migration sources match the selected source categories. Change the category options or choose another source.</string>
     <string name="source_action_update_library">Update this source’s library</string>
     <string name="source_action_check_health">Check source now</string>

@@ -46,6 +46,7 @@ class SourcesFilterScreen : Screen() {
             onClickClassificationFilter = viewModel::toggleClassificationFilter,
             onSetClassification = viewModel::setClassification,
             onToggleContentFilter = viewModel::toggleContentFilter,
+            onSetVisibleSourcesEnabled = viewModel::setAllVisibleSources,
         )
     }
 }
