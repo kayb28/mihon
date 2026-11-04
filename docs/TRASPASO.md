@@ -133,12 +133,36 @@ El usuario probó la búsqueda de la migración con 12 mangas (abortando a prop�
 ## 11. Ciclo del 04/11 (noche tardía) — regla de compilación e informe de fuentes
 
 - **REGLA NUEVA DEL USUARIO (obligatoria a partir de ahora):** la máquina del chat tiene 4 GB de RAM y compilar la app ahí queda PROHIBIDO. Todas las compilaciones se hacen exclusivamente en GitHub Actions; la cuota del usuario alcanza para varias builds. Preferencia explícita: «prefiero que se haga bien a que se haga rápido», reducir la carga de la máquina virtual es prioridad. Lo que SÍ se hace en local: editar código, leer/analizar, validar XML, commitear y empujar. Ya no se ejecuta `spotlessCheck`, `compileReleaseKotlin` ni tests locales como verificación previa: la revisión es manual línea a línea y el CI es el árbitro.
-- **Propuesta 1 IMPLEMENTADA (commit `1366d05`, pendiente de CI verde y de prueba en teléfono):** informe de fuentes difíciles al terminar la actualización de biblioteca.
+- **Actualización (mismo 04/11, mensaje posterior del usuario):** regla relajada — «compilar en local es importante y evita errores; puedes hacer tu compilación previa antes de empujar a GitHub, pero recuerda eficiencia por sobre todo». La verificación local previa vuelve a ser recomendada (ver receta ajustada en §12); CI sigue siendo el árbitro final.
+- **Propuesta 1 IMPLEMENTADA (commit `1366d05`, pendiente de CI verde y de prueba en teléfono) — SUPERADA por la versión corregida de §12 (`7718f3e`):** el CI detectó en `1366d05` un error de suspend en el notificador y el fix se perdió con el reciclaje del sandbox; la versión de §12 lo rehace ya corregido y verificado en local.
   - `SourceHealthStore` guarda por fuente la estadística de la última pasada completa: series intentadas, fallos y duración total de su cola (`SourceUpdateStat`, serializada igual que los registros de salud). Las pasadas interrumpidas no se registran.
   - Al terminar la actualización, el worker escribe en el mismo archivo de errores una sección «Fuentes con problemas» (series, fallos, ~segundos por serie, peor primero) y, si NO hubo fallos de series, envía además una notificación en el canal de errores con la lista de fuentes problemáticas (si hubo fallos, la notificación de errores ya existe y el informe solo va al archivo). Umbral: media ≥ 10 s por serie o algún fallo.
   - Sin cambios de orden ni de canales: el informe sale por el canal existente «Errores de actualización» (IMPORTANCE_LOW), que el usuario ya sabe revisar en MIUI.
   - Verificado a mano en esta sesión (no hay compilación local): imports completos, APIs existentes (`getObjectSetFromStringSet`, `getAndSet`, `openErrorLogPendingActivity`, `notify`), XML válidos, claves moko coincidentes base/es, y que `getOrStub` devuelve la interfaz de source-api cuyo `toString()` de `HttpSource`/`StubSource` ya imprime «Nombre (ES)».
 - Las propuestas 2, 3 y 4 de §10 siguen pendientes de aprobación del usuario.
+
+---
+
+## 12. Ciclo del 04/11 (noche) — Propuesta 1 reconstruida y corregida: informe de «Fuentes con problemas»
+
+Contexto: la implementación de `1366d05` llegó a GitHub pero con un error de compilación (`getOrStub` suspend dentro de una función no suspend en el notificador; CI rojo, run 41750547572). El fix y la copia local se perdieron al reciclarse el sandbox. Se rehízo la implementación completa sobre el árbol actual, ya corregida, y se verificó en local.
+
+Qué hace (todo dentro de la actualización de biblioteca, sin pantallas nuevas):
+
+- Al terminar un pase completo (no vale para actualizaciones de una categoría o una sola fuente), cada fuente deja guardadas sus estadísticas del último pase: series intentadas, fallos y duración total (`SourceUpdateStat` en `SourceHealthStore.kt`, nueva preferencia `source_health_last_pass_update_stats`). Los pases interrumpidos no se registran.
+- En el archivo de errores de siempre (`mihon_update_errors.txt`) se añade una sección «Fuentes con problemas»: `Nombre (idioma) — N series, N fallos, ~N s/serie`, peor fuente primero. Si no hubo series fallidas, se crea el archivo solo con esa sección.
+- Notificación nueva (mismo canal «Errores de actualización», IMPORTANCE_LOW, amable con MIUI) SOLO cuando no hubo series fallidas: «N fuentes dieron problemas en la actualización» con hasta 5 fuentes en el cuerpo; al tocarla se abre el archivo con el informe. Si hubo series fallidas, la notificación de errores de siempre ya lo cubre.
+- Umbral de «fuente con problemas»: cualquier fallo o media de 10 s/serie o más.
+
+Compilación local: **verde** (`spotlessCheck` + `compileReleaseKotlin`, 1 commit de código + 1 de docs; CI se dispara con el push). Receta ajustada del sandbox (importante para próximas sesiones):
+
+- El `-Xmx4g` de `gradle.properties` mata al daemon en esta máquina de 3,9 GB (el kernel lo cortea a mitad de la compilación de `:app`, error «Gradle build daemon disappeared»). No tocar `gradle.properties` (es de CI); en local usar: `--max-workers=1 -Dorg.gradle.jvmargs="-Xmx2560m -XX:MaxMetaspaceSize=768m" -Dkotlin.compiler.execution.strategy=in-process`.
+- Antes de compilar, matar procesos java huérfanos: un demonio Kotlin de un intento anterior puede quedarse con ~2 GB y provocar el OOM del siguiente intento (`kill -9` de los PID java que no sean el cliente).
+- Nueva trampa de Kotlin documentada: no llamar funciones suspend dentro de la lambda de `context.notify` (no es inline → «Suspension functions can only be called within coroutine body»); calcular textos antes del bloque.
+
+Pendiente de confirmar en teléfono (cuando toque actualización de biblioteca completa): ver la notificación «N fuentes dieron problemas…» solo si no hubo series fallidas, y el archivo de errores con la sección de fuentes.
+
+Sin cambios: las propuestas 2-4 de la sesión anterior (totales de capítulos en la lista de migración, preselección solo EXACTO, orden adaptativo) siguen pendientes de aprobación.
 
 ---
 
