@@ -114,4 +114,9 @@
         <item quantity="one">%1$d update failed</item>
         <item quantity="other">%1$d updates failed</item>
     </plurals>
+
+    <plurals name="notification_update_difficult_sources">
+        <item quantity="one">%1$d source had trouble updating</item>
+        <item quantity="other">%1$d sources had trouble updating</item>
+    </plurals>
 </resources>

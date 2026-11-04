@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.data.download.Downloader
 import eu.kanade.tachiyomi.data.notification.NotificationHandler
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
+import eu.kanade.tachiyomi.data.source.SourceUpdateStat
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.lang.chop
@@ -169,6 +170,43 @@ class LibraryUpdateNotifier(
         ) {
             setContentTitle(context.pluralStringResource(MR.plurals.notification_update_error, failed, failed))
             setContentText(context.stringResource(MR.strings.action_show_errors))
+            setSmallIcon(R.drawable.ic_mihon)
+
+            setContentIntent(NotificationReceiver.openErrorLogPendingActivity(context, uri))
+        }
+    }
+
+    /**
+     * Shows the report of sources that were slow or flaky during the last library update, for
+     * the runs that finished with zero outright failures (otherwise the error notification
+     * already covers it and the file carries the report too). Tapping opens the same log file,
+     * which has the full breakdown per source.
+     */
+    fun showDifficultSourcesNotification(sources: List<SourceUpdateStat>, uri: Uri) {
+        if (sources.isEmpty()) {
+            return
+        }
+
+        val names = sources.joinToString(", ") { sourceManager.getOrStub(it.sourceId).toString() }
+        context.notify(
+            Notifications.ID_LIBRARY_ERROR,
+            Notifications.CHANNEL_LIBRARY_ERROR,
+        ) {
+            setContentTitle(
+                context.pluralStringResource(
+                    MR.plurals.notification_update_difficult_sources,
+                    sources.size,
+                    sources.size,
+                ),
+            )
+            setContentText(
+                context.stringResource(MR.strings.notification_update_difficult_sources_text, names.chop(NOTIF_NAMES_MAX_LEN)),
+            )
+            setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    context.stringResource(MR.strings.notification_update_difficult_sources_text, names),
+                ),
+            )
             setSmallIcon(R.drawable.ic_mihon)
 
             setContentIntent(NotificationReceiver.openErrorLogPendingActivity(context, uri))
@@ -397,6 +435,7 @@ class LibraryUpdateNotifier(
 
 private const val NOTIF_MAX_CHAPTERS = 5
 private const val NOTIF_TITLE_MAX_LEN = 45
+private const val NOTIF_NAMES_MAX_LEN = 60
 private const val NOTIF_ICON_SIZE = 192
 private const val MANGA_PER_SOURCE_QUEUE_WARNING_THRESHOLD = 60
 private const val NOTIF_PROGRESS_INTERVAL_MS = 500L

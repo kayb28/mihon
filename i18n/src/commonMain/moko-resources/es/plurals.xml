@@ -115,4 +115,10 @@
         <item quantity="many">No se han podido actualizar %1$d elementos</item>
         <item quantity="other">No se han podido actualizar %1$d elementos</item>
     </plurals>
+
+    <plurals name="notification_update_difficult_sources">
+        <item quantity="one">%1$d fuente dio problemas en la actualización</item>
+        <item quantity="many">%1$d fuentes dieron problemas en la actualización</item>
+        <item quantity="other">%1$d fuentes dieron problemas en la actualización</item>
+    </plurals>
 </resources>

@@ -48,6 +48,35 @@ data class SourceHealthRecord(
     }
 }
 
+/**
+ * Outcome of the most recent library-update pass for one source, as a whole: how many of its
+ * entries were attempted, how many failed and how long the whole sequential queue took. It is
+ * a measurement of the last run, not a promise about the next one — the report of difficult
+ * sources and any future update ordering build on it.
+ */
+data class SourceUpdateStat(
+    val sourceId: Long,
+    val mangaCount: Int,
+    val failureCount: Int,
+    val durationMs: Long,
+    val updatedAt: Long,
+) {
+    fun serialize(): String = "$sourceId|$mangaCount|$failureCount|$durationMs|$updatedAt"
+
+    companion object {
+        fun deserialize(value: String): SourceUpdateStat? {
+            val parts = value.split('|')
+            if (parts.size != 5) return null
+            val sourceId = parts[0].toLongOrNull() ?: return null
+            val mangaCount = parts[1].toIntOrNull() ?: return null
+            val failureCount = parts[2].toIntOrNull() ?: return null
+            val durationMs = parts[3].toLongOrNull() ?: return null
+            val updatedAt = parts[4].toLongOrNull() ?: return null
+            return SourceUpdateStat(sourceId, mangaCount, failureCount, durationMs, updatedAt)
+        }
+    }
+}
+
 @Inject
 @SingleIn(AppScope::class)
 class SourceHealthStore(preferenceStore: PreferenceStore) {
@@ -58,9 +87,27 @@ class SourceHealthStore(preferenceStore: PreferenceStore) {
         deserializer = SourceHealthRecord::deserialize,
     )
 
+    val updateStats: Preference<Set<SourceUpdateStat>> = preferenceStore.getObjectSetFromStringSet(
+        key = "source_update_last_stats",
+        defaultValue = emptySet(),
+        serializer = SourceUpdateStat::serialize,
+        deserializer = SourceUpdateStat::deserialize,
+    )
+
     private val mutex = Mutex()
 
     fun latest(sourceId: Long): SourceHealthRecord? = records.get().firstOrNull { it.sourceId == sourceId }
+
+    fun latestUpdateStat(sourceId: Long): SourceUpdateStat? =
+        updateStats.get().firstOrNull { it.sourceId == sourceId }
+
+    suspend fun recordUpdateStat(stat: SourceUpdateStat) {
+        mutex.withLock {
+            updateStats.getAndSet { current ->
+                (current.filterNot { it.sourceId == stat.sourceId } + stat).toSet()
+            }
+        }
+    }
 
     suspend fun recordSuccess(sourceId: Long) {
         record(sourceId, SourceHealthStatus.AVAILABLE)

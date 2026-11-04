@@ -5,6 +5,7 @@ import android.content.pm.ServiceInfo
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
+import android.os.SystemClock
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -23,6 +24,7 @@ import dev.zacsweers.metro.Inject
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.source.SourceHealthStore
+import eu.kanade.tachiyomi.data.source.SourceUpdateStat
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.util.storage.getUriCompat
@@ -263,6 +265,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         val newUpdates = CopyOnWriteArrayList<Pair<Manga, Array<Chapter>>>()
         val failedUpdates = CopyOnWriteArrayList<Pair<Manga, String?>>()
         val updateErrors = CopyOnWriteArrayList<UpdateError>()
+        val sourceStats = CopyOnWriteArrayList<SourceUpdateStat>()
         val hasDownloads = AtomicBoolean(false)
         val timeZone = TimeZone.currentSystemDefault()
         val fetchWindow = fetchInterval.getWindow(Clock.System.now().toLocalDateTime(timeZone).date, timeZone)
@@ -275,6 +278,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                         semaphore.withPermit {
                             var attemptedUpdate = false
                             var lastFailure: Throwable? = null
+                            val groupStartElapsedMs = SystemClock.elapsedRealtime()
+                            var groupAttempted = 0
+                            var groupFailures = 0
                             mangaInSource.forEach { libraryManga ->
                                 val manga = libraryManga.manga
                                 ensureActive()
@@ -291,6 +297,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                 ) {
                                     try {
                                         attemptedUpdate = true
+                                        groupAttempted++
                                         val newChapters = updateManga(manga, fetchWindow)
                                             .sortedByDescending { it.sourceOrder }
 
@@ -313,6 +320,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         lastFailure = null
                                     } catch (e: Throwable) {
                                         lastFailure = e
+                                        groupFailures++
                                         val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
                                             ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
                                         val httpCode = httpException?.code
@@ -353,6 +361,20 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                     sourceHealthStore.recordFailure(sourceId, lastFailure!!)
                                 }
                             }
+                            // Keep the measured outcome of this source's queue for the difficult
+                            // sources report and future ordering decisions. A cancelled pass
+                            // (ensureActive threw) never gets here, so incomplete runs don't count.
+                            if (sourceId != null && groupAttempted > 0 && lastFailure !is CancellationException) {
+                                val stat = SourceUpdateStat(
+                                    sourceId = sourceId,
+                                    mangaCount = groupAttempted,
+                                    failureCount = groupFailures,
+                                    durationMs = SystemClock.elapsedRealtime() - groupStartElapsedMs,
+                                    updatedAt = Clock.System.now().toEpochMilliseconds(),
+                                )
+                                sourceStats.add(stat)
+                                sourceHealthStore.recordUpdateStat(stat)
+                            }
                         }
                     }
                 }
@@ -369,13 +391,40 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
             }
         }
 
-        if (failedUpdates.isNotEmpty()) {
-            val errorFile = writeErrorFile(failedUpdates)
-            notifier.showUpdateErrorNotification(
-                failedUpdates.size,
-                errorFile.getUriCompat(context),
-            )
+        val difficultSources = difficultSourcesFromStats(sourceStats)
+        if (failedUpdates.isNotEmpty() || difficultSources.isNotEmpty()) {
+            val errorFile = writeErrorFile(failedUpdates, difficultSources)
+            if (failedUpdates.isNotEmpty()) {
+                notifier.showUpdateErrorNotification(
+                    failedUpdates.size,
+                    errorFile.getUriCompat(context),
+                )
+            } else {
+                // No failures at all, but some sources dragged or flaked: the report still goes
+                // out on the errors channel so the slow tail of the update is visible.
+                notifier.showDifficultSourcesNotification(
+                    difficultSources,
+                    errorFile.getUriCompat(context),
+                )
+            }
         }
+    }
+
+    /**
+     * Picks the sources worth reporting from the measured stats of this pass: any source with
+     * failures, or any source whose sequential queue averaged [DIFFICULT_SOURCE_AVG_MS_PER_MANGA]
+     * or more per series. Sorted worst-first so the notification and file lead with the worst.
+     */
+    private fun difficultSourcesFromStats(stats: List<SourceUpdateStat>): List<SourceUpdateStat> {
+        return stats
+            .filter {
+                it.failureCount > 0 ||
+                    it.durationMs / it.mangaCount.coerceAtLeast(1) >= DIFFICULT_SOURCE_AVG_MS_PER_MANGA
+            }
+            .sortedWith(
+                compareByDescending<SourceUpdateStat> { it.failureCount }
+                    .thenByDescending { it.durationMs.toDouble() / it.mangaCount.coerceAtLeast(1) },
+            )
     }
 
     private suspend fun downloadChapters(manga: Manga, chapters: List<Chapter>) {
@@ -434,11 +483,16 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
     }
 
     /**
-     * Writes basic file of update errors to cache dir.
+     * Writes basic file of update errors to cache dir. When some sources were difficult (slow or
+     * flaky) during this pass, a report section for them is appended so the log explains not only
+     * what failed but which sources caused the pain.
      */
-    private suspend fun writeErrorFile(errors: List<Pair<Manga, String?>>): File {
+    private suspend fun writeErrorFile(
+        errors: List<Pair<Manga, String?>>,
+        difficultSources: List<SourceUpdateStat>,
+    ): File {
         try {
-            if (errors.isNotEmpty()) {
+            if (errors.isNotEmpty() || difficultSources.isNotEmpty()) {
                 val file = context.createFileInCacheDir("mihon_update_errors.txt")
                 file.bufferedWriter().use { out ->
                     out.write(context.stringResource(MR.strings.library_errors_help, ERROR_LOG_HELP_URL) + "\n\n")
@@ -456,6 +510,22 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                             }
                         }
                     }
+                    if (difficultSources.isNotEmpty()) {
+                        out.write("\n! ${context.stringResource(MR.strings.library_update_difficult_sources_section)}\n")
+                        difficultSources.forEach { stat ->
+                            val source = sourceManager.getOrStub(stat.sourceId)
+                            val avgSecondsPerManga = stat.durationMs / stat.mangaCount.coerceAtLeast(1) / 1000
+                            out.write("  # $source\n")
+                            out.write(
+                                "    - " + context.stringResource(
+                                    MR.strings.library_update_difficult_source_line,
+                                    stat.mangaCount,
+                                    stat.failureCount,
+                                    avgSecondsPerManga,
+                                ) + "\n",
+                            )
+                        }
+                    }
                 }
                 return file
             }
@@ -471,6 +541,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         private const val ERROR_LOG_HELP_URL = "https://mihon.app/docs/guides/troubleshooting/"
 
         private const val MANGA_PER_SOURCE_QUEUE_WARNING_THRESHOLD = 60
+
+        /** Average queued time per series above which a source counts as difficult for the report. */
+        private const val DIFFICULT_SOURCE_AVG_MS_PER_MANGA = 10_000L
 
         /**
          * Key for category to update.
