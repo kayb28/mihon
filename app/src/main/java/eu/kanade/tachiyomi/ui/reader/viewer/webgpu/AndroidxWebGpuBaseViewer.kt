@@ -24,6 +24,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
@@ -102,6 +104,13 @@ abstract class AndroidxWebGpuBaseViewer(
     private val uploadJobs = mutableMapOf<ReaderPage, Job>()
 
     private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Neighbor preloads queue up here, one background upload at a time. The visible page skips
+     *  the queue entirely: with the whole window launching at once it raced up to 7 other decodes
+     *  for first paint, and every scroll tick that pulled a page in fired its decode alongside
+     *  all the others, which showed up as jank while reading. */
+    private val preloadGate = Semaphore(1)
+
     private var destroyed = false
 
     /** True between surfaceCreated and surfaceDestroyed; guards the async bring-up. */
@@ -397,7 +406,11 @@ abstract class AndroidxWebGpuBaseViewer(
         }
         // destroy() drains through the WebGPU dispatcher, so it stays off the monitor.
         released.forEach(imageBackend::destroy)
-        window.forEach(::presentPage)
+        // The visible page presents before its neighbors: it paints first while they queue
+        // behind the preload gate instead of racing it for CPU and GPU bandwidth.
+        val anchorPage = current
+        window.filter { it === anchorPage }.forEach(::presentPage)
+        window.filter { it !== anchorPage }.forEach(::presentPage)
         trimCache()
         onWindowChanged()
     }
@@ -543,9 +556,7 @@ abstract class AndroidxWebGpuBaseViewer(
             uploadJobs[page] = uploadScope.launch {
                 try {
                     presentation[page] = PagePresentation.Uploading
-                    val input = page.stream?.invoke()
-                        ?: throw IllegalStateException("Page ${page.number} has no stream to decode")
-                    decodeAndUpload(page, input)
+                    decodePage(page)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -558,6 +569,25 @@ abstract class AndroidxWebGpuBaseViewer(
                 }
             }
         }
+    }
+
+    /**
+     * Routes a page's decode through the priority split: the page the reader is looking at
+     * decodes right away, every other page in the window waits on [preloadGate] so background
+     * fills run one at a time and never steal the visible page's CPU or GPU bandwidth.
+     */
+    private suspend fun decodePage(page: ReaderPage) {
+        if (page === current) {
+            decodeFromStream(page)
+        } else {
+            preloadGate.withPermit { decodeFromStream(page) }
+        }
+    }
+
+    private suspend fun decodeFromStream(page: ReaderPage) {
+        val input = page.stream?.invoke()
+            ?: throw IllegalStateException("Page ${page.number} has no stream to decode")
+        decodeAndUpload(page, input)
     }
 
     /**
