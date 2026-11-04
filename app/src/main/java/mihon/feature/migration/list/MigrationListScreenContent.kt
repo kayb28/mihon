@@ -170,6 +170,7 @@ fun MigrationListScreenContent(
                             .align(Alignment.Top)
                             .fillMaxHeight(),
                         result = result,
+                        originalChapterCount = item.chapterCount,
                         onItemClick = onItemClick,
                     )
 
@@ -199,6 +200,7 @@ fun MigrationListItem(
     similarity: Double? = null,
     isExactTitle: Boolean = false,
     isSingleResult: Boolean = false,
+    originalChapterCount: Int? = null,
 ) {
     Column(
         modifier = modifier
@@ -240,7 +242,19 @@ fun MigrationListItem(
                 style = MaterialTheme.typography.labelMedium,
             )
             BadgeGroup(modifier = Modifier.padding(4.dp)) {
-                Badge(text = "$chapterCount")
+                // Candidate side only (originalChapterCount != null): when the found manga has
+                // FEWER chapters than the original, the count badge turns red and shows
+                // "candidate / original" so the "same title, fewer chapters" trap is visible
+                // before the migration is confirmed. Equal or more keeps the plain badge.
+                if (originalChapterCount != null && chapterCount < originalChapterCount) {
+                    Badge(
+                        text = "$chapterCount / $originalChapterCount",
+                        color = MaterialTheme.colorScheme.error,
+                        textColor = MaterialTheme.colorScheme.onError,
+                    )
+                } else {
+                    Badge(text = "$chapterCount")
+                }
                 // Match-confidence badge on the target side only. Exact picks (the strict
                 // normalized-title pass) get a plain EXACT label; auto-accepted single results
                 // (the source returned one entry and NO title comparison happened) get an amber
@@ -300,6 +314,7 @@ fun MigrationListItem(
 fun MigrationListItemResult(
     modifier: Modifier,
     result: MigratingManga.SearchResult,
+    originalChapterCount: Int? = null,
     onItemClick: (Manga) -> Unit,
 ) {
     Box(modifier.height(IntrinsicSize.Min)) {
@@ -375,6 +390,7 @@ fun MigrationListItemResult(
                     similarity = result.similarity,
                     isExactTitle = result.isExactTitle,
                     isSingleResult = result.isSingleResult,
+                    originalChapterCount = originalChapterCount,
                 )
             }
         }
