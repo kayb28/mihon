@@ -356,8 +356,11 @@ class MigrationListViewModel(
                 items.forEachIndexed { index, manga ->
                     try {
                         ensureActive()
+                        // Only preselected entries (exact-title matches and manual picks) are
+                        // migrated unattended; fuzzy/single-result candidates keep their search
+                        // result so the user reviews them on the list.
                         val target = manga.searchResult.value.let {
-                            if (it is SearchResult.Success) {
+                            if (it is SearchResult.Success && it.isPreselected) {
                                 it.manga
                             } else {
                                 null
@@ -384,9 +387,10 @@ class MigrationListViewModel(
 
             if (failedCount > 0) {
                 // Stay on the list and tell the user what failed instead of navigateBack(), which
-                // looked like a fully successful run. Entries that DID migrate are dropped so a
-                // retry only re-processes the failures; failed entries keep their search result.
-                items.filter { it.searchResult.value is SearchResult.Success }
+                // looked like a fully successful run. Entries that DID migrate (the preselected
+                // ones) are dropped so a retry only re-processes the failures; intentionally
+                // skipped (non-exact) candidates keep their search result for manual review.
+                items.filter { (it.searchResult.value as? SearchResult.Success)?.isPreselected == true }
                     .forEach { removeManga(it) }
                 updateMigrationProgress()
                 state.update {
@@ -450,12 +454,24 @@ class MigrationListViewModel(
     }
 
     fun showMigrateDialog(copy: Boolean) {
+        // The dialog counts what the bulk action will actually do: preselected entries migrate,
+        // the rest (no match, search errors and non-exact candidates) are reported as skipped.
+        val migratingCount = items.count { entry ->
+            (entry.searchResult.value as? SearchResult.Success)?.isPreselected == true
+        }
+        val skippedCount = items.count { entry ->
+            when (val result = entry.searchResult.value) {
+                SearchResult.NotFound, SearchResult.Error -> true
+                is SearchResult.Success -> !result.isPreselected
+                SearchResult.Searching -> false
+            }
+        }
         state.update { state ->
             state.copy(
                 dialog = Dialog.Migrate(
                     copy = copy,
-                    totalCount = items.size,
-                    skippedCount = items.count { it.searchResult.value == SearchResult.NotFound },
+                    migratingCount = migratingCount,
+                    skippedCount = skippedCount,
                 ),
             )
         }
@@ -477,7 +493,7 @@ class MigrationListViewModel(
     )
 
     sealed interface Dialog {
-        data class Migrate(val copy: Boolean, val totalCount: Int, val skippedCount: Int) : Dialog
+        data class Migrate(val copy: Boolean, val migratingCount: Int, val skippedCount: Int) : Dialog
         data class Progress(@FloatRange(0.0, 1.0) val progress: Float) : Dialog
         data class MigrateFailed(val failedCount: Int, val totalCount: Int) : Dialog
         data object Exit : Dialog

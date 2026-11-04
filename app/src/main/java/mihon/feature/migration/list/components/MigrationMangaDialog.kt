@@ -12,7 +12,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 fun MigrationMangaDialog(
     onDismissRequest: () -> Unit,
     copy: Boolean,
-    totalCount: Int,
+    migratingCount: Int,
     skippedCount: Int,
     onMigrate: () -> Unit,
 ) {
@@ -26,8 +26,8 @@ fun MigrationMangaDialog(
                     } else {
                         MR.plurals.migrationListScreen_migrateDialog_migrateTitle
                     },
-                    count = totalCount,
-                    totalCount,
+                    count = migratingCount,
+                    migratingCount,
                 ),
             )
         },

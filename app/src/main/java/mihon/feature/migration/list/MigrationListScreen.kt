@@ -78,7 +78,7 @@ class MigrationListScreen(private val mangaIds: Collection<Long>, private val ex
                 MigrationMangaDialog(
                     onDismissRequest = viewModel::dismissDialog,
                     copy = dialog.copy,
-                    totalCount = dialog.totalCount,
+                    migratingCount = dialog.migratingCount,
                     skippedCount = dialog.skippedCount,
                     onMigrate = {
                         if (dialog.copy) {

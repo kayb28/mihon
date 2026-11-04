@@ -106,8 +106,8 @@
         <item quantity="other">Copy %1$d entries?</item>
     </plurals>
     <plurals name="migrationListScreen.migrateDialog.skipText">
-        <item quantity="one">An entry was skipped</item>
-        <item quantity="other">%1$d entries were skipped</item>
+        <item quantity="one">1 entry will be skipped (no match or not an exact title)</item>
+        <item quantity="other">%1$d entries will be skipped (no match or not an exact title)</item>
     </plurals>
 
     <plurals name="notification_update_error">

@@ -96,9 +96,9 @@
         <item quantity="other">%1$s páginas</item>
     </plurals>
     <plurals name="migrationListScreen.migrateDialog.skipText">
-        <item quantity="one">Se ha saltado un elemento</item>
-        <item quantity="many">Se han saltado %1$d elementos</item>
-        <item quantity="other">Se han saltado %1$d elementos</item>
+        <item quantity="one">Se omitirá 1 elemento (sin coincidencia o coincidencia no exacta)</item>
+        <item quantity="many">Se omitirán %1$d elementos (sin coincidencia o coincidencia no exacta)</item>
+        <item quantity="other">Se omitirán %1$d elementos (sin coincidencia o coincidencia no exacta)</item>
     </plurals>
     <plurals name="migrationListScreen.migrateDialog.copyTitle">
         <item quantity="one">¿Copiar este elemento?</item>
