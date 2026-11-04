@@ -166,4 +166,13 @@ Sin cambios: las propuestas 2-4 de la sesión anterior (totales de capítulos en
 
 ---
 
+## 13. Cierre del ciclo del 04/11 (madrugada) — CI verde y APK entregado
+
+- **CI verde:** run `41768128834` (Build APK) sobre `d37ffb3`, success el 04/11. Incluye la Propuesta 1 corregida (informe «Fuentes con problemas», fix suspend del notificador).
+- **APK entregado:** `download/MihonFix-0.21.3-build-d37ffb3-arm64.apk` (arm64-v8a release, 37,2 MB). Verificado: zip íntegro, 3 dex, AndroidManifest presente, `lib/arm64-v8a/libwebgpu_c_bundled.so` incluida (build WebGPU correcta). Nota: pesa 37,2 MB, no los >40 MB estimados; el tamaño es normal para release minificada por ABI.
+- **Pendiente de prueba en el POCO F6 (cuando el usuario toque actualización de biblioteca completa):** notificación «N fuentes dieron problemas…» solo si no hubo series fallidas; archivo `mihon_update_errors.txt` con la sección de fuentes problemáticas.
+- Propuestas 2, 3 y 4 de §10 siguen pendientes de aprobación del usuario.
+
+---
+
 Nota de seguridad: este documento se revisó antes de guardarse; no contiene tokens, claves, contraseñas ni URLs con credenciales.
