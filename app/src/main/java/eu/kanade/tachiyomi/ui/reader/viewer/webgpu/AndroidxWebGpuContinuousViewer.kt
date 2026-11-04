@@ -341,7 +341,28 @@ class AndroidxWebGpuContinuousViewer(
     }
 
     override fun onChaptersChanged() {
+        // A chapter swap rebuilds the strip with a different prefix: crossing forward drops the
+        // old prev chapter from the top (crossing back adds one), so every offset below it moves
+        // while scrollPos stays put — the viewport lands deep into the next chapter and clamps
+        // at the end of the document, which is the next chapter's last page ("crossing a
+        // chapter throws me straight to its last page"). Glue the viewport to the same content
+        // point instead: shift the scroll by however much the current page's own offset moved.
+        // The loader returns early for already-loaded chapters, so ReaderPage instances (and
+        // their aspects) survive the swap and identity anchoring is stable.
+        val page = current
+        val oldOffset = offsetOf(page)
         relayout()
+        val newOffset = offsetOf(page)
+        if (oldOffset != null && newOffset != null && oldOffset != newOffset) {
+            scrollPos = (scrollPos + (newOffset - oldOffset)).coerceIn(0f, maxScrollPx())
+        }
+    }
+
+    /** Top offset of [page] in the current layout, or null when it is not laid out. */
+    private fun offsetOf(page: ReaderPage?): Float? {
+        if (page == null) return null
+        val index = layoutPages.indexOfFirst { it === page }
+        return if (index >= 0) offsets.getOrNull(index) else null
     }
 
     override fun onWindowChanged() {
