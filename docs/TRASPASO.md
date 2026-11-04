@@ -130,6 +130,16 @@ El usuario probó la búsqueda de la migración con 12 mangas (abortando a prop�
   3. Migración masiva: preseleccionar solo EXACTO y dejar las aproximadas sin marcar (los ~10 % de coincidencias falsas del usuario apoyan la decisión pendiente §6.7).
   4. (Opcional, con datos de 1) Cambiar el orden de actualización a «fuentes problemáticas primero», adaptativo por ronda. Riesgo explicado al usuario: el tiempo total no baja y, si MIUI corta la actualización a medias, las fuentes sanas del final quedan sin revisar; por eso se propone decidirlo con datos del informe.
 
+## 11. Ciclo del 04/11 (noche tardía) — regla de compilación e informe de fuentes
+
+- **REGLA NUEVA DEL USUARIO (obligatoria a partir de ahora):** la máquina del chat tiene 4 GB de RAM y compilar la app ahí queda PROHIBIDO. Todas las compilaciones se hacen exclusivamente en GitHub Actions; la cuota del usuario alcanza para varias builds. Preferencia explícita: «prefiero que se haga bien a que se haga rápido», reducir la carga de la máquina virtual es prioridad. Lo que SÍ se hace en local: editar código, leer/analizar, validar XML, commitear y empujar. Ya no se ejecuta `spotlessCheck`, `compileReleaseKotlin` ni tests locales como verificación previa: la revisión es manual línea a línea y el CI es el árbitro.
+- **Propuesta 1 IMPLEMENTADA (commit `1366d05`, pendiente de CI verde y de prueba en teléfono):** informe de fuentes difíciles al terminar la actualización de biblioteca.
+  - `SourceHealthStore` guarda por fuente la estadística de la última pasada completa: series intentadas, fallos y duración total de su cola (`SourceUpdateStat`, serializada igual que los registros de salud). Las pasadas interrumpidas no se registran.
+  - Al terminar la actualización, el worker escribe en el mismo archivo de errores una sección «Fuentes con problemas» (series, fallos, ~segundos por serie, peor primero) y, si NO hubo fallos de series, envía además una notificación en el canal de errores con la lista de fuentes problemáticas (si hubo fallos, la notificación de errores ya existe y el informe solo va al archivo). Umbral: media ≥ 10 s por serie o algún fallo.
+  - Sin cambios de orden ni de canales: el informe sale por el canal existente «Errores de actualización» (IMPORTANCE_LOW), que el usuario ya sabe revisar en MIUI.
+  - Verificado a mano en esta sesión (no hay compilación local): imports completos, APIs existentes (`getObjectSetFromStringSet`, `getAndSet`, `openErrorLogPendingActivity`, `notify`), XML válidos, claves moko coincidentes base/es, y que `getOrStub` devuelve la interfaz de source-api cuyo `toString()` de `HttpSource`/`StubSource` ya imprime «Nombre (ES)».
+- Las propuestas 2, 3 y 4 de §10 siguen pendientes de aprobación del usuario.
+
 ---
 
 Nota de seguridad: este documento se revisó antes de guardarse; no contiene tokens, claves, contraseñas ni URLs con credenciales.
