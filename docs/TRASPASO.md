@@ -118,6 +118,18 @@ El usuario probó la búsqueda de la migración con 12 mangas (abortando a prop�
 - **Reparador de enlaces:** usa el mismo motor que la migración (pase estricto + pase profundo con variantes del título y TitleMatcher), pero busca el título GUARDADO en la MISMA fuente. Un cambio de nombre total (sin palabras en común) es imposible de emparejar por texto; para eso sirve Migrar con el nombre nuevo a mano.
 - Espacio del proyecto liberado: borrados los dos .deb de OpenJDK (121 MB) que quedaron de la instalación de Java. Proyecto en ~455 MB de 2 GB. El ZIP del artefacto CI (218 MB) se descargó en /tmp y ya se borró.
 
+## 10. Feedback del usuario del 04/11 (noche) — corrección de teléfono y datos reales de migración
+
+- **Teléfono: Xiaomi POCO F6 (HyperOS/MIUI), operadora Claro BR.** La nota anterior sobre One UI/Samsung era un supuesto erróneo; el consejo correcto es MIUI: batería «Sin restricciones» para MihonFix, inicio automático permitido, y revisar la categoría de notificación «Errores de actualización» en Ajustes → Aplicaciones → MihonFix → Notificaciones.
+- **Observaciones del usuario sobre la notificación de progreso** (capturas del 03/11 21:22): al 12–18 % lista 4 títulos a la vez; hacia el final 1 a la vez; orden alfabético por web. Coincide con el código: fuentes en paralelo (semáforo de 5), cada web procesa sus títulos A→Z, y el tramo final es una sola web lenta.
+- **Datos reales de migración del usuario (~100 mangas migrados):** ~80 correctos (a veces ±1-2 caps), ~10 coincidencias falsas («alucinaciones» de búsqueda), ~10 con el mismo nombre pero 30-40 caps menos (a veces solo 1). En la búsqueda manual suele existir la versión completa en OTRAS extensiones con nombre distinto (ej. ficticio «Jugador» vs «Player»). El emparejador solo compara títulos, nunca cantidades de capítulos; el reparador solo busca en la fuente original con el título guardado.
+- **Verificado en código:** las filas de la lista de migración (`MigrationListScreenContent.kt`) muestran fuente + último capítulo del manga ORIGINAL, pero NO el total de capítulos del candidato: la trampa «mismo nombre, menos caps» es invisible antes de confirmar.
+- **Propuestas hechas al usuario (PENDIENTES de su aprobación; sin código aplicado):**
+  1. Informe de fuentes difíciles al terminar la actualización (web + fallos + duración por web), registrando duración media por fuente en SourceHealthStore. Sin cambio de orden.
+  2. Lista de migración: mostrar el total de capítulos del candidato en cada fila (comparar contra el original).
+  3. Migración masiva: preseleccionar solo EXACTO y dejar las aproximadas sin marcar (los ~10 % de coincidencias falsas del usuario apoyan la decisión pendiente §6.7).
+  4. (Opcional, con datos de 1) Cambiar el orden de actualización a «fuentes problemáticas primero», adaptativo por ronda. Riesgo explicado al usuario: el tiempo total no baja y, si MIUI corta la actualización a medias, las fuentes sanas del final quedan sin revisar; por eso se propone decidirlo con datos del informe.
+
 ---
 
 Nota de seguridad: este documento se revisó antes de guardarse; no contiene tokens, claves, contraseñas ni URLs con credenciales.
