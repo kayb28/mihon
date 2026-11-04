@@ -187,4 +187,25 @@ Sin cambios: las propuestas 2-4 de la sesión anterior (totales de capítulos en
 
 ---
 
+## 15. Fix del lector: salto a la última página al cruzar de capítulo (b681b70)
+
+- Reporte del usuario (04/11): en tira continua, al pasar al siguiente capítulo lo mandaba directo a la última página. Aclaración posterior del usuario: ocurrió UNA sola vez, no se ha repetido, y desapareció al cambiar a tira discontinua; sigue probando en `1a39b74` para confirmar.
+- **Causa (`b681b70`):** al cruzar al siguiente capítulo la tira se reconstruye con un prefijo distinto (se suelta el capítulo anterior de arriba) y todos los offsets por debajo se desplazan mientras `scrollPos` no se mueve: el viewport aterrizaba profundo en el capítulo nuevo y se clavaba al final del documento (su última página). Afectaba a webtoon y vertical continua (misma clase de visor, `AndroidxWebGpuContinuousViewer`); la tira discontinua usa otra clase y no se veía afectada — consistente con lo observado por el usuario. Esporádico porque depende del momento exacto del cruce y de cuánto se había precargado.
+- **Fix:** `onChaptersChanged` compensa el scroll con el desplazamiento que sufrió el offset de la página actual (la tira queda «pegada» al intercambio); el loader devuelve temprano para capítulos ya cargados, así la identidad de páginas (y aspectos) sobrevive al intercambio y el ancla es estable.
+- Verificación local OK (1m38s, receta §12); CI verde run `41810196083`.
+- **APK entregado:** `download/MihonFix-0.21.3-build-b681b70-arm64.apk` (39,0 MB / 37,2 MiB; zip íntegro, 3 dex, `libwebgpu_c_bundled.so` incluida).
+
+---
+
+## 16. Función nueva: activar/desactivar fuentes en lote por categoría (350a7dc)
+
+- Petición del usuario (04/11, con captura de la pantalla de fuentes): con casi 100 fuentes, quería un botón para activar/desactivar fuentes por categoría en vez de marcar una por una.
+- **Implementado (`350a7dc`):** la barra superior de «Clasificación personal de fuentes» ahora tiene menú ⋮ con «Activar las fuentes de la lista» / «Desactivar las fuentes de la lista» y un diálogo de confirmación que muestra cuántas fuentes se verán afectadas (cadenas nuevas `source_filter_bulk_*` en base y español). Combinado con los chips de filtro de categoría funciona como interruptor en lote por categoría: filtrar (p. ej. Adulto) → ⋮ → activar/desactivar → confirmar. Sin filtro activo afecta a TODAS las fuentes listadas (por eso el diálogo pide confirmación con el número).
+- Archivos: `SourcesFilterViewModel.kt` (`setAllVisibleSources`, reutiliza la sobrecarga en lote de `ToggleSource`: una sola escritura de preferencia para todo el lote), presentación `presentation/browse/SourcesFilterScreen.kt` (composable `BulkActionsMenu`), cableado `ui/browse/source/SourcesFilterScreen.kt`, i18n base+es.
+- Verificación local OK (1m56s, receta §12); CI verde run `41812966595`.
+- **APK entregado:** `download/MihonFix-0.21.3-build-350a7dc-arm64.apk` (39,0 MB / 37,2 MiB; verificado igual que §15). Incluye TODO lo anterior: Propuestas 1-3 + fix del lector + esta función.
+- Pendiente de prueba en el POCO F6: filtrar una categoría (p. ej. Adulto) → ⋮ → «Desactivar las fuentes de la lista» → confirmar; todas las casillas de esa categoría deben quedar desmarcadas y el cambio debe sobrevivir al reinicio de la app.
+
+---
+
 Nota de seguridad: este documento se revisó antes de guardarse; no contiene tokens, claves, contraseñas ni URLs con credenciales.
