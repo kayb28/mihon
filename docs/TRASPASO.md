@@ -175,4 +175,16 @@ Sin cambios: las propuestas 2-4 de la sesión anterior (totales de capítulos en
 
 ---
 
+## 14. Ciclo del 04/11 (mañana) — Propuestas 2 y 3 implementadas, CI verde, APK entregado
+
+- **Propuesta 2 IMPLEMENTADA (`c4ef0a7`):** en la lista de migración, la insignia de capítulos del candidato ahora se pone ROJA y muestra «candidato / original» cuando el encontrado tiene MENOS capítulos que el original (la trampa «mismo nombre, menos caps» se ve antes de confirmar). Si tiene igual o más, queda la insignia normal de siempre. Implementado en `MigrationListScreenContent.kt` (`MigrationListItem`/`MigrationListItemResult` reciben `originalChapterCount`).
+- **Propuesta 3 IMPLEMENTADA (`1a39b74`):** la migración masiva solo procesa coincidencias de título EXACTAS y las elegidas a mano por el usuario (`similarity == null`); las aproximadas (% y ONLY RESULT) quedan sin migrar en la lista para revisión manual (portada, conteo, «Migrar ahora» por fila). El diálogo de confirmación cuenta lo que se va a migrar de verdad y avisa cuántas se omiten y por qué (texto nuevo en base y español); el flag vive en `MigratingManga.SearchResult.Success.isPreselected` y el campo del diálogo pasó de `totalCount` a `migratingCount`.
+- **Verificación local:** `spotlessCheck` + `compileReleaseKotlin` verdes para cada commit por separado (1m38s y 1m52s, receta §12).
+- **CI verde:** run `41801017904` (Build APK) sobre `1a39b74`, success el 04/11. Sin errores de CI.
+- **APK entregado:** `download/MihonFix-0.21.3-build-1a39b74-arm64.apk` (arm64-v8a release, 37,2 MB; zip íntegro, `libwebgpu_c_bundled.so` incluida). Incluye también todo lo de §13 (informe de fuentes con problemas).
+- **Pendiente de prueba en el POCO F6:** (a) fila de migración con insignia roja «N / M» cuando el candidato tiene menos caps; (b) migración masiva que omite las aproximadas y diálogo «Se omitirán N elementos (sin coincidencia o coincidencia no exacta)»; (c) lo del §13 (informe de fuentes). Caso límite conocido: si NINGUNA entrada es exacta, el diálogo dirá «Migrar 0 elementos?» — cancelar y revisar a mano.
+- Propuesta 4 (orden adaptativo) sigue pendiente: se decidió esperando datos del informe de fuentes (§10.4).
+
+---
+
 Nota de seguridad: este documento se revisó antes de guardarse; no contiene tokens, claves, contraseñas ni URLs con credenciales.
