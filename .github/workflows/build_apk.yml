@@ -136,7 +136,8 @@ jobs:
       - name: Detect
         id: detect
         env:
-          COMMITS: ${{ toJSON(github.event.commits) }}
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "${{ inputs.build_extensions }}" = "true" ]; then
@@ -146,10 +147,25 @@ jobs:
             fi
             exit 0
           fi
-          # The push payload lists each commit's added/modified/removed files. Also match the
-          # workflow itself so a change to this gating can be exercised by a normal push.
-          if echo "$COMMITS" | jq -r '.[] | (.added + .modified + .removed)[]?' 2>/dev/null | \
-            grep -qE '^extension-(mhscans|emperorscan)/|^\.github/workflows/build_apk\.yml$'; then
+          # The push event's commit objects arrive in the workflow context WITHOUT their
+          # added/modified/removed file lists, so the changed files come from the compare
+          # API instead (this push, before..after). Also match the workflow itself so a
+          # change to this gating can be exercised by a normal push. When the compare is
+          # unavailable or truncated the extensions build anyway - the safe side is an
+          # extra build, not a silently stale extension APK.
+          RESP="$(curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/$BEFORE...${{ github.sha }}" || true)"
+          if [ -z "$RESP" ]; then
+            echo "compare unavailable; building extensions to be safe"
+            echo "extensions=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$(jq -r '.truncated' <<<"$RESP")" = "true" ]; then
+            echo "compare truncated; building extensions to be safe"
+            echo "extensions=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if jq -r '.files[]?.filename' <<<"$RESP" | grep -qE '^(\.github/workflows/build_apk\.yml|extension-(mhscans|emperorscan)/)'; then
             echo "extensions=true" >> "$GITHUB_OUTPUT"
           else
             echo "extensions=false" >> "$GITHUB_OUTPUT"
