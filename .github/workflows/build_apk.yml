@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      build_extensions:
+        description: 'Build the extension APKs too (on push they only build when their code changes)'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -61,7 +66,9 @@ jobs:
       - name: Build Release APK
         # Fork (applicationId app.mihonfix) has no Firebase client in app/google-services.json;
         # telemetry must stay off or :app:processReleaseGoogleServices fails with "No matching client".
-        run: ./gradlew assembleRelease -Pdist=ci -Pinclude-telemetry=false
+        # Scoped to :app so the extension modules (not dependencies of the app) stay out of
+        # every build; they have their own gated jobs below.
+        run: ./gradlew :app:assembleRelease -Pdist=ci -Pinclude-telemetry=false
 
       - name: Upload Release APKs
         uses: actions/upload-artifact@v4
@@ -105,7 +112,8 @@ jobs:
           fi
 
       - name: Build Unminified APK
-        run: ./gradlew assembleRelease -Pdist=ci -Pinclude-telemetry=false -PdisableMinify=true
+        # Scoped to :app for the same reason as the release job: extensions have their own jobs.
+        run: ./gradlew :app:assembleRelease -Pdist=ci -Pinclude-telemetry=false -PdisableMinify=true
 
       - name: Upload Unminified APKs
         uses: actions/upload-artifact@v4
@@ -115,8 +123,42 @@ jobs:
             app/build/outputs/apk/release/*.apk
           retention-days: 30
 
+  # A plain `assembleRelease` builds the extension modules too (three times per push, with
+  # the two dedicated jobs), which the user asked to avoid: every push should only compile
+  # Mihon. The extension jobs below stay available for when their code actually changes -
+  # detected from the push's commits - or on demand via the workflow_dispatch input.
+  changes:
+    name: Detect extension changes
+    runs-on: ubuntu-latest
+    outputs:
+      extensions: ${{ steps.detect.outputs.extensions }}
+    steps:
+      - name: Detect
+        id: detect
+        env:
+          COMMITS: ${{ toJSON(github.event.commits) }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.build_extensions }}" = "true" ]; then
+              echo "extensions=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "extensions=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          # The push payload lists each commit's added/modified/removed files. Also match the
+          # workflow itself so a change to this gating can be exercised by a normal push.
+          if echo "$COMMITS" | jq -r '.[] | (.added + .modified + .removed)[]?' 2>/dev/null | \
+            grep -qE '^extension-(mhscans|emperorscan)/|^\.github/workflows/build_apk\.yml$'; then
+            echo "extensions=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "extensions=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build_extension:
     name: Build MHScans Extension APK
+    needs: changes
+    if: needs.changes.outputs.extensions == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -148,6 +190,8 @@ jobs:
 
   build_emperorscan_extension:
     name: Build Emperor Scan Extension APK
+    needs: changes
+    if: needs.changes.outputs.extensions == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
