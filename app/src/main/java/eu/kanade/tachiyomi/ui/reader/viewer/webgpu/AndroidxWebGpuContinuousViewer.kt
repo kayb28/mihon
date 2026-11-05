@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
-import android.view.Choreographer
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.ScrollableDefaults
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,12 +38,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import mihon.app.di.appGraph
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 
 /** Pages uploaded behind the scroll position; a screen shows parts of a few pages at once. */
@@ -134,36 +129,13 @@ class AndroidxWebGpuContinuousViewer(
     }
 
     /**
-     * Frame clock for [viewerScope]'s scroll animations.
-     *
-     * `animateScrollBy` drives a frame-based animation that needs
-     * a [MonotonicFrameClock] in the coroutine context. Inside a composition
-     * the clock is supplied by AndroidUiDispatcher, but this scope runs on the
-     * plain Main dispatcher — without a clock, `shiftPage` crashed with
-     * "A MonotonicFrameClock is not available in this CoroutineContext". This
-     * implementation mirrors what AndroidUiDispatcher does: hop one Choreographer
-     * frame and resume with its timestamp. It must run on a Looper thread,
-     * which [Dispatchers.Main] guarantees.
+     * Frame clock for [viewerScope]'s scroll animations: `animateScrollBy` needs a
+     * [androidx.compose.runtime.MonotonicFrameClock] in the coroutine context, and this scope
+     * runs on the plain Main dispatcher - outside a composition, where AndroidUiDispatcher
+     * would supply one. [choreographerFrameClock] is that clock, shared with the renderer's
+     * frame loop.
      */
-    private val frameClock = object : MonotonicFrameClock {
-        override suspend fun <R> withFrameNanos(onFrame: (Long) -> R): R =
-            suspendCancellableCoroutine { cont ->
-                val choreographer = Choreographer.getInstance()
-                val callback = Choreographer.FrameCallback { frameTimeNanos ->
-                    try {
-                        cont.resume(onFrame(frameTimeNanos))
-                    } catch (e: Throwable) {
-                        // Propagate only while the continuation is still live;
-                        // resuming a cancelled one is silently ignored.
-                        if (cont.isActive) cont.resumeWithException(e)
-                    }
-                }
-                choreographer.postFrameCallback(callback)
-                cont.invokeOnCancellation { choreographer.removeFrameCallback(callback) }
-            }
-    }
-
-    private val viewerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + frameClock)
+    private val viewerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + choreographerFrameClock)
 
     /** Width-over-height of every decoded page; a default until its texture arrives. */
     private val aspects = ConcurrentHashMap<ReaderPage, Float>()
@@ -303,6 +275,7 @@ class AndroidxWebGpuContinuousViewer(
             val prefs = activity.appGraph.readerPreferences
             launch {
                 prefs.webtoonSidePadding.changes().collect {
+                    cachedSidePaddingPct = it
                     relayout()
                     reanchorCurrent()
                     drawVisible()
@@ -310,6 +283,7 @@ class AndroidxWebGpuContinuousViewer(
             }
             launch {
                 prefs.continuousMinWidth.changes().collect {
+                    cachedMinWidthPct = it
                     relayout()
                     reanchorCurrent()
                     drawVisible()
@@ -580,6 +554,12 @@ class AndroidxWebGpuContinuousViewer(
         return width / (aspects[layoutPages[index]] ?: DEFAULT_PAGE_ASPECT).coerceAtLeast(0.05f)
     }
 
+    /** Webtoon side padding preference (percent), cached - [stripPageWidthPx] runs per page per scroll tick. */
+    private var cachedSidePaddingPct = Int.MIN_VALUE
+
+    /** Strip scale preference (percent), cached with [cachedSidePaddingPct]. */
+    private var cachedMinWidthPct = Int.MIN_VALUE
+
     /**
      * The width pages are drawn at: the surface width shrunk by the stock webtoon side-padding
      * preference on each side ([eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -588,13 +568,19 @@ class AndroidxWebGpuContinuousViewer(
      * the stock-parity behavior fills the width exactly). The stock viewer applies the padding
      * value as per-page horizontal margins (WebtoonRecyclerView's sidePadding is one margin per
      * side), so a 25% setting leaves half the width for the strip, centered. Layout heights and
-     * draw placements both read this, so they always agree.
+     * draw placements both read this, so they always agree. The two preferences are cached:
+     * this runs for every page on every scroll tick, and the pref collectors below refresh the
+     * cache when either moves.
      */
     private fun stripPageWidthPx(): Float {
         val width = imageBackend.surfaceWidthPx.coerceAtLeast(1)
-        val prefs = activity.appGraph.readerPreferences
-        val paddingFraction = prefs.webtoonSidePadding.get() / 100f
-        val stripScale = prefs.continuousMinWidth.get() / 100f
+        if (cachedSidePaddingPct == Int.MIN_VALUE || cachedMinWidthPct == Int.MIN_VALUE) {
+            val prefs = activity.appGraph.readerPreferences
+            cachedSidePaddingPct = prefs.webtoonSidePadding.get()
+            cachedMinWidthPct = prefs.continuousMinWidth.get()
+        }
+        val paddingFraction = cachedSidePaddingPct / 100f
+        val stripScale = cachedMinWidthPct / 100f
         return width * (1f - 2f * paddingFraction).coerceIn(0.1f, 1f) * stripScale.coerceIn(0.05f, 1f)
     }
 }

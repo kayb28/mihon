@@ -52,8 +52,12 @@ import androidx.webgpu.helper.createWebGpu
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -63,6 +67,7 @@ import tachiyomi.core.common.util.system.logcat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 
 /** vec2f scale + vec2f offset + vec4f color ops, all NDC/flag units; size stays 16-byte aligned. */
@@ -196,6 +201,8 @@ private val VIEWER_WGSL = """
  * Threading: Dawn is not thread-safe, so every GPU call runs inside [WebGpu.execute] on its
  * single-threaded dispatcher. [stop] blocks until in-flight frames have drained, which makes it
  * safe to call from `SurfaceHolder.Callback.surfaceDestroyed` before Android releases the surface.
+ * Frames are paced by [frameLoop]: at most one draw per display frame however many
+ * [requestRender] calls arrived, and none at all while nothing is dirty.
  */
 class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRenderer.PageImage> {
 
@@ -254,6 +261,28 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
 
     private var renderScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val renderMutex = Mutex()
+
+    /**
+     * Anything changed since the last frame, however many requestRender calls said so - the
+     * coalescing flag of the frame loop below.
+     */
+    private val renderDirty = AtomicBoolean(false)
+
+    /** Wakes the frame loop when there is nothing to draw; buffered, so no send races the dirty check. */
+    private val renderWake = Channel<Unit>(Channel.CONFLATED)
+
+    /** The frame loop's scope: Main dispatcher + the Choreographer frame clock. */
+    private var pacingScope: CoroutineScope? = null
+
+    /** The running frame loop, if any; cancelled by [stop] and restarted by [start]. */
+    private var frameLoopJob: Job? = null
+
+    /**
+     * The draw the loop launched, if one is still in flight; while it runs the loop holds the
+     * dirty flag for the next frame instead of piling stale renders onto the dispatcher.
+     */
+    @Volatile
+    private var drawingJob: Job? = null
 
     /** The page the next frame draws; null clears the surface. */
     @Volatile
@@ -417,7 +446,17 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             stopped = false
             webgpu = environment
             renderScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            startFrameLoop()
         }
+    }
+
+    /** Starts the paced frame loop on [pacingScope]; callers hold [lock]. */
+    private fun startFrameLoop() {
+        val scope = pacingScope?.takeIf { it.isActive }
+            ?: CoroutineScope(SupervisorJob() + Dispatchers.Main + choreographerFrameClock)
+                .also { pacingScope = it }
+        frameLoopJob?.cancel()
+        frameLoopJob = scope.launch { frameLoop() }
     }
 
     /** Reconfigures the surface for a new size and redraws the current page. */
@@ -440,14 +479,47 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         }
     }
 
-    /** Schedules a frame of [currentPage] (or a clear when none) onto the surface. */
+    /**
+     * Schedules a frame of the current page state (or a clear when none) onto the surface:
+     * marks the frame loop's dirty flag and wakes it. Nothing renders inline here - every
+     * request between frames coalesces into the loop's single draw, so a scroll tick, a
+     * gesture step and a page upload all land in one frame instead of one GPU render each.
+     */
     fun requestRender() {
-        val environment = synchronized(lock) { webgpu } ?: return
-        renderScope.launch {
-            renderMutex.withLock {
-                environment.execute {
-                    if (stopped || !isCurrent(environment)) return@execute
-                    drawFrame(environment)
+        if (synchronized(lock) { webgpu } == null) return
+        renderDirty.set(true)
+        renderWake.trySend(Unit)
+    }
+
+    /**
+     * Draws at most one frame per display frame, for as long as anything is dirty.
+     *
+     * This is the frame discipline ca.mpreg's `ImageViewerState.collect()` runs with, and the
+     * one the stock viewers inherit from the Android view system: invalidations only mark
+     * [renderDirty], the loop draws at most one frame per vsync however many requests arrived,
+     * parks on [renderWake] while clean (no Choreographer ticks, no GPU work, nothing to heat
+     * the phone while idle), and a draw still in flight holds the dirty flag for the next
+     * frame. The un-paced requestRender of earlier builds rendered once per call - per scroll
+     * tick, per gesture step - and those renders queued behind the render mutex kept draining
+     * stale frames long after the interaction stopped.
+     */
+    private suspend fun frameLoop() = coroutineScope {
+        while (true) {
+            choreographerFrameClock.withFrameNanos { }
+            if (drawingJob?.isActive == true) continue
+            if (!renderDirty.getAndSet(false)) {
+                renderWake.receive()
+                continue
+            }
+            // Drop the wake this frame's request left, or going idle costs a spurious frame.
+            renderWake.tryReceive()
+            val environment = synchronized(lock) { webgpu } ?: break
+            drawingJob = renderScope.launch {
+                renderMutex.withLock {
+                    environment.execute {
+                        if (stopped || !isCurrent(environment)) return@execute
+                        drawFrame(environment)
+                    }
                 }
             }
         }
@@ -471,6 +543,10 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             toRelease.forEach { it.destroyed = true }
             renderScope.cancel()
             renderScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            frameLoopJob = null
+            drawingJob = null
+            pacingScope?.cancel()
+            pacingScope = null
         }
         runBlocking {
             environment.execute {
