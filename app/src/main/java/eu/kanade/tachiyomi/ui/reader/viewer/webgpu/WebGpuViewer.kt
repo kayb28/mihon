@@ -1390,7 +1390,12 @@ open class WebGpuViewer(
             }
         }
 
-        val backgroundColor = if (general.automaticBackground) null else readerBackgroundColor()
+        // The reader's background colour, always: with the automatic theme this used to pass
+        // null, and a null background made the library clear the surface to transparent black -
+        // black bars around a fitted page and behind trimmed ones, where the stock reader shows
+        // the colour readerBackgroundColor resolves for automatic (gray at night, white by day;
+        // the stock pager's per-page edge colour remains a nicety it keeps to itself).
+        val backgroundColor = readerBackgroundColor()
 
         // SDR only: HDR skips Image's tone mapping; a gain map may need float textures.
         var previewing = streaming && !dec.isHdr && dec.hdrKind != ImageDecoder.HdrKind.GAINMAP
@@ -1425,7 +1430,7 @@ open class WebGpuViewer(
                         f.width,
                         f.height,
                         createMipMaps = false,
-                        backgroundColor = backgroundColor ?: readerBackgroundColor(),
+                        backgroundColor = backgroundColor,
                     ),
                 ).apply {
                     // The tile cache would go stale.

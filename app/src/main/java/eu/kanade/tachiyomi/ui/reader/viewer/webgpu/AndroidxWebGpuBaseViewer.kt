@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
+import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,11 @@ abstract class AndroidxWebGpuBaseViewer(
     /** In-flight work per page, guarded by [gpuImages]' monitor: one watcher and one upload each. */
     private val watchJobs = mutableMapOf<ReaderPage, Job>()
     private val uploadJobs = mutableMapOf<ReaderPage, Job>()
+
+    /** Reader colour-filter prefs, resolved once and dropped when they change - both viewers'
+     * draw paths read them on every scroll tick otherwise. */
+    private var cachedGrayscale: Boolean? = null
+    private var cachedInvertedColors: Boolean? = null
 
     private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -217,6 +223,16 @@ abstract class AndroidxWebGpuBaseViewer(
         LaunchedEffect(Unit) {
             if (!AndroidxWebGpuProbe.probe()) requestFallback()
         }
+        // The surface clears to the reader's theme colour, never plain black: wherever a page
+        // does not cover - gaps between pages, side padding, a page still uploading - the stock
+        // viewers show the reader background, and a black clear read as black bars between
+        // pages. Collected rather than read once so a theme change mid-read re-clears too.
+        val general = activity.settingsViewModel.general
+        LaunchedEffect(general) {
+            general.collect { settings ->
+                imageBackend.setBackgroundColor(activity.baseContext.readerBackgroundColor(settings.theme))
+            }
+        }
         AndroidView(
             modifier = modifier,
             factory = { context ->
@@ -255,17 +271,29 @@ abstract class AndroidxWebGpuBaseViewer(
     protected fun ReaderColorFilterEffect(onChange: () -> Unit) {
         val prefs = activity.appGraph.readerPreferences
         LaunchedEffect(prefs) {
-            launch { prefs.grayscale.changes().collect { onChange() } }
-            launch { prefs.invertedColors.changes().collect { onChange() } }
+            launch {
+                prefs.grayscale.changes().collect {
+                    cachedGrayscale = null
+                    onChange()
+                }
+            }
+            launch {
+                prefs.invertedColors.changes().collect {
+                    cachedInvertedColors = null
+                    onChange()
+                }
+            }
         }
     }
 
     /** Pushes the current grayscale/inverted settings into the renderer for the next frame. */
     protected fun applyColorFilter() {
         val prefs = activity.appGraph.readerPreferences
+        val grayscale = cachedGrayscale ?: prefs.grayscale.get().also { cachedGrayscale = it }
+        val inverted = cachedInvertedColors ?: prefs.invertedColors.get().also { cachedInvertedColors = it }
         imageBackend.setColorFilter(
-            grayscale = if (prefs.grayscale.get()) 1f else 0f,
-            inverted = if (prefs.invertedColors.get()) 1f else 0f,
+            grayscale = if (grayscale) 1f else 0f,
+            inverted = if (inverted) 1f else 0f,
         )
     }
 

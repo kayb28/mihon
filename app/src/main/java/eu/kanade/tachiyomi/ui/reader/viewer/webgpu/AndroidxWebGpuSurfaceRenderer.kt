@@ -291,6 +291,22 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
     @Volatile
     private var colorInvert = 0f
 
+    /**
+     * The colour the surface clears to wherever a page does not cover - gaps between pages,
+     * side padding, a page still uploading. The viewers push the reader's theme colour here;
+     * the black this used to hardcode read as black bars between pages, where every stock
+     * viewer shows the reader background. Opaque ARGB.
+     */
+    @Volatile
+    private var backgroundColor = 0xFF000000.toInt()
+
+    /** Sets the clear colour for the next frame and redraws; see [backgroundColor]. */
+    fun setBackgroundColor(argb: Int) {
+        if (backgroundColor == argb) return
+        backgroundColor = argb
+        requestRender()
+    }
+
     val isRunning: Boolean
         get() = synchronized(lock) { webgpu != null }
 
@@ -566,7 +582,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                 GPURenderPassDescriptor(
                     colorAttachments = arrayOf(
                         GPURenderPassColorAttachment(
-                            clearValue = GPUColor(0.0, 0.0, 0.0, 1.0),
+                            clearValue = backgroundClearValue(),
                             view = backbuffer,
                             loadOp = LoadOp.Clear,
                             storeOp = StoreOp.Store,
@@ -665,7 +681,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                     GPURenderPassDescriptor(
                         colorAttachments = arrayOf(
                             GPURenderPassColorAttachment(
-                                clearValue = GPUColor(0.0, 0.0, 0.0, 1.0),
+                                clearValue = backgroundClearValue(),
                                 view = backbuffer,
                                 loadOp = LoadOp.Clear,
                                 storeOp = StoreOp.Store,
@@ -726,6 +742,17 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         data.putFloat(0f)
         data.flip()
         device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
+    }
+
+    /** The clear colour every render pass starts from: the reader's background, opaque. */
+    private fun backgroundClearValue(): GPUColor {
+        val argb = backgroundColor
+        return GPUColor(
+            ((argb shr 16) and 0xFF) / 255.0,
+            ((argb shr 8) and 0xFF) / 255.0,
+            (argb and 0xFF) / 255.0,
+            1.0,
+        )
     }
 
     /** Returns the dispatcher-confined scratch buffer, cleared, holding at least [capacity]. */
