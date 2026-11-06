@@ -291,3 +291,33 @@ Nota de seguridad: este documento se revisó antes de guardarse; no contiene tok
   2. **Experimental continuo**: salir a mitad de capítulo y reabrir → debe caer en la página guardada (y el progreso no debe reescribirse a la página 1).
   3. Regresión rápida del HQ paginado: zoom con pellizco, doble tap, tap de zonas.
 - **Palancas si las barras del HQ persisten:** `holdUntilFinal = true` en los dos `ImageViewerState` del fork (opt-in de la 58; hoy a propósito en false — congelaría el spinner Compose de carga), y `enableTiles/imageLut` quedaron por defecto.
+
+## 22. Feedback del 07/11 (noche) — las barras negras del HQ persisten con la 58
+
+- **Feedback del usuario (07/11, noche):** probada la build `a523759` (bump `ca.mpreg:webgpuviewer` 54 → 58) — **las barras negras del HQ siguen**. El bump no las resolvió.
+- **Diagnóstico que se descarta:** el fix upstream de la 58 "última fila de bitmaps de tamaño impar" (plausible causa de barras al pie) **no es** el origen, porque con la 58 aplicada las barras siguen. Tampoco lo son los reworks de cutout ni el sampler de resize de tiles — la 58 los trae y aun así persisten.
+- **Diagnóstico que sigue en pie:** con `holdUntilFinal = false` y `enableTiles = false` (defaults actuales del fork, línea 92 de `WebGpuViewer.kt`), el HQ pinta cada frame por la fast-path. Si el origen está en (a) el fondo del lector detrás de la página cuando la página no llena el viewport, o (b) frames negros mientras los tiles se cortan, o (c) el color de clear del surface, son tres vías distintas que conviene separar antes de tocar.
+- **Dato fino pendiente del usuario** (recorta las palancas): dónde aparece la barra — (1) al **pie** de la página (gap vertical entre la imagen y el borde inferior), (2) a los **lados** (gap horizontal, vinculado a cutout/aspect ratio), (3) solo en **modo nocturno**, (4) solo al **primer frame** antes de que la imagen se asiente, (5) en **todas** las páginas o solo en algunas (tamaño impar). Cada caso apunta a una palanca distinta.
+- **Palancas listas para activar (una por build, en orden de costo):**
+  1. `viewerState.holdUntilFinal = true` en `WebGpuViewer.kt:92` (ataca "frames negros mientras los tiles se cortan"; riesgo conocido: puede congelar el spinner Compose de carga — se observa en el teléfono).
+  2. `viewerState.enableTiles = true` (enciende el pipeline de tiles de la 58 con pacing y reúso; hoy está off — si las barras NO vienen de tiles, esta no las mueve).
+  3. `viewerState.avoidCutout = true` / `alwaysAvoidCutout = true` (si las barras son a los lados en el POCO F6 — punch-hole y esquinas redondeadas).
+  4. Volver a verificar `readerBackgroundColor()` en el HQ (no solo en el experimental) — el fix `4d1a9afa1` apuntaba al fondo del lector; confirmar que el HQ pasa por el mismo camino.
+- **Estado:** resuelto en §23 — el usuario aportó capturas y el diagnóstico quedó cerrado: no era rendering, era el ajuste Gap del modo tira vertical.
+
+## 23. Ciclo del 07/11 (noche) — diagnóstico y fix de las barras negras: es el Gap del modo tira vertical
+
+- **El usuario aporta capturas comparadas** del mismo capítulo: «donde el vertical continuo las junta entre página y página, el discontinuo coloca esas barras negras en medio». En el modo discontinuo se ven franjas negras horizontales separando página y página DENTRO del mismo capítulo.
+- **Causa raíz (verificada en código y en la librería):**
+  - El modo «tira vertical» (`CONTINUOUS_VERTICAL`) es el visor continuo con `useGap = true` (`ReadingMode.kt:92/102`).
+  - En el HQ (`WebGpuViewer.kt:997-1001`) eso activa `pageGap = continuousGap / 100f` — gap entre TODAS las páginas. En la librería ca.mpreg, `pageGap` es fracción de la altura del viewport (`pageGapPx = pageGap * height`).
+  - El ajuste `webgpu_continuous_gap` tenía **default 10** (→ 10 % de la altura de pantalla ≈ 240 px en un POCO F6) y el slider «Gap» de la UI tenía rango `1..100` — **imposible ponerlo a 0**. El gap se pinta con `readerBackgroundColor()` (negro en modo nocturno) → franjas negras siempre visibles.
+  - En el experimental (`AndroidxWebGpuContinuousViewer.kt:432-437`) el gap solo existe ENTRE capítulos (fijo, `CHAPTER_GAP_FRACTION`), nunca entre páginas del mismo capítulo — por eso el experimental nunca mostró estas barras.
+- **Implicación:** TODO el feedback anterior de «barras negras en el HQ» (§18, §20, §21, §22) era este ajuste, no un bug de rendering. Por eso ni el fix de fondo (`4d1a9afa1`) ni el bump 54→58 las movieron: la librería pintaba exactamente lo que el ajuste le pedía.
+- **Fix (`92a71bd0e`), tres cambios:**
+  1. `ReaderPreferences.kt` — default de `webgpu_continuous_gap`: 10 → **0** (páginas pegadas, como el modo continuo; quien quiera separación la sube).
+  2. `WebGpuViewerSettings.kt` — rango del slider Gap: `1..100` → `0..100` (ahora llega a 0).
+  3. `i18n es/strings.xml` — traducciones que faltaban: «Ancho mínimo» y «Separación entre páginas».
+- **Nota para el teléfono del usuario:** la preference ya guardada (10) no la toca el nuevo default — con la build nueva hay que bajar «Separación entre páginas» a 0 UNA vez en los ajustes del lector; de ahí en adelante queda fijo.
+- **CI:** run `42297312093` **verde** (Build Release APK OK; extensiones omitidas). Entrega: `download/MihonFix-0.21.3-build-92a71bd-arm64.apk` (35,2 MB) — firma v2 `DE:78:…:6A:D0` verificada fuera de CI → **se instala encima sin desinstalar**. Empaquetado verificado (3 dex, `libwebgpu_c_bundled.so` + `libresize.so`, shaders de la 58).
+- **Qué probar:** instalar → ajustes del lector → «Separación entre páginas» → 0 → el modo tira vertical debe verse igual al continuo (páginas pegadas, sin franjas negras). El calor del HQ también cabe replantearlo después de este fix: parte de la comparación de §21 pudo estar sesgada por el mismo modo.
