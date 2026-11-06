@@ -260,3 +260,12 @@ Nota de seguridad: este documento se revisó antes de guardarse; no contiene tok
 - **Firma verificada fuera de la CI:** los tres APK del run tienen el mismo certificado en su APK Signing Block v2 (fingerprint SHA-256 `DE:78:89:F3:…:D0`), idéntico al del keystore y con CN=MihonFix — verificado con un parser propio del signing block (lección: en v2 hay DOS niveles de secuencia length-prefixed antes del signer; la primera versión del parser hasheaba la firma RSA en vez del certificado).
 - **Entregado en download/:** `MihonFix-0.21.3-build-ef0ece3-arm64.apk` (39,0 MB, zip íntegro, 3 dex, libwebgpu_c_bundled.so presente), `Tachiyomi-MHScans-1.6.73.apk`, `Tachiyomi-EmperorScan-1.6.78.apk` y `respaldo-keystore-mihonfix/` (keystore + contraseña + LEEME con instrucciones de restauración).
 - **Token de GitHub:** rotado el 06/11 a un fine-grained PAT (push/actions verificados); vive en el remote del clon local, como siempre.
+
+## 20. Confirmación del usuario (07/11) — visor experimental verificado en el POCO F6
+
+- **Feedback del usuario (07/11):** los tres puntos pendientes del §18 quedan **verificados en el teléfono**: (1) barras negras resueltas — el fondo del lector se ve donde antes había negro; (2) calor resuelto — la lectura con el visor experimental (androidx) es fluida y el teléfono se mantiene templado, ya no vuelve al estable; (3) grises/invertidos funcionando a mitad de lectura.
+- **Implicación:** el visor experimental androidx.webgpu queda como **lectura por defecto** usable en producción. El fix de frame pacing (`508f0c4`, porte de `collect()` de ca.mpreg) resultó efectivo, a diferencia del `dd8d4d8` anterior que solo ordenaba los preloads.
+- **Lo que sigue para el visor** (sin orden todavía, pendiente de aprobación):
+  - Bump `ca.mpreg:webgpuviewer` 54 → 55-58 (mejoras de rendimiento: pacing de tiles, TransientAttachment, reúso de pipelines, samplers para el resize). Cambia API — ciclo propio.
+  - Limitaciones residuales del visor experimental: tira continua sin pinch-zoom, sin páginas de transición entre capítulos, saltos de layout al resolver proporciones; paginado con zonas de toque fijas y sin fling; reanudar cae en la primera página del capítulo.
+  - Zero-copy AHardwareBuffer: parqueado hasta que la librería ca.mpreg entregue AHB desde el decoder.
