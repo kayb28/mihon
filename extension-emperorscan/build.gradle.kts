@@ -32,8 +32,23 @@ android {
         // stripped by R8 in release builds → NoClassDefFoundError on chapter
         // list parse) in favour of reading "source_$id" SharedPreferences
         // directly through Injekt.
-        versionCode = 106077
-        versionName = "1.6.77"
+        versionCode = 106078
+        versionName = "1.6.78"
+    }
+
+    // Mirrors :app's signing hookup: when CI provides the repo keystore through env vars
+    // (MIHON_GITHUB_RELEASE), the debug config is repointed at it so every build is signed
+    // with the same key — a rebuilt APK then installs as an update over the previous one
+    // instead of failing with a signature mismatch (random per-run debug key otherwise).
+    if (System.getenv("MIHON_GITHUB_RELEASE").toBoolean()) {
+        signingConfigs {
+            named("debug") {
+                storeFile = file(System.getenv("storeFile"))
+                storePassword = System.getenv("storePassword")
+                keyAlias = System.getenv("keyAlias")
+                keyPassword = System.getenv("keyPassword")
+            }
+        }
     }
 
     buildTypes {

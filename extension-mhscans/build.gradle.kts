@@ -22,8 +22,25 @@ android {
 
         // Follows the upstream convention MMmmNN: 1.6.71 was the previously shipped APK
         // (versionCode 106071). Bump the patch on every rebuild so Mihon offers the update.
-        versionCode = 106072
-        versionName = "1.6.72"
+        // 1.6.73: re-signed with the repo's stable CI keystore (update installs over prior
+        // installs once the old debug-keyed APK is removed that one last time).
+        versionCode = 106073
+        versionName = "1.6.73"
+    }
+
+    // Mirrors :app's signing hookup: when CI provides the repo keystore through env vars
+    // (MIHON_GITHUB_RELEASE), the debug config is repointed at it so every build is signed
+    // with the same key — a rebuilt APK then installs as an update over the previous one
+    // instead of failing with a signature mismatch (random per-run debug key otherwise).
+    if (System.getenv("MIHON_GITHUB_RELEASE").toBoolean()) {
+        signingConfigs {
+            named("debug") {
+                storeFile = file(System.getenv("storeFile"))
+                storePassword = System.getenv("storePassword")
+                keyAlias = System.getenv("keyAlias")
+                keyPassword = System.getenv("keyPassword")
+            }
+        }
     }
 
     buildTypes {
