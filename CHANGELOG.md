@@ -10,6 +10,19 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `ef0ece3`] - 2026-11-06
+
+> versionCode 39 (sin cambios) · commits de código: `5485a46` (intervalo de 6 h) y `ef0ece3` (firma estable); el resto es documentación. **Esta build exige una última desinstalación** (ver abajo); todas las siguientes se instalan encima.
+
+### Added
+- Biblioteca: intervalo de actualización automática de **6 horas** (antes el mínimo era 12) en Ajustes → Biblioteca → Actualización global → Actualizaciones automáticas (5485a46).
+
+### Fixed
+- Instalación de builds: la CI ahora firma TODOS los APK (app y extensiones) con un keystore estable guardado en los secrets del repo. Antes cada runner generaba su keystore debug aleatorio → cada APK salía con firma distinta → Android obligaba a desinstalar la app/extensiones antes de instalar la build nueva. Migración: desinstalar la app y las extensiones una última vez, instalar esta build, y a partir de ahí cada build nueva se instala como actualización normal (ef0ece3).
+
+### Other
+- Extensiones MHScans 1.6.73 y Emperor Scan 1.6.78 re-firmadas con la clave estable (bump de versionCode para que Mihon las ofrezca como actualización).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `0800479`] - 2026-11-04
 
 > versionCode 39 (sin cambios) · los commits de código de esta entrada son `e370cb0`, `0800479` y `9758ddc`; el resto del ciclo es documentación (CHANGELOG/TRASPASO). La build instalable se identifica por el hash que muestra «Acerca de».
