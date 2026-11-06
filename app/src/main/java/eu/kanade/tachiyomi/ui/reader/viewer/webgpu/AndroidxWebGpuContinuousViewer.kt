@@ -105,8 +105,11 @@ class AndroidxWebGpuContinuousViewer(
     private var scrollPos by mutableFloatStateOf(0f)
 
     /** The gesture layer, wired to [scrollPos] through [maxScrollPx] clamping. Drag and fling
-     *  both funnel into [scrollPos]; every reader reads back the same number. */
+     *  both funnel into [scrollPos]; every reader reads back the same number. A gesture here
+     *  also cancels any pending restore anchor: once the user moves the strip themselves, the
+     *  glue no longer owns where the viewport points. */
     private val scrollableState = ScrollableState { delta ->
+        anchorPending = null
         val target = (scrollPos + delta).coerceIn(0f, maxScrollPx())
         val consumed = target - scrollPos
         if (consumed != 0f) scrollPos = target
@@ -155,6 +158,19 @@ class AndroidxWebGpuContinuousViewer(
 
     /** The page last reported to the reader; [onPageSelected] fires when it changes. */
     private var lastNotified: ReaderPage? = null
+
+    /**
+     * The page the viewport must stay glued to until it has actually landed: a chapter reopen
+     * or an external jump. The strip's pixel numbers move under the restore — the layout is
+     * built once at 1px-wide pages before the surface reports its width and again as page
+     * aspects stream in — so a snap taken up front stranded the reader at the strip's top:
+     * reopening a half-read chapter landed on its first page, and the scroll tracking then
+     * even reported (and saved) that first page over the real one. [relayout] re-glues the
+     * scroll to this page until [onPageScrolled] finds it at the viewport center on a surface
+     * with its real width.
+     */
+    @Volatile
+    private var anchorPending: ReaderPage? = null
 
     @Composable
     override fun Content(modifier: Modifier) {
@@ -298,6 +314,9 @@ class AndroidxWebGpuContinuousViewer(
     override fun moveBackward() = shiftPage(-1)
 
     override fun onCurrentChanged() {
+        // An external jump (chapter reopen, moveToPage): glue the viewport to this page until
+        // the restore lands.
+        anchorPending = current
         relayout()
         val page = current ?: return
         val index = layoutPages.indexOfFirst { it === page }
@@ -340,6 +359,9 @@ class AndroidxWebGpuContinuousViewer(
     }
 
     override fun onWindowChanged() {
+        // The page window just changed and the surface may have reported a size since the last
+        // layout: rebuild the strip's numbers (re-gluing any pending restore anchor) and redraw.
+        relayout()
         drawVisible()
     }
 
@@ -357,6 +379,7 @@ class AndroidxWebGpuContinuousViewer(
 
     override fun onDestroyed() {
         viewerScope.cancel()
+        anchorPending = null
     }
 
     /** Advances the document by one page: [delta] of 1 goes down, -1 up. */
@@ -371,12 +394,11 @@ class AndroidxWebGpuContinuousViewer(
         }
     }
 
-    /** Jumps the document to [target], going through [scrollableState] so any fling in
-     *  progress finishes first and the position passes through the same clamping. */
-    private suspend fun snapScrollTo(target: Float) {
-        scrollableState.scroll {
-            scrollBy(target - scrollPos)
-        }
+    /** Jumps the document to [target]: a direct write, not through [scrollableState] — a
+     *  restore snap is not a gesture (the gesture layer is where a pending restore anchor
+     *  yields to the user), and the clamping is the same [maxScrollPx] the lambda applies. */
+    private fun snapScrollTo(target: Float) {
+        scrollPos = target.coerceIn(0f, maxScrollPx())
     }
 
     /**
@@ -421,6 +443,19 @@ class AndroidxWebGpuContinuousViewer(
         offsets = newOffsets
         totalHeight = y
         layoutVersion++
+        // Keep the viewport glued to a pending restore target: each relayout moves the strip
+        // under a scroll position derived from older numbers (1px pages before the first
+        // frame, aspect estimates before textures arrive), so re-derive it from the target's
+        // current offset until the anchor lands and [onPageScrolled] clears it.
+        val pending = anchorPending
+        if (pending != null) {
+            val pendingIndex = pages.indexOfFirst { it === pending }
+            if (pendingIndex >= 0) {
+                scrollPos = newOffsets[pendingIndex].coerceIn(0f, maxScrollPx())
+            } else {
+                anchorPending = null
+            }
+        }
     }
 
     /** Keeps the current page anchored after a relayout that changed the strip's shapes. */
@@ -441,15 +476,26 @@ class AndroidxWebGpuContinuousViewer(
      */
     private fun onPageScrolled() {
         val page = pageAtCenter() ?: return
-        if (current !== page) {
+        // The restore anchor is done once its page sits at the viewport center on a surface
+        // with its real width: before the first frame the layout's numbers are placeholder
+        // sized (1px pages), so a center match there says nothing about the landing spot.
+        if (page === anchorPending && imageBackend.surfaceWidthPx > 1) anchorPending = null
+        // While a restore anchor is pending the scroll numbers are transitional: the page the
+        // tracking derives here is not where the reader will land (the layouts it reads predate
+        // the real surface width and the real aspects), so neither follow it nor report it —
+        // the anchor page onCurrentChanged reported is the truth until the glue lands.
+        val restoring = anchorPending != null
+        if (!restoring && current !== page) {
             current = page
             updatePageWindow()
         }
-        val reported = reportedPage()
-        if (reported != null && lastNotified !== reported) {
-            lastNotified = reported
-            activity.onPageSelected(reported)
-            maybePreloadNextChapter(reported)
+        if (!restoring) {
+            val reported = reportedPage()
+            if (reported != null && lastNotified !== reported) {
+                lastNotified = reported
+                activity.onPageSelected(reported)
+                maybePreloadNextChapter(reported)
+            }
         }
         drawVisible()
         hideMenuOnScroll()
