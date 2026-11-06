@@ -10,6 +10,16 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `a523759`] - 2026-11-07
+
+> versionCode 39 (sin cambios) · commits de código: `36b990462` (bump del visor HQ) y `a5237598b` (reanudación en el continuo experimental); el resto es documentación. Se instala encima de la build `ef0ece3` sin desinstalar (misma firma estable).
+
+### Changed
+- Visor HQ (alta calidad): librería de render `ca.mpreg:webgpuviewer` **54 → 58** (36b990462). Upstream trae pacing de tiles temporizado contra la tasa de refresco del panel, reúso de pipelines y de tiles, samplers para el reescalado, rework del cutout (barras negras al inicio), recorte para cualquier imagen/página, fix de última fila en bitmaps de tamaño impar y varios fixes de gestos (tap cancelado, fling tras pinch, zoom rápido). Empaquetado: `androidx.webgpu` vuelve a dependencia real de la app porque la librería dejó de incrustarlo (alpha06, la misma versión con la que la 58 fue compilada).
+
+### Fixed
+- Visor experimental continuo (webtoon): reabrir un capítulo a mitad de lectura caía en la **primera página** en vez de la guardada — el salto de restauración se calculaba contra un layout construido antes de que la superficie reportara su tamaño real, y el seguimiento podía llegar a guardar la página 1 sobre el progreso real. Ahora la restauración queda pegada a la página objetivo hasta que aterriza en el centro del viewport, y cualquier gesto del usuario la cancela (a5237598b).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `ef0ece3`] - 2026-11-06
 
 > versionCode 39 (sin cambios) · commits de código: `5485a46` (intervalo de 6 h) y `ef0ece3` (firma estable); el resto es documentación. **Esta build exige una última desinstalación** (ver abajo); todas las siguientes se instalan encima.
