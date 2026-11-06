@@ -321,3 +321,13 @@ Nota de seguridad: este documento se revisó antes de guardarse; no contiene tok
 - **Nota para el teléfono del usuario:** la preference ya guardada (10) no la toca el nuevo default — con la build nueva hay que bajar «Separación entre páginas» a 0 UNA vez en los ajustes del lector; de ahí en adelante queda fijo.
 - **CI:** run `42297312093` **verde** (Build Release APK OK; extensiones omitidas). Entrega: `download/MihonFix-0.21.3-build-92a71bd-arm64.apk` (35,2 MB) — firma v2 `DE:78:…:6A:D0` verificada fuera de CI → **se instala encima sin desinstalar**. Empaquetado verificado (3 dex, `libwebgpu_c_bundled.so` + `libresize.so`, shaders de la 58).
 - **Qué probar:** instalar → ajustes del lector → «Separación entre páginas» → 0 → el modo tira vertical debe verse igual al continuo (páginas pegadas, sin franjas negras). El calor del HQ también cabe replantearlo después de este fix: parte de la comparación de §21 pudo estar sesgada por el mismo modo.
+
+## 23-bis. Confirmación del usuario (07/11, noche) — barras negras RESUELTAS
+
+- **El usuario confirma:** «el problema de las barras negras se fue» con la build `92a71bd` (Gap a 0). El bug más longevo del visor queda cerrado: eran el ajuste de separación del modo tira vertical, no un defecto de render.
+- **Consecuencia:** las palancas del §22 (`holdUntilFinal`, `enableTiles`, `avoidCutout`) NO hacen falta para las barras — quedan documentadas como referencias futuras. El fix de fondo del lector (`4d1a9afa1`) y el bump 54→58 eran correctos pero no iban a esta causa.
+- **Pendiente que queda del visor:**
+  - Confirmar la **reanudación** en el experimental continuo (fix `a5237598b`) — el usuario aún no la ha confirmado explícitamente.
+  - Replantear la prueba de **calor** del HQ con el gap corregido (la comparación de §21 pudo estar sesgada por las franjas del gap).
+  - Limitaciones residuales del experimental (pinch-zoom en tira continua, páginas de transición entre capítulos, saltos de layout, zonas de toque + fling).
+  - Zero-copy AHardwareBuffer: parqueado hasta que la librería ca.mpreg entregue AHB desde el decoder.
