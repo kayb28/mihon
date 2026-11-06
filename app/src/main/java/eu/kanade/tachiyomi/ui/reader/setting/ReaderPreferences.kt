@@ -220,7 +220,7 @@ class ReaderPreferences(
 
     val continuousMinWidth: Preference<Int> = preferenceStore.getInt("webgpu_continuous_minwidth", 100)
 
-    val continuousGap: Preference<Int> = preferenceStore.getInt("webgpu_continuous_gap", 10)
+    val continuousGap: Preference<Int> = preferenceStore.getInt("webgpu_continuous_gap", 0)
 
     val disableDoubleTapGestures: Preference<Boolean> =
         preferenceStore.getBoolean("webgpu_disable_double_tap_gestures", false)

@@ -109,7 +109,7 @@ internal fun WebGpuViewerSettings(viewModel: ReaderSettingsViewModel) {
             val continuousGap by viewModel.preferences.continuousGap.collectAsState()
             SliderItem(
                 value = continuousGap,
-                valueRange = ReaderPreferences.let { 1..100 },
+                valueRange = ReaderPreferences.let { 0..100 },
                 label = stringResource(MR.strings.pref_continuous_gap),
                 valueString = numberFormat.format(continuousGap / 100f),
                 onChange = {
