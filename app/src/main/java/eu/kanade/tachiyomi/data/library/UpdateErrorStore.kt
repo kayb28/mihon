@@ -23,6 +23,7 @@ data class UpdateError(
     val type: ErrorType,
     val timestamp: Long = System.currentTimeMillis(),
     val retryCount: Int = 0,
+    val brokenLinkStreak: Int = 0,
 ) {
     @Serializable
     enum class ErrorType {
@@ -40,8 +41,10 @@ class UpdateErrorStore(
     private val errorFile: File
         get() = File(context.filesDir, "update_errors.json")
 
-    private val _errorsFlow = MutableStateFlow<List<UpdateError>>(loadErrors())
-    val errorsFlow: StateFlow<List<UpdateError>> = _errorsFlow.asStateFlow()
+    // Carga perezosa: evita I/O de disco en el hilo que construye el singleton
+    private val _errorsFlow: MutableStateFlow<List<UpdateError>> by lazy { MutableStateFlow(loadErrors()) }
+    val errorsFlow: StateFlow<List<UpdateError>>
+        get() = _errorsFlow.asStateFlow()
 
     fun getErrors(): List<UpdateError> = _errorsFlow.value
 
@@ -64,14 +67,39 @@ class UpdateErrorStore(
     /**
      * Merge de errores nuevos con los existentes.
      * Los errores de la misma manga se actualizan (no duplican).
+     *
+     * Un error HTTP 404/410 solo se promueve a [UpdateError.ErrorType.BROKEN_LINK] tras
+     * [BROKEN_LINK_CONFIRMATION_THRESHOLD] corridas consecutivas de actualización fallidas
+     * con ese código: muchas fuentes devuelven 404 en rate-limits o bloqueos temporales.
+     * [UpdateError.ErrorType.BROKEN_LINK] confirmado es "pegajoso": no se degrada a TEMPORARY
+     * hasta que la manga se actualice con éxito ([removeErrorsForManga]).
      */
     @Synchronized
     fun addErrors(newErrors: List<UpdateError>) {
+        if (newErrors.isEmpty()) return
         val existing = _errorsFlow.value
         val merged = (existing + newErrors)
             .groupBy { it.mangaId }
             .map { (_, errorsForManga) ->
-                errorsForManga.maxByOrNull { it.timestamp }!!
+                val newest = errorsForManga.maxByOrNull { it.timestamp }!!
+                val previous = existing.firstOrNull { it.mangaId == newest.mangaId }
+                val isHttpBrokenCode = isBrokenHttpCode(newest.httpCode)
+                val streak = when {
+                    !isHttpBrokenCode -> 0
+                    previous != null && isBrokenHttpCode(previous.httpCode) -> previous.brokenLinkStreak + 1
+                    else -> 1
+                }
+                val type = when {
+                    newest.type == UpdateError.ErrorType.BROKEN_LINK -> UpdateError.ErrorType.BROKEN_LINK
+                    previous?.type == UpdateError.ErrorType.BROKEN_LINK -> UpdateError.ErrorType.BROKEN_LINK
+                    streak >= BROKEN_LINK_CONFIRMATION_THRESHOLD -> UpdateError.ErrorType.BROKEN_LINK
+                    else -> UpdateError.ErrorType.TEMPORARY
+                }
+                newest.copy(
+                    type = type,
+                    brokenLinkStreak = streak,
+                    retryCount = maxOf(newest.retryCount, previous?.retryCount ?: 0),
+                )
             }
         saveToFile(merged)
     }
@@ -125,5 +153,12 @@ class UpdateErrorStore(
             logcat(LogPriority.WARN, e) { "Failed to load update errors" }
             emptyList()
         }
+    }
+
+    private fun isBrokenHttpCode(code: Int?): Boolean = code != null && code in BROKEN_LINK_HTTP_CODES
+
+    private companion object {
+        val BROKEN_LINK_HTTP_CODES = setOf(404, 410)
+        const val BROKEN_LINK_CONFIRMATION_THRESHOLD = 3
     }
 }

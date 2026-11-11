@@ -285,6 +285,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         val newChapters = updateManga(manga, fetchWindow)
                                             .sortedByDescending { it.sourceOrder }
 
+                                        // Actualización exitosa: cualquier error previo de esta manga quedó resuelto
+                                        updateErrorStore.removeErrorsForManga(manga.id)
+
                                         if (newChapters.isNotEmpty()) {
                                             val chaptersToDownload = filterChaptersForDownload.await(manga, newChapters)
 
@@ -307,7 +310,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         val httpCode = httpException?.code
                                         val errorType = when {
                                             e is SourceNotInstalledException -> UpdateError.ErrorType.BROKEN_LINK
-                                            httpCode in listOf(404, 410) -> UpdateError.ErrorType.BROKEN_LINK
+                                            // 404/410 no es definitivo (rate-limits, bloqueos): UpdateErrorStore
+                                            // promueve a BROKEN_LINK tras fallos consecutivos confirmados
                                             else -> UpdateError.ErrorType.TEMPORARY
                                         }
                                         val errorMessage = when (e) {
