@@ -10,6 +10,13 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `e3ef56c`] - 2026-11-11
+
+> versionCode 39 (sin cambios) · commit de código: `e3ef56c95` (resolvedor secundario del reparador). Se instala encima de la build `a9bbaa7` sin desinstalar (misma firma estable).
+
+### Added
+- Reparador de enlaces — **resolvedor secundario**: cuando la fuente del título ya no da rastro de él (búsquedas exacta y difusa vacías, fuente caída o extensión desinstalada), el reparador busca el título **exacto** en las demás fuentes instaladas — con las mismas reglas que la búsqueda global: idiomas habilitados, fuentes no ocultas y fijadas primero. El hallazgo se muestra como «Coincidencia exacta en <fuente>» (+N fuentes más si hubo otros) y se confirma **una por una** con su botón «Reparar»; nunca entra en «Reparar todos», porque migrar a otra fuente cambia la disponibilidad de capítulos (e3ef56c95).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `a9bbaa7`] - 2026-11-09
 
 > versionCode 39 (sin cambios) · commit de código: `a9bbaa7ad` (errores de actualización). Se instala encima de la build `92a71bd` sin desinstalar (misma firma estable).
