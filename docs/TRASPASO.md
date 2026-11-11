@@ -347,3 +347,14 @@ Nota de seguridad: este documento se revisó antes de guardarse; no contiene tok
 - **#4240 «High quality renderer: centre-out ripple on e-ink after page turns»** (04/11, abierto): en e-ink (BOOX Go 10.3) girar página produce una ondulación centro→bordes bloque por bloque — `TileRenderer.schedule()` invalida tras cada lote de tiles y el panel e-ink refresca en cada invalidación (en GPUs lentas, 1 tile por lote). El mantenedor wwww-wwww ya metió un cambio («the setting is at the bottom», 05/11). **No aplicable al fork:** el POCO F6 no es e-ink, y en el fork el pipeline de tiles está OFF (`enableTiles` default) — la causa raíz no corre.
 - **Otros issues recientes, sin impacto en el fork:** #4272 (opción DNS Mullvad, upstream), #4249 (verificación Cloudflare de fuentes), #4246 (settings con títulos duplicados al buscar), resto feature requests (#4271, #4270, #4267 4-Koma splitting, #4234 gestos de brillo, #4228).
 - **Conclusión:** nada nuevo que portar. El #4240 confirma que la línea de trabajo upstream sigue siendo el pacing de tiles de la 58 — el fork ya la trae.
+
+## 26. Ciclo del 09/11 — fix de la acumulación de errores de actualización (filtro + reparador)
+
+- **Reporte del usuario:** el filtro de títulos con problemas de actualización y el reparador de enlaces acumulan errores — si la primera actualización muestra 100 con errores y la segunda 50, se siguen viendo ~150 aunque los títulos con error de la segunda corrida son otros.
+- **Causa raíz:** `LibraryUpdateWorker` cerraba cada corrida con `updateErrorStore.addErrors(...)`, un merge que actualiza el error de los títulos que vuelven a fallar pero **nunca borra** el error viejo de los que ya no fallan → lista histórica en vez de estado de la última actualización. Alimentaba a los dos consumidores: `UpdateErrorsScreen`/filtro de biblioteca (`errorsFlow`) y `RepairLinksViewModel` (`getBrokenLinkErrors()`).
+- **Fix (`a9bbaa7ad`):**
+  - Pasada completa (`isFullPass`, categoryId==-1 y sourceId==-1): `setErrors(...)` — la lista pasa a ser exactamente la de la última corrida; los que ya no fallan salen. Se conserva el `retryCount` acumulado de los que vuelven a fallar (no se usa en UI hoy, pero era gratis).
+  - Pasada parcial (categoría/fuente): nuevo `replaceForManga(errors, processedIds)` — sustituye solo lo procesado (los procesados que no fallan salen) y deja intacto el resto, que la corrida no tocó. `processedIds` = ids de `mangaToUpdate`.
+  - `addErrors(...)` eliminado (sin llamadas restantes) para que el bug no pueda resucitarse.
+- **Efecto esperado en el reparador de enlaces:** un título roto deja de aparecer cuando una corrida posterior lo actualiza bien (o deja de fallar con 404/410); se repara solo o desaparece del simulador. Los que siguen rotos mantienen su entrada fresca.
+- **CI:** push `a9bbaa7ad` dispara el build (inputs por defecto; extensiones sin cambios). Resultado y entrega en §26-bis.
