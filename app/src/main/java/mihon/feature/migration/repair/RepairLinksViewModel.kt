@@ -9,6 +9,7 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.model.SManga
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -21,8 +22,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import logcat.LogPriority
 import mihon.domain.manga.model.toDomainManga
 import mihon.domain.migration.usecases.MigrateMangaUseCase
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
@@ -32,7 +35,8 @@ data class ProposedRepair(
     val currentManga: Manga,
     val proposedManga: SManga? = null,
     val status: Status = Status.SIMULATING,
-    val reason: String? = null,
+    val reason: Reason? = null,
+    val reasonDetail: String? = null,
 ) {
     enum class Status {
         SIMULATING,
@@ -41,6 +45,15 @@ data class ProposedRepair(
         NO_MATCH,
         REPAIRED,
         FAILED,
+    }
+
+    enum class Reason {
+        MULTIPLE_EXACT_MATCHES,
+        SAME_URL,
+        AUTHOR_MISMATCH,
+        GENRE_MISMATCH,
+        SEARCH_ERROR,
+        MIGRATION_ERROR,
     }
 }
 
@@ -111,61 +124,87 @@ class RepairLinksViewModel(
                     async(Dispatchers.IO) {
                         val source = sourceManager.get(manga.source)
 
-                        val result = if (source != null) {
+                        val outcome: Result<TitleMatcher.MatchResult> = if (source != null) {
                             semaphore.withPermit {
                                 try {
                                     val searchResults = withContext(Dispatchers.IO) {
                                         source.getSearchManga(1, manga.title, source.getFilterList()).mangas
                                     }
-                                    TitleMatcher.findMatch(manga.title, manga.url, searchResults)
-                                } catch (e: Exception) {
-                                    TitleMatcher.MatchResult.NeedsReview(
-                                        TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
+                                    Result.success(
+                                        TitleMatcher.findMatch(
+                                            currentTitle = manga.title,
+                                            currentUrl = manga.url,
+                                            currentAuthor = manga.author,
+                                            currentGenres = manga.genre,
+                                            candidates = searchResults,
+                                        ),
                                     )
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    logcat(LogPriority.WARN, e) {
+                                        "Repair simulation: search failed for '${manga.title}' (${manga.id})"
+                                    }
+                                    Result.failure(e)
                                 }
                             }
                         } else {
-                            TitleMatcher.MatchResult.NeedsReview(
-                                TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
-                            )
+                            logcat(LogPriority.WARN) {
+                                "Repair simulation: source ${manga.source} not installed for '${manga.title}'"
+                            }
+                            Result.failure(IllegalStateException("Source ${manga.source} not installed"))
                         }
 
-                        index to result
+                        index to outcome
                     }
                 }.awaitAll()
             }
 
             // Procesar resultados en orden
             val updatedItems = initialItems.toMutableList()
-            for ((index, result) in results) {
+            for ((index, outcome) in results) {
                 val manga = brokenMangas[index]
-                val proposedRepair = when (result) {
-                    is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
-                        currentManga = manga,
-                        proposedManga = result.candidate,
-                        status = ProposedRepair.Status.MATCH_FOUND,
-                    )
-                    is TitleMatcher.MatchResult.NeedsReview -> {
-                        if (result.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
-                            ProposedRepair(
+                updatedItems[index] = outcome.fold(
+                    onSuccess = { result ->
+                        when (result) {
+                            is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
                                 currentManga = manga,
-                                status = ProposedRepair.Status.NO_MATCH,
+                                proposedManga = result.candidate,
+                                status = ProposedRepair.Status.MATCH_FOUND,
                             )
-                        } else {
-                            ProposedRepair(
-                                currentManga = manga,
-                                status = ProposedRepair.Status.NEEDS_REVIEW,
-                                reason = when (result.reason) {
+                            is TitleMatcher.MatchResult.NeedsReview -> {
+                                val reason = when (result.reason) {
                                     TitleMatcher.MatchResult.NeedsReview.Reason.MULTIPLE_EXACT_MATCHES ->
-                                        "Multiple identical titles"
-                                    TitleMatcher.MatchResult.NeedsReview.Reason.SAME_URL -> "Same URL as current"
-                                    else -> null
-                                },
-                            )
+                                        ProposedRepair.Reason.MULTIPLE_EXACT_MATCHES
+                                    TitleMatcher.MatchResult.NeedsReview.Reason.SAME_URL ->
+                                        ProposedRepair.Reason.SAME_URL
+                                    TitleMatcher.MatchResult.NeedsReview.Reason.AUTHOR_MISMATCH ->
+                                        ProposedRepair.Reason.AUTHOR_MISMATCH
+                                    TitleMatcher.MatchResult.NeedsReview.Reason.GENRE_MISMATCH ->
+                                        ProposedRepair.Reason.GENRE_MISMATCH
+                                    TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH -> null
+                                }
+                                if (reason == null) {
+                                    ProposedRepair(currentManga = manga, status = ProposedRepair.Status.NO_MATCH)
+                                } else {
+                                    ProposedRepair(
+                                        currentManga = manga,
+                                        status = ProposedRepair.Status.NEEDS_REVIEW,
+                                        reason = reason,
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
-                updatedItems[index] = proposedRepair
+                    },
+                    onFailure = { e ->
+                        ProposedRepair(
+                            currentManga = manga,
+                            status = ProposedRepair.Status.NEEDS_REVIEW,
+                            reason = ProposedRepair.Reason.SEARCH_ERROR,
+                            reasonDetail = e.message,
+                        )
+                    },
+                )
             }
 
             _state.update {
@@ -225,9 +264,18 @@ class RepairLinksViewModel(
                     )
                     updateErrorStore.removeErrorsForManga(item.currentManga.id)
                     currentItems[index] = item.copy(status = ProposedRepair.Status.REPAIRED)
-                } catch (_: Exception) {
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN, e) {
+                        "Repair execution: migration failed for '${item.currentManga.title}' (${item.currentManga.id})"
+                    }
                     updateErrorStore.incrementRetryCount(item.currentManga.id)
-                    currentItems[index] = item.copy(status = ProposedRepair.Status.FAILED)
+                    currentItems[index] = item.copy(
+                        status = ProposedRepair.Status.FAILED,
+                        reason = ProposedRepair.Reason.MIGRATION_ERROR,
+                        reasonDetail = e.message,
+                    )
                 }
 
                 processed++

@@ -236,12 +236,10 @@ class RepairLinksScreen : Screen() {
                                         }
                                     }
                                     ProposedRepair.Status.NEEDS_REVIEW -> {
+                                        val pendingLabel = stringResource(MR.strings.repair_links_status_pending)
+                                        val reasonLabel = item.reason?.let { " (${repairReasonLabel(it)})" } ?: ""
                                         Text(
-                                            text = "${stringResource(
-                                                MR.strings.repair_links_status_pending,
-                                            )}${item.reason?.let {
-                                                " ($it)"
-                                            } ?: ""}",
+                                            text = pendingLabel + reasonLabel,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.error,
                                             maxLines = 1,
@@ -256,10 +254,14 @@ class RepairLinksScreen : Screen() {
                                         )
                                     }
                                     ProposedRepair.Status.FAILED -> {
+                                        val failedLabel = stringResource(MR.strings.repair_links_status_failed)
+                                        val detailLabel = item.reasonDetail?.let { " ($it)" } ?: ""
                                         Text(
-                                            text = stringResource(MR.strings.repair_links_status_failed),
+                                            text = failedLabel + detailLabel,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.error,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
                                 }
@@ -324,4 +326,20 @@ class RepairLinksScreen : Screen() {
             )
         }
     }
+}
+
+@Composable
+private fun repairReasonLabel(reason: ProposedRepair.Reason): String = when (reason) {
+    ProposedRepair.Reason.MULTIPLE_EXACT_MATCHES ->
+        stringResource(MR.strings.repair_links_reason_multiple_exact_matches)
+    ProposedRepair.Reason.SAME_URL ->
+        stringResource(MR.strings.repair_links_reason_same_url)
+    ProposedRepair.Reason.AUTHOR_MISMATCH ->
+        stringResource(MR.strings.repair_links_reason_author_mismatch)
+    ProposedRepair.Reason.GENRE_MISMATCH ->
+        stringResource(MR.strings.repair_links_reason_genre_mismatch)
+    ProposedRepair.Reason.SEARCH_ERROR ->
+        stringResource(MR.strings.repair_links_reason_search_error)
+    ProposedRepair.Reason.MIGRATION_ERROR ->
+        stringResource(MR.strings.repair_links_reason_migration_error)
 }
