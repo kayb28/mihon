@@ -384,7 +384,19 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         }
 
         notifier.cancelProgressNotification()
-        updateErrorStore.addErrors(updateErrors.toList())
+        if (isFullPass) {
+            // Pasada completa: la lista de errores pasa a ser exactamente la de esta corrida.
+            // Los títulos que ya no fallan dejan de aparecer (antes el merge los arrastraba
+            // para siempre y el filtro/reparador acumulaban errores viejos).
+            updateErrorStore.setErrors(updateErrors.toList())
+        } else {
+            // Pasada parcial (categoría/fuente): solo se sustituye lo procesado; los errores
+            // del resto de la biblioteca quedan como estaban.
+            updateErrorStore.replaceForManga(
+                updateErrors.toList(),
+                mangaToUpdate.mapTo(HashSet()) { it.manga.id },
+            )
+        }
 
         if (newUpdates.isNotEmpty()) {
             notifier.showUpdateNotifications(newUpdates)

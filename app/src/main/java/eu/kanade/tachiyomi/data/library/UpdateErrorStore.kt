@@ -54,26 +54,40 @@ class UpdateErrorStore(
     }
 
     /**
-     * Reemplaza todos los errores (comportamiento original).
+     * Reemplaza todos los errores: la lista pasa a ser exactamente [errors].
+     * Es el camino de la pasada completa de actualización (toda la biblioteca) — los
+     * títulos que ya no fallan salen de la lista en vez de arrastrar su error viejo.
+     * A los que vuelven a fallar se les conserva el retryCount acumulado.
      */
     @Synchronized
     fun setErrors(errors: List<UpdateError>) {
-        saveToFile(errors)
+        val previous = _errorsFlow.value.associateBy { it.mangaId }
+        val merged = errors.map { err ->
+            val old = previous[err.mangaId]
+            if (old != null && old.retryCount > err.retryCount) err.copy(retryCount = old.retryCount) else err
+        }
+        saveToFile(merged)
     }
 
     /**
-     * Merge de errores nuevos con los existentes.
-     * Los errores de la misma manga se actualizan (no duplican).
+     * Pasada parcial (por categoría o fuente): reemplaza los errores de los títulos
+     * [processedIds] — los que no fallaron salen de la lista — y deja intactos los del
+     * resto, que esta corrida no tocó. Sin [processedIds] no hace nada (no se sabe a quién
+     * limpiar).
      */
     @Synchronized
-    fun addErrors(newErrors: List<UpdateError>) {
-        val existing = _errorsFlow.value
-        val merged = (existing + newErrors)
-            .groupBy { it.mangaId }
-            .map { (_, errorsForManga) ->
-                errorsForManga.maxByOrNull { it.timestamp }!!
-            }
-        saveToFile(merged)
+    fun replaceForManga(newErrors: List<UpdateError>, processedIds: Set<Long>) {
+        if (processedIds.isEmpty()) return
+        val previous = _errorsFlow.value.associateBy { it.mangaId }
+        val fresh = newErrors.map { err ->
+            val old = previous[err.mangaId]
+            if (old != null && old.retryCount > err.retryCount) err.copy(retryCount = old.retryCount) else err
+        }.associateBy { it.mangaId }
+        val updated = buildList {
+            _errorsFlow.value.filterTo(this) { it.mangaId !in processedIds }
+            addAll(fresh.values)
+        }
+        saveToFile(updated)
     }
 
     /**
