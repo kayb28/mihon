@@ -10,6 +10,13 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `a9bbaa7`] - 2026-11-09
+
+> versionCode 39 (sin cambios) · commit de código: `a9bbaa7ad` (errores de actualización). Se instala encima de la build `92a71bd` sin desinstalar (misma firma estable).
+
+### Fixed
+- Actualización de biblioteca: la lista de errores se **acumulaba entre corridas** — el filtro «títulos con problemas de actualización» y el reparador de enlaces arrastraban errores viejos de títulos que ya actualizan bien (100 fallos + luego 50 fallos mostraba ~150). Ahora la lista refleja exactamente la última actualización: en pasadas completas se reemplaza entera; en pasadas por categoría o fuente solo se sustituye lo procesado. Los títulos que se recuperan desaparecen de la lista y del reparador (a9bbaa7ad).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `92a71bd`] - 2026-11-07
 
 > versionCode 39 (sin cambios) · commit de código: `92a71bd0e` (Gap del modo tira vertical). Se instala encima de la build `a523759` sin desinstalar (misma firma estable). **Tras instalar: ajustes del lector → «Separación entre páginas» → 0** (el valor ya guardado en el teléfono no lo cambia el nuevo default).

@@ -358,3 +358,9 @@ Nota de seguridad: este documento se revisó antes de guardarse; no contiene tok
   - `addErrors(...)` eliminado (sin llamadas restantes) para que el bug no pueda resucitarse.
 - **Efecto esperado en el reparador de enlaces:** un título roto deja de aparecer cuando una corrida posterior lo actualiza bien (o deja de fallar con 404/410); se repara solo o desaparece del simulador. Los que siguen rotos mantienen su entrada fresca.
 - **CI:** push `a9bbaa7ad` dispara el build (inputs por defecto; extensiones sin cambios). Resultado y entrega en §26-bis.
+
+## 26-bis. Cierre del ciclo del 09/11 — CI y entrega
+
+- **CI:** el run del push del código (`a9bbaa7ad`) quedó **cancelado** por el push de docs en vuelo (concurrency) — lección del §21-bis aplicada a medias: los docs se pushearon con el run EN VUELO y la cancelación siguió ocurriendo; la regla correcta es pushear docs SOLO cuando el run esté TERMINADO. Re-lanzado con rerun (conserva SHA) → **run 43040012633 verde** (Build Release APK + Unminified OK; extensiones omitidas).
+- **Entrega:** `download/MihonFix-0.21.3-build-a9bbaa7-arm64.apk` (35,2 MB) — firma v2 `DE:78:…:6A:D0` verificada fuera de CI → **se instala encima sin desinstalar**. Empaquetado: 3 dex + `libwebgpu_c_bundled.so` + `libresize.so`.
+- **Qué probar:** actualizar la biblioteca dos veces seguidas — la lista de «Errores de actualización» y el filtro de la biblioteca deben reflejar SOLO los fallos de la última corrida (los títulos que pasaron a actualizar bien desaparecen); el reparador de enlaces debe dejar de ofrecer títulos que ya no están rotos.
