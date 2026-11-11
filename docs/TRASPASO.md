@@ -4,6 +4,7 @@
 - Rama: `feature/webgpu-clean`
 - Fecha del traspaso: 04/11/2026, 08:30 (hora de São Paulo)
 - Regla de oro de este traspaso: solo se marca «verificado» lo que pasó por CI verde o se probó en el teléfono del usuario. Revisar código no cuenta como verificado.
+- Registro de cambios: **todo** cambio (por pequeño que sea) se anota en `docs/REGISTRO.md` — fecha/hora UTC, qué se hizo y por qué, build en la que se aplicó y estado de la confirmación del usuario. Actualizar el registro es parte de cada ciclo.
 
 ## 1. Estado de la rama
 

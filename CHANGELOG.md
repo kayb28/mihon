@@ -24,21 +24,21 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Added
 - Reparador de enlaces — **resolvedor secundario**: cuando la fuente del título ya no da rastro de él (búsquedas exacta y difusa vacías, fuente caída o extensión desinstalada), el reparador busca el título **exacto** en las demás fuentes instaladas — con las mismas reglas que la búsqueda global: idiomas habilitados, fuentes no ocultas y fijadas primero. El hallazgo se muestra como «Coincidencia exacta en <fuente>» (+N fuentes más si hubo otros) y se confirma **una por una** con su botón «Reparar»; nunca entra en «Reparar todos», porque migrar a otra fuente cambia la disponibilidad de capítulos (e3ef56c95).
 
-## [Mihon Fix 0.21.3 — fork kayb28, build `a9bbaa7`] - 2026-11-09
+## [Mihon Fix 0.21.3 — fork kayb28, build `a9bbaa7`] - 2026-11-11
 
 > versionCode 39 (sin cambios) · commit de código: `a9bbaa7ad` (errores de actualización). Se instala encima de la build `92a71bd` sin desinstalar (misma firma estable).
 
 ### Fixed
 - Actualización de biblioteca: la lista de errores se **acumulaba entre corridas** — el filtro «títulos con problemas de actualización» y el reparador de enlaces arrastraban errores viejos de títulos que ya actualizan bien (100 fallos + luego 50 fallos mostraba ~150). Ahora la lista refleja exactamente la última actualización: en pasadas completas se reemplaza entera; en pasadas por categoría o fuente solo se sustituye lo procesado. Los títulos que se recuperan desaparecen de la lista y del reparador (a9bbaa7ad).
 
-## [Mihon Fix 0.21.3 — fork kayb28, build `92a71bd`] - 2026-11-07
+## [Mihon Fix 0.21.3 — fork kayb28, build `92a71bd`] - 2026-11-06
 
 > versionCode 39 (sin cambios) · commit de código: `92a71bd0e` (Gap del modo tira vertical). Se instala encima de la build `a523759` sin desinstalar (misma firma estable). **Tras instalar: ajustes del lector → «Separación entre páginas» → 0** (el valor ya guardado en el teléfono no lo cambia el nuevo default).
 
 ### Fixed
 - Visor HQ — modo tira vertical: las «barras negras» entre página y página eran el ajuste **Gap** (separación) del propio modo, con un default de fábrica del 10 % de la altura de la pantalla y un slider que no permitía bajar de 1 %. Ahora las páginas van pegadas por defecto (como en el modo continuo), el slider llega a 0 y el ajuste se llama «Separación entre páginas» en español (92a71bd0e). Este era el origen de todas las barras negras reportadas en el HQ — no era un problema de render.
 
-## [Mihon Fix 0.21.3 — fork kayb28, build `a523759`] - 2026-11-07
+## [Mihon Fix 0.21.3 — fork kayb28, build `a523759`] - 2026-11-06
 
 > versionCode 39 (sin cambios) · commits de código: `36b990462` (bump del visor HQ) y `a5237598b` (reanudación en el continuo experimental); el resto es documentación. Se instala encima de la build `ef0ece3` sin desinstalar (misma firma estable).
 
