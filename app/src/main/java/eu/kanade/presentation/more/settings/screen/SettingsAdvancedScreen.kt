@@ -262,6 +262,11 @@ object SettingsAdvancedScreen : SearchableSettings {
                         true
                     },
                 ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = networkPreferences.webviewFallbackEnabled,
+                    title = stringResource(MR.strings.pref_webview_fallback),
+                    subtitle = stringResource(MR.strings.pref_webview_fallback_summary),
+                ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = userAgentPref,
                     title = stringResource(MR.strings.pref_user_agent_string),

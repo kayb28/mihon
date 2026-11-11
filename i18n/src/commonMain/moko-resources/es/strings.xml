@@ -338,6 +338,9 @@
     <string name="ext_updates_pending">Actualizaciones pendientes</string>
     <string name="pref_cutout_short">Mostrar contenido en el área recortada</string>
     <string name="information_cloudflare_bypass_failure">Fallo al evitar Cloudflare</string>
+    <string name="information_webview_fallback_active">Petición completada con el motor web interno</string>
+    <string name="pref_webview_fallback">Motor web de respaldo</string>
+    <string name="pref_webview_fallback_summary">Cuando una fuente bloquea las peticiones de Mihon (403/503 o Cloudflare), reintenta la petición fallida con el motor Chromium del WebView y sirve el resultado</string>
     <string name="information_webview_outdated">Actualiza la aplicación WebView para mejorar la compatibilidad</string>
     <string name="channel_new_chapters">Nuevos capítulos</string>
     <string name="secure_screen_summary">Activando «pantalla segura» ocultas la vista previa del contenido de la ventana al cambiar de aplicación y se bloquean las capturas de pantalla</string>

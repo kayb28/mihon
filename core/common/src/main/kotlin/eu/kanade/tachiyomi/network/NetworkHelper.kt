@@ -7,6 +7,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
+import eu.kanade.tachiyomi.network.interceptor.WebViewFetchFallbackInterceptor
 import kotlinx.coroutines.CoroutineScope
 import mihon.core.metro.AppCoroutineScope
 import okhttp3.Cache
@@ -73,6 +74,9 @@ class NetworkHelper(
         clientBuilder()
             .addInterceptor(
                 CloudflareInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider),
+            )
+            .addInterceptor(
+                WebViewFetchFallbackInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider, preferences),
             )
             .build()
     }
