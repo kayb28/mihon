@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.util.system.isOutdated
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.setUserAgent
 import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.tachiyomi.util.system.toWebViewHeaders
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
