@@ -10,6 +10,13 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `85ffc0d0`] - 2026-11-11
+
+> versionCode 39 (sin cambios) · commit de código: `85ffc0d0a` (fallback de motor web). Se instala encima de la build `e3ef56c` sin desinstalar (misma firma estable).
+
+### Added
+- Red — **motor web de respaldo (niveles 1+2)**: cuando una petición de una fuente termina en 403/503 — incluido el caso Cloudflare donde el reto se resolvió pero la clearance se rechaza otra vez porque la huella TLS de OkHttp no es la de un navegador — el `WebViewFetchFallbackInterceptor` reintenta **esa misma petición** con el motor Chromium del WebView: carga la URL en un WebView invisible con el User-Agent original (el reto JS se auto-resuelve si procede), re-emite la petición con `fetch()` desde dentro del navegador y devuelve la respuesta troceada por el puente de mensajes, reconstruida como respuesta OkHttp normal para la extensión. Si un host necesita el respaldo varias veces en 10 minutos, su WebView queda caliente en un pequeño pool (TTL 2 min) y las siguientes peticiones saltan la carga de página. Los fallos no rompen nada: se devuelve la respuesta original y el host entra en cooldown de 10 min. Interruptor en **Ajustes → Avanzado → Red → «Motor web de respaldo»** (activado por defecto). No arregla extensiones con el HTML/API cambiado: eso sigue necesitando actualización de la extensión (85ffc0d0a).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `e3ef56c`] - 2026-11-11
 
 > versionCode 39 (sin cambios) · commit de código: `e3ef56c95` (resolvedor secundario del reparador). Se instala encima de la build `a9bbaa7` sin desinstalar (misma firma estable).
