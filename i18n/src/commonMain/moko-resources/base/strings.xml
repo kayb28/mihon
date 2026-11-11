@@ -67,7 +67,7 @@
     <string name="update_errors_view_log">View log (.txt)</string>
     <string name="repair_links_title">Repair links</string>
     <string name="repair_links_simulation_title">Simulation Mode</string>
-    <string name="repair_links_simulation_desc">Finds exact title matches in the same source first; if none, retries with a fuzzy deep search. Both kinds are auto-migrated, with the match confidence shown.</string>
+    <string name="repair_links_simulation_desc">Finds exact title matches in the same source first; if none, retries with a fuzzy deep search. Both kinds are auto-migrated, with the match confidence shown. If the title has no trace left in its own source (or the extension is gone), the other installed sources are searched — those matches need your confirmation, one by one.</string>
     <string name="repair_links_action_simulate">Simulate</string>
     <string name="repair_links_action_repair_10">Repair first 10</string>
     <string name="repair_links_action_repair_all">Repair all</string>
@@ -82,6 +82,10 @@
     <string name="repair_links_status_failed">Migration failed</string>
     <string name="repair_links_confirm_title">Repair all broken links?</string>
     <string name="repair_links_confirm_message">This will migrate %1$d manga to their new sources. This action cannot be undone.</string>
+    <string name="repair_links_cross_source_label">Exact match in %1$s</string>
+    <string name="repair_links_cross_source_extra">+%1$d more sources</string>
+    <string name="repair_links_cross_source_summary">Resolvable in other sources: %1$d</string>
+    <string name="repair_links_action_repair_item">Repair</string>
     <string name="action_trust_all_untrusted">Trust all pending</string>
     <string name="trust_all_dialog_title">Trust all pending extensions?</string>
     <string name="trust_all_dialog_message">Are you sure you want to trust %d untrusted extension(s)? Future extensions will still require individual confirmation.</string>

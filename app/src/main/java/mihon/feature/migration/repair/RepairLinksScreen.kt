@@ -143,6 +143,17 @@ class RepairLinksScreen : Screen() {
                                 )
                             }
 
+                            if (state.crossSourceCount > 0 && !state.isSimulating && !state.isMigrating) {
+                                Text(
+                                    text = stringResource(
+                                        MR.strings.repair_links_cross_source_summary,
+                                        state.crossSourceCount,
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                )
+                            }
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -259,6 +270,31 @@ class RepairLinksScreen : Screen() {
                                                 overflow = TextOverflow.Ellipsis,
                                             )
                                         }
+                                        ProposedRepair.Status.CROSS_SOURCE_MATCH -> {
+                                            // Same-source exact matches are auto-repaired; these came
+                                            // from a DIFFERENT source (secondary resolver), so the user
+                                            // sees where the match lives and confirms each one.
+                                            val title = item.proposedManga?.title.orEmpty()
+                                            val label = stringResource(
+                                                MR.strings.repair_links_cross_source_label,
+                                                item.targetSourceName.orEmpty(),
+                                            )
+                                            val extra = if (item.crossSourceExtraMatches > 0) {
+                                                " " + stringResource(
+                                                    MR.strings.repair_links_cross_source_extra,
+                                                    item.crossSourceExtraMatches,
+                                                )
+                                            } else {
+                                                ""
+                                            }
+                                            Text(
+                                                text = "→ $title ($label$extra)",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.tertiary,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
                                         ProposedRepair.Status.REPAIRED -> {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(
@@ -312,10 +348,24 @@ class RepairLinksScreen : Screen() {
                                 }
                             },
                             actions = {
-                                if (item.status == ProposedRepair.Status.NEEDS_REVIEW ||
+                                if (item.status == ProposedRepair.Status.CROSS_SOURCE_MATCH ||
+                                    item.status == ProposedRepair.Status.NEEDS_REVIEW ||
                                     item.status == ProposedRepair.Status.NO_MATCH ||
                                     item.status == ProposedRepair.Status.SEARCH_ERROR
                                 ) {
+                                    if (item.status == ProposedRepair.Status.CROSS_SOURCE_MATCH) {
+                                        // Cross-source migration is never automatic (bulk repair only
+                                        // takes same-source exact matches): the user confirms each one.
+                                        FilledTonalButton(
+                                            onClick = { viewModel.repairSingle(item.currentManga.id) },
+                                            modifier = Modifier.padding(start = MaterialTheme.padding.small),
+                                        ) {
+                                            Text(
+                                                text = stringResource(MR.strings.repair_links_action_repair_item),
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
                                     if (item.status == ProposedRepair.Status.SEARCH_ERROR) {
                                         // The pass failed (network, source down): re-running it may
                                         // simply succeed, so retry comes before the manual search.

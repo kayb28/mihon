@@ -19,7 +19,7 @@
     <string name="update_errors_view_log">Ver registro (.txt)</string>
     <string name="repair_links_title">Reparador de enlaces</string>
     <string name="repair_links_simulation_title">Modo simulación</string>
-    <string name="repair_links_simulation_desc">Busca primero coincidencias exactas de título en la misma fuente; si no encuentra, reintenta con una búsqueda profunda difusa. Ambas se auto-migran, mostrando la confianza de la coincidencia.</string>
+    <string name="repair_links_simulation_desc">Busca primero coincidencias exactas de título en la misma fuente; si no encuentra, reintenta con una búsqueda profunda difusa. Ambas se auto-migran, mostrando la confianza de la coincidencia. Si el título ya no deja rastro en su propia fuente (o la extensión desapareció), se busca en las demás fuentes instaladas — esas coincidencias se confirman una por una.</string>
     <string name="repair_links_action_simulate">Simular</string>
     <string name="repair_links_action_repair_10">Reparar primeros 10</string>
     <string name="repair_links_action_repair_all">Reparar todos</string>
@@ -34,6 +34,10 @@
     <string name="repair_links_status_failed">Migración fallida</string>
     <string name="repair_links_confirm_title">¿Reparar todos los enlaces rotos?</string>
     <string name="repair_links_confirm_message">Se migrarán %1$d mangas a sus nuevas fuentes. Esta acción no se puede deshacer.</string>
+    <string name="repair_links_cross_source_label">Coincidencia exacta en %1$s</string>
+    <string name="repair_links_cross_source_extra">+%1$d fuentes más</string>
+    <string name="repair_links_cross_source_summary">Resolubles en otras fuentes: %1$d</string>
+    <string name="repair_links_action_repair_item">Reparar</string>
     <string name="action_trust_all_untrusted">Confiar en todas las pendientes</string>
     <string name="trust_all_dialog_title">¿Confiar en todas las extensiones pendientes?</string>
     <string name="trust_all_dialog_message">¿Deseas confiar en %d extensión(es) no confiable(s)? Confía solo en extensiones de fuentes seguras. Las extensiones que instales en el futuro seguirán requiriendo confirmación individual.</string>

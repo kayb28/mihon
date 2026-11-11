@@ -11,6 +11,7 @@ import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -24,6 +25,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicBoolean
 import mihon.domain.manga.model.toDomainManga
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.source.interactor.UpdateMangaFromRemote
@@ -47,6 +50,15 @@ data class ProposedRepair(
      */
     val matchScore: Double? = null,
     /**
+     * Source the candidate lives on. Null means the manga's own source (same-source repair).
+     * Set only for [Status.CROSS_SOURCE_MATCH] items found by the secondary resolver.
+     */
+    val targetSourceId: Long? = null,
+    /** Display name of the cross-source candidate's source, for the UI label. */
+    val targetSourceName: String? = null,
+    /** How many additional sources beyond the proposed one also had an exact title match. */
+    val crossSourceExtraMatches: Int = 0,
+    /**
      * True when the candidate was found by the strict exact-title pass (titles equal after
      * normalization) — the only kind a bulk repair button may migrate. False for fuzzy
      * deep-search picks, which stay in NEEDS_REVIEW: their similarity can be as low as the
@@ -58,6 +70,13 @@ data class ProposedRepair(
     enum class Status {
         SIMULATING,
         MATCH_FOUND,
+
+        /**
+         * Exact title match found by the secondary resolver in a DIFFERENT installed source.
+         * Never bulk-repaired: migrating across sources can change chapter availability, so
+         * each item is confirmed individually with its own Repair button.
+         */
+        CROSS_SOURCE_MATCH,
         NEEDS_REVIEW,
         NO_MATCH,
 
@@ -84,7 +103,16 @@ data class RepairState(
     val noMatchCount: Int = 0,
     val searchErrorCount: Int = 0,
     val matchFoundCount: Int = 0,
+    val crossSourceCount: Int = 0,
 )
+
+/** One exact-title candidate found by the secondary resolver, with the source it lives on. */
+private data class CrossSourceCandidate(val source: HttpSource, val manga: SManga)
+
+private data class CrossSourceOutcome(val candidates: List<CrossSourceCandidate>, val hadError: Boolean)
+
+/** Per-source search cap inside the secondary resolver so one hung source can't stall an item. */
+private const val CROSS_SOURCE_TIMEOUT_MS = 20_000L
 
 /**
  * Repair items grouped by their source, so the screen can show a header per source and the user
@@ -108,8 +136,15 @@ class RepairLinksViewModel(
     private val migrateMangaUseCase: MigrateMangaUseCase,
     private val updateMangaFromRemote: UpdateMangaFromRemote,
     private val getChapterSummaryByMangaId: GetChapterSummaryByMangaId,
-    sourcePreferences: SourcePreferences,
+    private val sourcePreferences: SourcePreferences,
 ) : ViewModel() {
+
+    // Same eligibility rules the global search uses: languages the user reads, sources they
+    // didn't hide, pinned sources first — so the secondary resolver never proposes a source
+    // the user already told the app to ignore.
+    private val enabledLanguages = sourcePreferences.enabledLanguages.get()
+    private val disabledSources = sourcePreferences.disabledSources.get()
+    private val pinnedSources = sourcePreferences.pinnedSources.get()
 
     private val _state = MutableStateFlow(RepairState())
     val state: StateFlow<RepairState> = _state.asStateFlow()
@@ -175,6 +210,7 @@ class RepairLinksViewModel(
                     pendingReviewCount = 0,
                     noMatchCount = 0,
                     matchFoundCount = 0,
+                    crossSourceCount = 0,
                 )
             }
 
@@ -199,6 +235,64 @@ class RepairLinksViewModel(
 
             _state.update { it.copy(isSimulating = false) }
         }
+    }
+
+    /**
+     * The secondary resolver: exact-title search across the OTHER installed online sources,
+     * with the same eligibility rules the global search applies (user's languages, sources not
+     * hidden, pinned sources first). Only single exact-title matches count — a source with two
+     * identical titles is ambiguous and skipped (the manual search covers it). Sources are
+     * searched in priority order with a shared concurrency cap; once one exact match exists the
+     * remaining sources aren't launched, and every search has a hard per-source timeout so a
+     * hanging source can't stall the whole item.
+     */
+    private suspend fun crossSourceSearch(manga: Manga): CrossSourceOutcome {
+        val title = manga.title
+        if (title.isBlank()) return CrossSourceOutcome(emptyList(), hadError = false)
+
+        val sources = sourceManager.getOnlineSources()
+            .filter { it.id != manga.source }
+            .filter { it.lang in enabledLanguages }
+            .filter { "${it.id}" !in disabledSources }
+            .sortedWith(
+                compareBy(
+                    { "${it.id}" !in pinnedSources },
+                    { "${it.name.lowercase()} (${it.lang})" },
+                ),
+            )
+
+        val found = AtomicBoolean(false)
+        val hadError = AtomicBoolean(false)
+        val candidates = coroutineScope {
+            sources.map { source ->
+                async(Dispatchers.IO) {
+                    // In-flight searches still finish, but nothing new is launched once an
+                    // exact match already exists — pinned-first ordering makes the first hit
+                    // the preferred candidate.
+                    if (found.get()) return@async null
+                    searchSemaphore.withPermit {
+                        if (found.get()) return@withPermit null
+                        val results = withTimeoutOrNull(CROSS_SOURCE_TIMEOUT_MS) {
+                            source.getSearchManga(1, title, source.getFilterList()).mangas
+                        }
+                        if (results == null) {
+                            hadError.set(true)
+                            return@withPermit null
+                        }
+                        val match = TitleMatcher.findMatch(title, manga.url, results)
+                        (match as? TitleMatcher.MatchResult.AutoAccept)?.let { auto ->
+                            found.set(true)
+                            CrossSourceCandidate(source, auto.candidate)
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+        val foundCandidates = candidates.filterNotNull()
+        return CrossSourceOutcome(
+            foundCandidates,
+            hadError = hadError.get() && foundCandidates.isEmpty(),
+        )
     }
 
     /** Re-runs the search of one item whose previous pass ended in SEARCH_ERROR. */
@@ -233,10 +327,87 @@ class RepairLinksViewModel(
         items = updatedList,
         groups = rebuildGroups(updatedList),
         matchFoundCount = updatedList.count { it.status == ProposedRepair.Status.MATCH_FOUND },
+        crossSourceCount = updatedList.count { it.status == ProposedRepair.Status.CROSS_SOURCE_MATCH },
         pendingReviewCount = updatedList.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
         noMatchCount = updatedList.count { it.status == ProposedRepair.Status.NO_MATCH },
         searchErrorCount = updatedList.count { it.status == ProposedRepair.Status.SEARCH_ERROR },
     )
+
+    /**
+     * Runs the migration for ONE item: verifies the target actually has chapters (a broken
+     * migration would strand the user's read state on an empty stub), then migrates and clears
+     * the broken-link error. Used by the bulk pass (same-source exact matches) and by the
+     * per-item Repair button (cross-source candidates).
+     */
+    private suspend fun migrateOne(item: ProposedRepair): ProposedRepair {
+        val candidate = item.proposedManga
+            ?: return item.copy(status = ProposedRepair.Status.FAILED)
+        val targetSourceId = item.targetSourceId ?: item.currentManga.source
+        return try {
+            val localTarget = networkToLocalManga(candidate.toDomainManga(targetSourceId))
+            // Verify the target actually has chapters before migrating to it: an exact title
+            // match on an empty entry (or a source glitch) would migrate the user's read
+            // state into a stub and lose it.
+            updateMangaFromRemote(localTarget, fetchChapters = true).getOrThrow()
+            val summary = getChapterSummaryByMangaId.await(localTarget.id)
+            if (summary.chapterCount <= 0L) {
+                item.copy(
+                    status = ProposedRepair.Status.NEEDS_REVIEW,
+                    reason = "Target has no chapters",
+                )
+            } else {
+                migrateMangaUseCase(
+                    current = item.currentManga,
+                    target = localTarget,
+                    replace = true,
+                )
+                updateErrorStore.removeErrorsForManga(item.currentManga.id)
+                item.copy(status = ProposedRepair.Status.REPAIRED)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            updateErrorStore.incrementRetryCount(item.currentManga.id)
+            item.copy(status = ProposedRepair.Status.FAILED)
+        }
+    }
+
+    /**
+     * Per-item repair, the manual confirmation for cross-source candidates (and same-source
+     * exact matches): migrates exactly this item to its proposed target.
+     */
+    fun repairSingle(mangaId: Long) {
+        if (_state.value.isMigrating || _state.value.isSimulating) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val index = _state.value.items.indexOfFirst { it.currentManga.id == mangaId }
+            if (index < 0) return@launch
+            val item = _state.value.items[index]
+            if (item.status != ProposedRepair.Status.CROSS_SOURCE_MATCH &&
+                item.status != ProposedRepair.Status.MATCH_FOUND
+            ) {
+                return@launch
+            }
+
+            _state.update { it.copy(isMigrating = true, progressTotal = 1, progressCurrent = 0) }
+            val updatedItem = migrateOne(item)
+            val currentItems = _state.value.items.toMutableList()
+            currentItems[index] = updatedItem
+            _state.update { state ->
+                state.copy(
+                    isMigrating = false,
+                    progressCurrent = 1,
+                    items = currentItems,
+                    groups = rebuildGroups(currentItems),
+                    repairedCount = currentItems.count { it.status == ProposedRepair.Status.REPAIRED },
+                    matchFoundCount = currentItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
+                    crossSourceCount = currentItems.count { it.status == ProposedRepair.Status.CROSS_SOURCE_MATCH },
+                    pendingReviewCount = currentItems.count { it.status == ProposedRepair.Status.NEEDS_REVIEW },
+                    noMatchCount = currentItems.count { it.status == ProposedRepair.Status.NO_MATCH },
+                    searchErrorCount = currentItems.count { it.status == ProposedRepair.Status.SEARCH_ERROR },
+                )
+            }
+        }
+    }
 
     /**
      * The two-pass search for one broken manga: the strict exact-title pass first, then the
@@ -307,14 +478,34 @@ class RepairLinksViewModel(
                         null
                     }
                     when {
-                        fuzzy == null -> ProposedRepair(
-                            currentManga = manga,
-                            status = if (searchHadError) {
-                                ProposedRepair.Status.SEARCH_ERROR
+                        fuzzy == null -> {
+                            // Primary resolver exhausted — no trace of the title in its own
+                            // source (or the source itself errored). Second chance: the
+                            // secondary resolver looks for an exact title match in the OTHER
+                            // installed sources; anything it finds needs the user's explicit
+                            // confirmation, so it lands on CROSS_SOURCE_MATCH.
+                            val cross = crossSourceSearch(manga)
+                            val first = cross.candidates.firstOrNull()
+                            if (first != null) {
+                                ProposedRepair(
+                                    currentManga = manga,
+                                    proposedManga = first.manga,
+                                    status = ProposedRepair.Status.CROSS_SOURCE_MATCH,
+                                    targetSourceId = first.source.id,
+                                    targetSourceName = first.source.name.ifBlank { "Source (${first.source.id})" },
+                                    crossSourceExtraMatches = cross.candidates.size - 1,
+                                )
                             } else {
-                                ProposedRepair.Status.NO_MATCH
-                            },
-                        )
+                                ProposedRepair(
+                                    currentManga = manga,
+                                    status = if (searchHadError || cross.hadError) {
+                                        ProposedRepair.Status.SEARCH_ERROR
+                                    } else {
+                                        ProposedRepair.Status.NO_MATCH
+                                    },
+                                )
+                            }
+                        }
                         fuzzy.isExactTitle -> {
                             // The deep pass re-checked titles with TitleMatcher and found a
                             // single normalized-title match on a different URL: as trustworthy
@@ -335,20 +526,44 @@ class RepairLinksViewModel(
                         )
                     }
                 } else if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
-                    ProposedRepair(
-                        currentManga = manga,
-                        status = ProposedRepair.Status.NO_MATCH,
-                    )
+                    // Only reachable with source == null (the branch above owns NO_MATCH when the
+                    // source exists): the primary resolver doesn't exist — extension missing or
+                    // uninstalled. Exactly the case where the secondary resolver matters most.
+                    val cross = crossSourceSearch(manga)
+                    val first = cross.candidates.firstOrNull()
+                    if (first != null) {
+                        ProposedRepair(
+                            currentManga = manga,
+                            proposedManga = first.manga,
+                            status = ProposedRepair.Status.CROSS_SOURCE_MATCH,
+                            targetSourceId = first.source.id,
+                            targetSourceName = first.source.name.ifBlank { "Source (${first.source.id})" },
+                            crossSourceExtraMatches = cross.candidates.size - 1,
+                        )
+                    } else {
+                        ProposedRepair(
+                            currentManga = manga,
+                            status = if (cross.hadError) {
+                                ProposedRepair.Status.SEARCH_ERROR
+                            } else {
+                                ProposedRepair.Status.NO_MATCH
+                            },
+                        )
+                    }
                 } else {
-                    ProposedRepair(
-                        currentManga = manga,
-                        status = ProposedRepair.Status.NEEDS_REVIEW,
-                        reason = when (exactResult.reason) {
-                            Reason.MULTIPLE_EXACT_MATCHES -> "Multiple identical titles"
-                            Reason.SAME_URL -> "Same URL as current"
-                            else -> null
-                        },
-                    )
+                    when (exactResult.reason) {
+                        Reason.MULTIPLE_EXACT_MATCHES -> ProposedRepair(
+                            currentManga = manga,
+                            status = ProposedRepair.Status.NEEDS_REVIEW,
+                            reason = "Multiple identical titles",
+                        )
+                        Reason.SAME_URL -> ProposedRepair(
+                            currentManga = manga,
+                            status = ProposedRepair.Status.NEEDS_REVIEW,
+                            reason = "Same URL as current",
+                        )
+                        else -> ProposedRepair(currentManga = manga, status = ProposedRepair.Status.NEEDS_REVIEW)
+                    }
                 }
             }
         }
@@ -390,33 +605,7 @@ class RepairLinksViewModel(
                     continue
                 }
 
-                try {
-                    val localTarget = networkToLocalManga(candidate.toDomainManga(item.currentManga.source))
-                    // Verify the target actually has chapters before migrating to it: an exact title
-                    // match on an empty entry (or a source glitch) would migrate the user's read
-                    // state into a stub and lose it.
-                    updateMangaFromRemote(localTarget, fetchChapters = true).getOrThrow()
-                    val summary = getChapterSummaryByMangaId.await(localTarget.id)
-                    if (summary.chapterCount <= 0L) {
-                        currentItems[index] = item.copy(
-                            status = ProposedRepair.Status.NEEDS_REVIEW,
-                            reason = "Target has no chapters",
-                        )
-                    } else {
-                        migrateMangaUseCase(
-                            current = item.currentManga,
-                            target = localTarget,
-                            replace = true,
-                        )
-                        updateErrorStore.removeErrorsForManga(item.currentManga.id)
-                        currentItems[index] = item.copy(status = ProposedRepair.Status.REPAIRED)
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    updateErrorStore.incrementRetryCount(item.currentManga.id)
-                    currentItems[index] = item.copy(status = ProposedRepair.Status.FAILED)
-                }
+                currentItems[index] = migrateOne(item)
 
                 processed++
 
@@ -429,6 +618,7 @@ class RepairLinksViewModel(
                         groups = currentGroups,
                         repairedCount = currentItems.count { it.status == ProposedRepair.Status.REPAIRED },
                         matchFoundCount = currentItems.count { it.status == ProposedRepair.Status.MATCH_FOUND },
+                        crossSourceCount = currentItems.count { it.status == ProposedRepair.Status.CROSS_SOURCE_MATCH },
                     )
                 }
             }
