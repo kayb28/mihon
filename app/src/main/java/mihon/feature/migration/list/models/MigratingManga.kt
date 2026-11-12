@@ -57,7 +57,8 @@ class MigratingManga(
              * Entries the bulk Migrate/Copy action processes unattended: exact-title matches and
              * manual picks (similarity == null — the user chose that candidate by hand). Fuzzy
              * and single-result matches stay unselected on the list so the user can review them
-             * (cover, chapter count) and migrate per-row if they check out.
+             * (cover, chapter count) and migrate per-row if they check out — or join the bulk
+             * run by ticking «Include non-exact matches» in the confirmation dialog.
              */
             val isPreselected: Boolean
                 get() = isExactTitle || similarity == null

@@ -1134,6 +1134,8 @@
     <string name="migrationListScreen.migrateDialog.copyLabel">Copy</string>
     <string name="migrationListScreen.migrateDialog.migrateLabel">Migrate</string>
     <string name="migrationListScreen.migrateDialog.cancelLabel">Cancel</string>
+    <string name="migrationListScreen.migrateDialog.includeNonExact">Also migrate non-exact matches (%1$d)</string>
+    <string name="migrationListScreen.migrateDialog.includeNonExactHint">Found by title similarity, not an exact match. Check the covers and chapter counts in the list before continuing.</string>
     <string name="migrationListScreen.progressDialog.cancelLabel">Cancel</string>
     <string name="migrationListScreen.matchWithoutChapterToast">No chapters found, this entry cannot be used for migration</string>
     <string name="migrationListScreen.exactMatchBadge">EXACT</string>

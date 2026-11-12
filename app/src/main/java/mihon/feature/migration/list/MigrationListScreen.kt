@@ -79,12 +79,13 @@ class MigrationListScreen(private val mangaIds: Collection<Long>, private val ex
                     onDismissRequest = viewModel::dismissDialog,
                     copy = dialog.copy,
                     migratingCount = dialog.migratingCount,
+                    nonExactCount = dialog.nonExactCount,
                     skippedCount = dialog.skippedCount,
-                    onMigrate = {
+                    onMigrate = { includeNonExact ->
                         if (dialog.copy) {
-                            viewModel.copyMangas()
+                            viewModel.copyMangas(includeNonExact)
                         } else {
-                            viewModel.migrateMangas()
+                            viewModel.migrateMangas(includeNonExact)
                         }
                     },
                 )

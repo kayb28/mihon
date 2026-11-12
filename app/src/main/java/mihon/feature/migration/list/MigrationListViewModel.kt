@@ -339,15 +339,15 @@ class MigrationListViewModel(
         }
     }
 
-    fun migrateMangas() {
-        migrateMangas(replace = true)
+    fun migrateMangas(includeNonExact: Boolean = false) {
+        migrateMangas(replace = true, includeNonExact = includeNonExact)
     }
 
-    fun copyMangas() {
-        migrateMangas(replace = false)
+    fun copyMangas(includeNonExact: Boolean = false) {
+        migrateMangas(replace = false, includeNonExact = includeNonExact)
     }
 
-    private fun migrateMangas(replace: Boolean) {
+    private fun migrateMangas(replace: Boolean, includeNonExact: Boolean) {
         migrateJob = viewModelScope.launch(Dispatchers.IO) {
             state.update { it.copy(dialog = Dialog.Progress(0f)) }
             val items = items
@@ -356,16 +356,13 @@ class MigrationListViewModel(
                 items.forEachIndexed { index, manga ->
                     try {
                         ensureActive()
-                        // Only preselected entries (exact-title matches and manual picks) are
-                        // migrated unattended; fuzzy/single-result candidates keep their search
-                        // result so the user reviews them on the list.
-                        val target = manga.searchResult.value.let {
-                            if (it is SearchResult.Success && it.isPreselected) {
-                                it.manga
-                            } else {
-                                null
-                            }
-                        }
+                        // Preselected entries (exact-title matches and manual picks) migrate
+                        // unattended; fuzzy/single-result candidates keep their search result so
+                        // the user reviews them on the list. When the user explicitly opts in via
+                        // the confirmation dialog, those candidates join the bulk run too.
+                        val target = (manga.searchResult.value as? SearchResult.Success)
+                            ?.takeIf { it.isPreselected || includeNonExact }
+                            ?.manga
                         if (target != null) {
                             migrateManga(current = manga.manga, target = target, replace = replace)
                         }
@@ -387,10 +384,13 @@ class MigrationListViewModel(
 
             if (failedCount > 0) {
                 // Stay on the list and tell the user what failed instead of navigateBack(), which
-                // looked like a fully successful run. Entries that DID migrate (the preselected
-                // ones) are dropped so a retry only re-processes the failures; intentionally
-                // skipped (non-exact) candidates keep their search result for manual review.
-                items.filter { (it.searchResult.value as? SearchResult.Success)?.isPreselected == true }
+                // looked like a fully successful run. Entries that DID migrate this run (the
+                // preselected ones — or every success when includeNonExact) are dropped so a
+                // retry only re-processes the failures; intentionally skipped entries stay.
+                items.filter { entry ->
+                    val result = entry.searchResult.value
+                    result is SearchResult.Success && (result.isPreselected || includeNonExact)
+                }
                     .forEach { removeManga(it) }
                 updateMigrationProgress()
                 state.update {
@@ -459,11 +459,15 @@ class MigrationListViewModel(
         val migratingCount = items.count { entry ->
             (entry.searchResult.value as? SearchResult.Success)?.isPreselected == true
         }
+        // Non-exact candidates (fuzzy and single-result) are not migrated unless the user
+        // ticks the opt-in in the confirmation dialog; they get their own count there.
+        val nonExactCount = items.count { entry ->
+            (entry.searchResult.value as? SearchResult.Success)?.isPreselected == false
+        }
         val skippedCount = items.count { entry ->
-            when (val result = entry.searchResult.value) {
+            when (entry.searchResult.value) {
                 SearchResult.NotFound, SearchResult.Error -> true
-                is SearchResult.Success -> !result.isPreselected
-                SearchResult.Searching -> false
+                SearchResult.Searching, is SearchResult.Success -> false
             }
         }
         state.update { state ->
@@ -471,6 +475,7 @@ class MigrationListViewModel(
                 dialog = Dialog.Migrate(
                     copy = copy,
                     migratingCount = migratingCount,
+                    nonExactCount = nonExactCount,
                     skippedCount = skippedCount,
                 ),
             )
@@ -493,7 +498,12 @@ class MigrationListViewModel(
     )
 
     sealed interface Dialog {
-        data class Migrate(val copy: Boolean, val migratingCount: Int, val skippedCount: Int) : Dialog
+        data class Migrate(
+            val copy: Boolean,
+            val migratingCount: Int,
+            val nonExactCount: Int,
+            val skippedCount: Int,
+        ) : Dialog
         data class Progress(@FloatRange(0.0, 1.0) val progress: Float) : Dialog
         data class MigrateFailed(val failedCount: Int, val totalCount: Int) : Dialog
         data object Exit : Dialog

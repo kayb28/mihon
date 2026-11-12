@@ -902,6 +902,8 @@
     <string name="migrationConfigScreen.similarityThresholdSubtitle">Similitud mínima para coincidencias automáticas. Más bajo encuentra más candidatos (más falsos positivos); más alto es más estricto.</string>
     <string name="migration_error_generic">Error al migrar. Revisa tu conexión e inténtalo de nuevo.</string>
     <string name="migrationListScreen.migrateDialog.cancelLabel">Cancelar</string>
+    <string name="migrationListScreen.migrateDialog.includeNonExact">Migrar también las coincidencias no exactas (%1$d)</string>
+    <string name="migrationListScreen.migrateDialog.includeNonExactHint">Encontradas por similitud del título, no por coincidencia exacta. Revisa las portadas y los capítulos de la lista antes de continuar.</string>
     <string name="migrationListScreen.migrateDialog.copyLabel">Copiar</string>
     <string name="migrationListScreen.progressDialog.cancelLabel">Cancelar</string>
     <string name="migrationListScreen.copyActionLabel">Copiar</string>
