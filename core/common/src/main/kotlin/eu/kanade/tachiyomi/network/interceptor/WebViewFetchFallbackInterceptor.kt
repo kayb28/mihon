@@ -22,8 +22,8 @@ import eu.kanade.tachiyomi.util.system.WebViewUtil
 import eu.kanade.tachiyomi.util.system.isOutdated
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.setUserAgent
-import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.toWebViewHeaders
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -219,7 +219,9 @@ class WebViewFetchFallbackInterceptor(
                     request: WebResourceRequest?,
                     errorResponse: WebResourceResponse?,
                 ) {
-                    if (request?.isForMainFrame == true && errorResponse?.responseHeaders?.get("cf-mitigated") == "challenge") {
+                    if (request?.isForMainFrame == true &&
+                        errorResponse?.responseHeaders?.get("cf-mitigated") == "challenge"
+                    ) {
                         challengeFound = true
                     }
                 }
@@ -571,9 +573,13 @@ class WebViewFetchFallbackInterceptor(
         val buffer = ByteArrayOutputStream()
 
         @Volatile var failed: String? = null
+
         @Volatile var status: Int = 0
+
         @Volatile var statusText: String = ""
+
         @Volatile var fetchStarted: Boolean = false
+
         @Volatile var done: Boolean = false
 
         fun fail(reason: String) {
@@ -668,7 +674,12 @@ private const val POOL_SWEEP_INTERVAL_MS = 30_000L
 
 // Hop-by-hop / transport-level headers that don't apply to the reassembled response
 private val STRIPPED_RESPONSE_HEADERS = setOf(
-    "content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "set-cookie",
+    "content-encoding",
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "keep-alive",
+    "set-cookie",
 )
 
 // Headers the fetch API forbids or that would contradict the browser's own identity
