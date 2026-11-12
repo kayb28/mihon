@@ -91,6 +91,21 @@ class UpdateErrorStore(
     }
 
     /**
+     * Añade errores tal cual, sin merge con lo anterior: para conservar errores previos de
+     * títulos que la pasada no llegó a intentar (cola cortada por caída del origen o
+     * presupuesto de la pasada en calma agotado). No debe recibir ids ya presentes.
+     */
+    @Synchronized
+    fun retainErrors(errors: List<UpdateError>) {
+        if (errors.isEmpty()) return
+        val updated = buildList {
+            addAll(_errorsFlow.value)
+            addAll(errors)
+        }
+        saveToFile(updated)
+    }
+
+    /**
      * Incrementar retryCount para un manga específico.
      */
     @Synchronized

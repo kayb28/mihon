@@ -76,6 +76,7 @@ import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import java.io.BufferedWriter
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.atomics.AtomicBoolean
@@ -276,6 +277,15 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         val timeZone = TimeZone.currentSystemDefault()
         val fetchWindow = fetchInterval.getWindow(Clock.System.now().toLocalDateTime(timeZone).date, timeZone)
 
+        // Fallos transitorios que esperan la segunda pasada en calma: no se registran como
+        // error hasta que también falle la calma (el ritmo individual los suele recuperar).
+        val calmRetries = CopyOnWriteArrayList<Manga>()
+        // Salud de las fuentes con candidatos en calma: se decide después de la calma.
+        val pendingHealth = ConcurrentHashMap<Long, Throwable>()
+        // Títulos que ninguna de las dos pasadas llegó a intentar (presupuesto de la calma
+        // agotado): conservan su error anterior para que el reparador no pierda el rastro.
+        val skippedNoAttempt = CopyOnWriteArrayList<Long>()
+
         coroutineScope {
             mangaToUpdate.groupBy { it.manga.source }.values
                 .sortedByDescending { it.size }
@@ -286,14 +296,28 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                             var lastFailure: Throwable? = null
                             var attemptedCount = 0
                             var failureCount = 0
+                            var consecutiveOutageFailures = 0
+                            var skipRestToCalmPass = false
                             val sourcePassStartedAt = SystemClock.elapsedRealtime()
-                            mangaInSource.forEach { libraryManga ->
+                            mangaInSource.forEachIndexed { queueIndex, libraryManga ->
                                 val manga = libraryManga.manga
                                 ensureActive()
 
+                                if (skipRestToCalmPass) {
+                                    // El origen está caído: el resto de la cola no se intenta aquí.
+                                    calmRetries.add(manga)
+                                    return@forEachIndexed
+                                }
+
                                 // Don't continue to update if manga is not in library
                                 if (getManga.await(manga.id)?.favorite != true) {
-                                    return@forEach
+                                    return@forEachIndexed
+                                }
+
+                                // Pacing suave en colas grandes: el ritmo de metralleta sostenido
+                                // es lo que ahoga a orígenes pequeños (ráfagas de 502/522/526).
+                                if (queueIndex > 0 && mangaInSource.size > MAIN_PASS_PACING_MIN_QUEUE) {
+                                    delay(MAIN_PASS_PACING_MS)
                                 }
 
                                 withUpdateNotification(
@@ -307,63 +331,40 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         val newChapters = updateManga(manga, fetchWindow)
                                             .sortedByDescending { it.sourceOrder }
 
-                                        if (newChapters.isNotEmpty()) {
-                                            val chaptersToDownload = filterChaptersForDownload.await(manga, newChapters)
-
-                                            if (chaptersToDownload.isNotEmpty()) {
-                                                downloadChapters(manga, chaptersToDownload)
-                                                hasDownloads.store(true)
-                                            }
-
-                                            // Sources update concurrently, and getAndSet is a separate read and write
-                                            synchronized(libraryPreferences.newUpdatesCount) {
-                                                libraryPreferences.newUpdatesCount.getAndSet { it + newChapters.size }
-                                            }
-
-                                            // Convert to the manga that contains new chapters
-                                            newUpdates.add(manga to newChapters.toTypedArray())
-                                        }
+                                        handleUpdateSuccess(manga, newChapters, newUpdates, hasDownloads)
                                         lastFailure = null
+                                        consecutiveOutageFailures = 0
                                     } catch (e: Throwable) {
                                         lastFailure = e
                                         failureCount++
-                                        val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
-                                            ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
-                                        val httpCode = httpException?.code
-                                        val errorType = if (
-                                            e is SourceNotInstalledException || e.cause is SourceNotInstalledException
-                                        ) {
-                                            UpdateError.ErrorType.BROKEN_LINK
+                                        if (e.isCalmRetryable()) {
+                                            // Víctima probable de un episodio del origen (502/522/526,
+                                            // 429, timeout): segunda oportunidad en calma antes de
+                                            // registrar el error. Si la calma lo recupera, no hay error.
+                                            calmRetries.add(manga)
                                         } else {
-                                            UpdateError.ErrorType.TEMPORARY
+                                            failedUpdates.add(manga to errorMessageFor(e))
+                                            updateErrors.add(updateErrorFor(manga, e))
                                         }
-                                        val errorMessage = when (e) {
-                                            is NoChaptersException -> context.stringResource(
-                                                MR.strings.no_chapters_error,
-                                            )
-                                            // failedUpdates will already have the source, don't need to copy it into the message
-                                            is SourceNotInstalledException -> context.stringResource(
-                                                MR.strings.loader_not_implemented_error,
-                                            )
-                                            else -> e.message
+                                        if (e.isOutageFailure()) {
+                                            consecutiveOutageFailures++
+                                            if (consecutiveOutageFailures >= SOURCE_OUTAGE_BREAK_THRESHOLD) {
+                                                // El origen está caído: dejar de machacarlo; el resto
+                                                // de la cola pasa a la pasada en calma.
+                                                skipRestToCalmPass = true
+                                            }
+                                        } else {
+                                            consecutiveOutageFailures = 0
                                         }
-                                        failedUpdates.add(manga to errorMessage)
-                                        updateErrors.add(
-                                            UpdateError(
-                                                mangaId = manga.id,
-                                                sourceId = manga.source,
-                                                httpCode = httpCode,
-                                                message = errorMessage,
-                                                type = errorType,
-                                                timestamp = Clock.System.now().toEpochMilliseconds(),
-                                            ),
-                                        )
                                     }
                                 }
                             }
                             val sourceId = mangaInSource.firstOrNull()?.manga?.source
                             if (attemptedUpdate && sourceId != null && lastFailure !is CancellationException) {
-                                if (lastFailure == null) {
+                                if (calmRetries.any { it.source == sourceId }) {
+                                    // Con candidatos en calma, la salud se decide tras la calma.
+                                    lastFailure?.let { pendingHealth[sourceId] = it }
+                                } else if (lastFailure == null) {
                                     sourceHealthStore.recordSuccess(sourceId)
                                 } else {
                                     sourceHealthStore.recordFailure(sourceId, lastFailure!!)
@@ -386,19 +387,135 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                 .awaitAll()
         }
 
+        // Segunda pasada en calma: reintenta los fallos transitorios con ritmo de
+        // actualización individual — secuencial por fuente, pausa entre títulos y un
+        // presupuesto máximo por fuente. Solo lo que también falle aquí se registra
+        // como error; lo recuperado desaparece del filtro y del log de errores.
+        val calmStats = ConcurrentHashMap<Long, LongArray>()
+        val calmLastFailures = ConcurrentHashMap<Long, Throwable>()
+        if (calmRetries.isNotEmpty()) {
+            logcat(LogPriority.INFO) {
+                "Second calm pass: retrying ${calmRetries.size} transient failures " +
+                    "with individual-like pacing"
+            }
+            coroutineScope {
+                calmRetries.groupBy { it.source }.values
+                    .map { queue ->
+                        async {
+                            semaphore.withPermit {
+                                val sourceId = queue.first().source
+                                var attemptedCount = 0
+                                var failureCount = 0
+                                var lastFailure: Throwable? = null
+                                var budgetExhausted = false
+                                val startedAt = SystemClock.elapsedRealtime()
+                                val deadline = startedAt + CALM_PASS_BUDGET_MS
+                                queue.forEachIndexed { queueIndex, manga ->
+                                    ensureActive()
+                                    if (queueIndex > 0) delay(CALM_PASS_PACING_MS)
+                                    if (SystemClock.elapsedRealtime() > deadline) {
+                                        budgetExhausted = true
+                                        skippedNoAttempt.add(manga.id)
+                                        return@forEachIndexed
+                                    }
+                                    if (getManga.await(manga.id)?.favorite != true) {
+                                        return@forEachIndexed
+                                    }
+                                    withUpdateNotification(currentlyUpdatingManga, progressCount, manga) {
+                                        try {
+                                            attemptedCount++
+                                            val newChapters = updateManga(
+                                                manga,
+                                                fetchWindow,
+                                                maxAttempts = CALM_PASS_MAX_ATTEMPTS,
+                                                transientRetryMs = CALM_PASS_RETRY_MS,
+                                            ).sortedByDescending { it.sourceOrder }
+                                            handleUpdateSuccess(manga, newChapters, newUpdates, hasDownloads)
+                                            lastFailure = null
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Throwable) {
+                                            failureCount++
+                                            lastFailure = e
+                                            failedUpdates.add(manga to errorMessageFor(e))
+                                            updateErrors.add(updateErrorFor(manga, e))
+                                        }
+                                    }
+                                }
+                                if (budgetExhausted) {
+                                    logcat(LogPriority.WARN) {
+                                        "Calm pass budget (${CALM_PASS_BUDGET_MS}ms) exhausted for " +
+                                            "source $sourceId; remaining titles skipped without error"
+                                    }
+                                }
+                                calmStats[sourceId] = longArrayOf(
+                                    attemptedCount.toLong(),
+                                    failureCount.toLong(),
+                                    SystemClock.elapsedRealtime() - startedAt,
+                                )
+                                lastFailure?.let { calmLastFailures[sourceId] = it }
+                            }
+                        }
+                    }
+                    .awaitAll()
+            }
+
+            // Fusiona las estadísticas de la calma y decide la salud de esas fuentes.
+            for ((sourceId, acc) in calmStats) {
+                if (isFullPass) {
+                    val existing = sourceStats.indexOfFirst { it.sourceId == sourceId }
+                    if (existing >= 0) {
+                        val s = sourceStats[existing]
+                        sourceStats[existing] = s.copy(
+                            attempted = s.attempted + acc[0].toInt(),
+                            failures = s.failures + acc[1].toInt(),
+                            durationMs = s.durationMs + acc[2],
+                        )
+                        sourceHealthStore.recordUpdateStat(sourceStats[existing])
+                    } else if (acc[0] > 0L) {
+                        val stat = SourceUpdateStat(
+                            sourceId = sourceId,
+                            attempted = acc[0].toInt(),
+                            failures = acc[1].toInt(),
+                            durationMs = acc[2],
+                        )
+                        sourceStats.add(stat)
+                        sourceHealthStore.recordUpdateStat(stat)
+                    }
+                }
+                val healthFailure = calmLastFailures[sourceId] ?: pendingHealth[sourceId]
+                when {
+                    acc[1] > 0L && healthFailure != null ->
+                        sourceHealthStore.recordFailure(sourceId, healthFailure)
+                    acc[0] > 0L -> sourceHealthStore.recordSuccess(sourceId)
+                    else -> pendingHealth[sourceId]?.let {
+                        sourceHealthStore.recordFailure(sourceId, it)
+                    }
+                }
+                pendingHealth.remove(sourceId)
+            }
+        }
+
         notifier.cancelProgressNotification()
         if (isFullPass) {
             // Pasada completa: la lista de errores pasa a ser exactamente la de esta corrida.
             // Los títulos que ya no fallan dejan de aparecer (antes el merge los arrastraba
             // para siempre y el filtro/reparador acumulaban errores viejos).
+            val carried = if (skippedNoAttempt.isEmpty()) {
+                emptyList()
+            } else {
+                // Los que ninguna pasada llegó a intentar conservan su error anterior.
+                updateErrorStore.getErrors().filter { it.mangaId in skippedNoAttempt }
+            }
             updateErrorStore.setErrors(updateErrors.toList())
+            updateErrorStore.retainErrors(carried)
         } else {
             // Pasada parcial (categoría/fuente): solo se sustituye lo procesado; los errores
-            // del resto de la biblioteca quedan como estaban.
-            updateErrorStore.replaceForManga(
-                updateErrors.toList(),
-                mangaToUpdate.mapTo(HashSet()) { it.manga.id },
-            )
+            // del resto de la biblioteca quedan como estaban. Los no intentados (presupuesto
+            // de la calma agotado) se quedan fuera del conjunto procesado y conservan lo suyo.
+            val processedIds = mangaToUpdate.mapTo(HashSet()) { it.manga.id }
+            processedIds.removeAll(skippedNoAttempt.toSet())
+            updateErrorStore.replaceForManga(updateErrors.toList(), processedIds)
         }
 
         if (newUpdates.isNotEmpty()) {
@@ -448,7 +565,12 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
      * @param manga the manga to update.
      * @return a pair of the inserted and removed chapters.
      */
-    private suspend fun updateManga(manga: Manga, fetchWindow: ClosedRange<Instant>): List<Chapter> {
+    private suspend fun updateManga(
+        manga: Manga,
+        fetchWindow: ClosedRange<Instant>,
+        maxAttempts: Int = UPDATE_MAX_ATTEMPTS,
+        transientRetryMs: Long = UPDATE_RETRY_TRANSIENT_MS,
+    ): List<Chapter> {
         val source = sourceManager.getOrStub(manga.source)
         var attempt = 1
         while (true) {
@@ -464,15 +586,15 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                if (attempt >= UPDATE_MAX_ATTEMPTS || !e.isTransientUpdateFailure()) throw e
+                if (attempt >= maxAttempts || !e.isTransientUpdateFailure()) throw e
                 val backoffMs = if (e.isRateLimitFailure()) {
                     UPDATE_RETRY_RATE_LIMIT_MS
                 } else {
-                    UPDATE_RETRY_TRANSIENT_MS * attempt.toLong()
+                    transientRetryMs * attempt.toLong()
                 }
                 logcat(LogPriority.WARN, e) {
                     "Transient update failure for manga ${manga.id}; retrying attempt " +
-                        "${attempt + 1}/$UPDATE_MAX_ATTEMPTS after ${backoffMs}ms"
+                        "${attempt + 1}/$maxAttempts after ${backoffMs}ms"
                 }
                 delay(backoffMs)
                 attempt++
@@ -491,6 +613,72 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
     }
 
     private fun Throwable.isRateLimitFailure(): Boolean = httpExceptionOrNull()?.code == 429
+
+    /**
+     * True para fallos que merecen una segunda oportunidad en calma: problemas transitorios
+     * de red/HTTP. Lo que el pacing no puede arreglar por ser dato del título (sin capítulos,
+     * enlace roto confirmado, fuente desinstalada) no se reintenta en calma.
+     */
+    private fun Throwable.isCalmRetryable(): Boolean {
+        if (this is NoChaptersException || cause is NoChaptersException) return false
+        if (this is SourceNotInstalledException || cause is SourceNotInstalledException) return false
+        return isTransientUpdateFailure()
+    }
+
+    /** Familia 5xx (Cloudflare/origen: 502, 522, 526, 503…): señal de origen caído. */
+    private fun Throwable.isOutageFailure(): Boolean =
+        httpExceptionOrNull()?.code?.let { it in 500..599 } == true
+
+    /** Éxito de actualización compartido por la pasada principal y la pasada en calma. */
+    private suspend fun handleUpdateSuccess(
+        manga: Manga,
+        newChapters: List<Chapter>,
+        newUpdates: CopyOnWriteArrayList<Pair<Manga, Array<Chapter>>>,
+        hasDownloads: AtomicBoolean,
+    ) {
+        if (newChapters.isEmpty()) return
+        val chaptersToDownload = filterChaptersForDownload.await(manga, newChapters)
+
+        if (chaptersToDownload.isNotEmpty()) {
+            downloadChapters(manga, chaptersToDownload)
+            hasDownloads.store(true)
+        }
+
+        // Sources update concurrently, and getAndSet is a separate read and write
+        synchronized(libraryPreferences.newUpdatesCount) {
+            libraryPreferences.newUpdatesCount.getAndSet { it + newChapters.size }
+        }
+
+        // Convert to the manga that contains new chapters
+        newUpdates.add(manga to newChapters.toTypedArray())
+    }
+
+    private suspend fun errorMessageFor(e: Throwable): String? = when (e) {
+        is NoChaptersException -> context.stringResource(MR.strings.no_chapters_error)
+        // failedUpdates will already have the source, don't need to copy it into the message
+        is SourceNotInstalledException -> context.stringResource(MR.strings.loader_not_implemented_error)
+        else -> e.message
+    }
+
+    private suspend fun updateErrorFor(manga: Manga, e: Throwable): UpdateError {
+        val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
+            ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
+        val errorType = if (
+            e is SourceNotInstalledException || e.cause is SourceNotInstalledException
+        ) {
+            UpdateError.ErrorType.BROKEN_LINK
+        } else {
+            UpdateError.ErrorType.TEMPORARY
+        }
+        return UpdateError(
+            mangaId = manga.id,
+            sourceId = manga.source,
+            httpCode = httpException?.code,
+            message = errorMessageFor(e),
+            type = errorType,
+            timestamp = Clock.System.now().toEpochMilliseconds(),
+        )
+    }
 
     private suspend fun withUpdateNotification(
         updatingManga: CopyOnWriteArrayList<Manga>,
@@ -600,6 +788,21 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         private const val UPDATE_MAX_ATTEMPTS = 3
         private const val UPDATE_RETRY_TRANSIENT_MS = 3000L
         private const val UPDATE_RETRY_RATE_LIMIT_MS = 8000L
+
+        /** Pacing suave entre títulos de colas grandes en la pasada principal. */
+        private const val MAIN_PASS_PACING_MS = 250L
+
+        /** Tamaño de cola a partir del cual se aplica el pacing de la pasada principal. */
+        private const val MAIN_PASS_PACING_MIN_QUEUE = 20
+
+        /** Fallos 5xx consecutivos que marcan el origen como caído y cortan su cola. */
+        private const val SOURCE_OUTAGE_BREAK_THRESHOLD = 3
+
+        /** Segunda pasada en calma: pausa entre títulos, presupuesto por fuente y reintentos. */
+        private const val CALM_PASS_PACING_MS = 500L
+        private const val CALM_PASS_BUDGET_MS = 20 * 60_000L
+        private const val CALM_PASS_MAX_ATTEMPTS = 2
+        private const val CALM_PASS_RETRY_MS = 8000L
 
         /** Average seconds per series above which a source is reported as difficult. */
         private const val DIFFICULT_SOURCE_MIN_AVG_SECONDS = 10
