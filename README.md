@@ -1,3 +1,18 @@
+> ### MihonFix — fork personal de Mihon
+>
+> Este fork (`kayb28/mihon`) extiende [mihonapp/mihon](https://github.com/mihonapp/mihon) (base v0.21.3) con: **reparador de enlaces** robusto, **gestión de fuentes** con clasificación propia y biblioteca agrupada por fuente, **visor experimental `androidx.webgpu`** y extensiones embebidas (MHScans, Emperor Scan). `applicationId` **`app.mihonfix`** — puede convivir instalada junto a la app oficial; sin Firebase ni telemetría.
+>
+> | Documento | Contenido |
+> |---|---|
+> | [`docs/HISTORIA.md`](docs/HISTORIA.md) | **Historia consolidada**: qué se hizo y cómo evolucionó hasta aquí |
+> | [`docs/REGISTRO.md`](docs/REGISTRO.md) | Diario operativo vivo (todo cambio, con fecha/motivo/build) |
+> | [`CHANGELOG.md`](CHANGELOG.md) | Cambios por build (secciones «Mihon Fix») |
+> | [`docs/TRASPASO.md`](docs/TRASPASO.md) | Traspaso técnico detallado |
+>
+> **Builds**: artefactos de la CI «Build APK» — `MihonFix-0.21.3-build-<sha>-arm64.apk`, firma estable desde `ef0ece3` (se instalan encima sin desinstalar).
+>
+> El texto a continuación es el README de upstream, conservado como referencia.
+
 <div align="center">
 
 <a href="https://mihon.app">
