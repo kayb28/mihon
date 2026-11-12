@@ -32,6 +32,12 @@
     <string name="repair_links_summary">%1$d reparados • %2$d pendientes • %3$d sin resultado</string>
     <string name="repair_links_running">Procesando: %1$d / %2$d</string>
     <string name="repair_links_status_failed">Migración fallida</string>
+    <string name="repair_links_reason_multiple_exact_matches">Títulos idénticos múltiples</string>
+    <string name="repair_links_reason_same_url">Misma URL que la actual</string>
+    <string name="repair_links_reason_author_mismatch">El autor no coincide</string>
+    <string name="repair_links_reason_genre_mismatch">Los géneros no coinciden</string>
+    <string name="repair_links_reason_search_error">La búsqueda falló</string>
+    <string name="repair_links_reason_migration_error">La migración falló</string>
     <string name="repair_links_confirm_title">¿Reparar todos los enlaces rotos?</string>
     <string name="repair_links_confirm_message">Se migrarán %1$d mangas a sus nuevas fuentes. Esta acción no se puede deshacer.</string>
     <string name="repair_links_cross_source_label">Coincidencia exacta en %1$s</string>
@@ -604,8 +610,6 @@
     <string name="source_empty_screen">No se ha encontrado ninguna fuente</string>
     <string name="action_sort_last_manga_update">Por última comprobación de actualizaciones</string>
     <string name="action_sort_unread_count">Por capítulos restantes</string>
-    <string name="split_tall_images_summary">Mejora el rendimiento del visor, dividiendo páginas descargadas mucho más altas que anchas</string>
-    <string name="download_notifier_split_page_not_found">No se ha encontrado la página %d al dividir</string>
     <string name="download_notifier_split_page_path_not_found">La ruta al archivo de la página %d no se encuentra</string>
     <string name="pref_reset_viewer_flags_summary">Restablece el modo de lectura y orientación en toda la biblioteca</string>
     <string name="pref_reset_viewer_flags_success">Se han restablecido los ajustes del visor</string>
@@ -705,7 +709,6 @@
     <string name="pref_hide_in_library_items">Saltar elementos que ya estén en la biblioteca</string>
     <string name="action_copy_to_clipboard">Copiar al portapapeles</string>
     <string name="action_update_category">Actualizar categoría</string>
-    <string name="split_tall_images">Dividir las imágenes altas</string>
     <string name="overlay_header">Superposición</string>
     <string name="pref_page_rotate">Girar las páginas anchas para adaptarlas a la pantalla</string>
     <string name="pref_page_rotate_invert">Girar las páginas anchas en la dirección opuesta</string>

@@ -80,6 +80,12 @@
     <string name="repair_links_summary">%1$d repaired • %2$d pending • %3$d no match</string>
     <string name="repair_links_running">Processing: %1$d / %2$d</string>
     <string name="repair_links_status_failed">Migration failed</string>
+    <string name="repair_links_reason_multiple_exact_matches">Multiple identical titles</string>
+    <string name="repair_links_reason_same_url">Same URL as current</string>
+    <string name="repair_links_reason_author_mismatch">Author doesn\'t match</string>
+    <string name="repair_links_reason_genre_mismatch">Genres don\'t match</string>
+    <string name="repair_links_reason_search_error">Search failed</string>
+    <string name="repair_links_reason_migration_error">Migration failed</string>
     <string name="repair_links_confirm_title">Repair all broken links?</string>
     <string name="repair_links_confirm_message">This will migrate %1$d manga to their new sources. This action cannot be undone.</string>
     <string name="repair_links_cross_source_label">Exact match in %1$s</string>
