@@ -11,6 +11,13 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 
 ---
 
+## 2026-11-12
+
+- **00:17 — fix(library): reintentos de fallos transitorios y confirmación de enlaces rotos (sesión paralela, `b0c6c351f`).** Motivo: no marcar como error duro un fallo que es pasajero — un 429 de rate limit u otro fallo reintentable vuelve a intentarse en la siguiente corrida; un enlace solo se considera roto por códigos 404/410 confirmados, conservando el retryCount (`mergeWithPrevious`, `isTransientUpdateFailure`, `isRateLimitFailure`) en `LibraryUpdateWorker`/`UpdateErrorStore`. **Build `d650a1ad3`** (CI 43126235497 verde) · Estado: **pendiente confirmar**.
+- **00:17 — fix(repair): el reparador se sincroniza con los errores de la biblioteca (sesión paralela, `d650a1ad3`).** Motivo: el reparador de enlaces mantenía su propia lista histórica; ahora usa los ids realmente rotos del almacén de errores (`syncItemsWithErrors` en `RepairLinksViewModel` + `UpdateMangaFromRemote`). **Build `d650a1ad3`** (misma corrida) · Estado: **pendiente confirmar**.
+- **~00:30 — incidente operativo: reciclaje del sandbox.** Motivo: el entorno se recicló y limpió `download/` (APKs entregados) y el token en `/home/z`. Nada se perdió de verdad: repo y keystore intactos; los APKs se re-extrajeron de los artefactos de CI. Además GitHub tuvo una caída temporal (HTTP 502) en la descarga de artefactos — fue el «enlace caído» que reportó el usuario; se recuperó sola. Verificación extra: sha256 de la build `85ffc0d0` cruzado contra el artefacto original de CI — idéntico (`20a78309…`). `sin build` · Estado: —
+- **~00:35 — divergencia de ramas (sesión paralela).** La misma sesión paralela publicó fixes equivalentes por otra vía: rama `fix/review-2026-11-12` → `main` (CI verde 23:22 y 23:32 del 11/11): `8a9d518c4` (confirmar enlaces rotos tras 3 fallos 404/410), `888a63116` (señales secundarias de autor/géneros y errores no silenciados) y `5d95ba550` (CI acotada: triggers, secretos por step, actions pineadas). Ahora `main` y `feature/webgpu-clean` divergieron (feature ≈120 commits por delante, main +3). **ADVERTENCIA: no instalar builds de `main` en el teléfono** — no llevan las 118 commits de la línea WebGPU (visor, acumulador, motor web…). Pendiente: reconciliar (portar a feature lo que main tenga extra y luego fast-forward de main). `sin build` · Estado: pendiente decisión del usuario.
+
 ## 2026-11-11
 
 - **14:35 — fix del acumulador de errores de actualización.** Motivo: el filtro de «títulos con problemas de actualización» y el reparador de enlaces mostraban la suma histórica (100+50=150) porque `addErrors` hacía merge y nunca borraba errores viejos. Ahora la pasada completa fija la lista exacta del último ciclo (`setErrors`) y la parcial sustituye solo lo procesado (`replaceForManga`) (`a9bbaa7ad`). **Build `a9bbaa7`** (CI 43040012633 verde) · Estado: **pendiente confirmar** — instalada por el usuario, aún sin probar.
@@ -19,6 +26,7 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 - **19:46 — motor web de respaldo (niveles 1+2).** Motivo: fuentes que fallan en Mihon pero abren bien en el navegador (Cloudflare ata `cf_clearance` a la huella TLS del navegador que resolvió el reto; el reintento de OkHttp no es un navegador). Nivel 1: tras un 403/503, `WebViewFetchFallbackInterceptor` re-emite la petición con `fetch()` dentro de un WebView headless de Chromium y reconstruye la respuesta como OkHttp normal. Nivel 2: si un host lo necesita ≥2 veces en 10 min, su WebView queda caliente en un pool (TTL 2 min, máx 2, barrido cada 30 s). Interruptor en Ajustes → Avanzado → Red, activado por defecto; los fallos no rompen nada (respuesta original + cooldown 10 min) (`85ffc0d0a`). **Build `85ffc0d0`** (CI 43090297988 verde, APK entregado 20:04) · Estado: **pendiente confirmar** — recomendada al usuario como siguiente instalación.
 - **20:25 — corrección de fechas en `CHANGELOG.md`.** Motivo: las entradas de las builds `a9bbaa7` (decía 09/11), `92a71bd` y `a523759` (decían 07/11) llevaban las fechas de los títulos de ciclo, desalineadas; puestas a las reales de GitHub CI. `sin build` (solo docs) · Estado: —
 - **20:25 — creación de este registro.** Motivo: petición del usuario de dejar constancia en el fork de cada cambio, por pequeño que sea, con fecha/hora, motivo, build y estado de confirmación. `sin build` (solo docs) · Estado: —
+- **23:22/23:32 — sesión paralela en `main` (rama `fix/review-2026-11-12`).** Detalle en la entrada de divergencia del 12/11: fixes equivalentes al reintentos/enlaces rotos + señales secundarias + CI acotada. Sus commits llevan fecha interna desalineada (reloj del sandbox de esa sesión); aquí manda la hora de la CI. `sin build` para esta rama · Estado: pendiente reconciliar.
 
 ## 2026-11-10
 
@@ -35,5 +43,6 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 
 ## Pendientes abiertos
 
-- **Confirmaciones pendientes** (antigüedad primero): reanudación del visor continuo (`a523759`, 06/11) · acumulador de errores de actualización (`a9bbaa7`, 11/11) · resolvedor secundario (`e3ef56c`, 11/11) · motor web de respaldo (`85ffc0d0`, 11/11).
+- **Confirmaciones pendientes** (antigüedad primero): reanudación del visor continuo (`a523759`, 06/11) · acumulador de errores de actualización (`a9bbaa7`, 11/11) · resolvedor secundario (`e3ef56c`, 11/11) · motor web de respaldo (`85ffc0d0`, 11/11) · reintentos/enlaces rotos y reparador sincronizado (`d650a1ad3`, 12/11).
+- **Reconciliar `main` y `feature/webgpu-clean`**: decidir qué portar de la sesión paralela (¿señales secundarias de autor/géneros de `888a63116`?, CI acotada de `5d95ba550`) y luego fast-forward de main. NO instalar builds de main en el teléfono mientras tanto.
 - **No rebasar** contra upstream hasta v0.21.4 (refactor del lector #4191–4193 en vuelo). PR #4226 portable a demanda.
