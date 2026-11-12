@@ -7,6 +7,7 @@ import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,7 @@ class UpdateMangaFromRemote(
     private val coverCache: CoverCache,
     private val libraryPreferences: LibraryPreferences,
     private val downloadManager: DownloadManager,
+    private val updateErrorStore: UpdateErrorStore,
 ) {
     suspend operator fun invoke(
         manga: Manga,
@@ -78,6 +80,7 @@ class UpdateMangaFromRemote(
                 fetchWindow = fetchWindow,
             )
             val updatedManga = mangaRepository.getMangaById(manga.id)
+            updateErrorStore.removeErrorsForManga(manga.id)
 
             Result.success(RemoteMangaUpdate(manga = updatedManga, newChapters = newChapters))
         } catch (e: Exception) {

@@ -9,6 +9,7 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.library.UpdateError
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -20,13 +21,13 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.atomic.AtomicBoolean
 import mihon.domain.manga.model.toDomainManga
 import mihon.domain.migration.usecases.MigrateMangaUseCase
 import mihon.domain.source.interactor.UpdateMangaFromRemote
@@ -37,6 +38,7 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class ProposedRepair(
     val currentManga: Manga,
@@ -149,6 +151,9 @@ class RepairLinksViewModel(
     private val _state = MutableStateFlow(RepairState())
     val state: StateFlow<RepairState> = _state.asStateFlow()
 
+    @Volatile
+    private var trackedBrokenIds: Set<Long> = emptySet()
+
     /** Caps how many source searches run in parallel; shared by the bulk pass and per-item retries. */
     private val searchSemaphore = Semaphore(3)
 
@@ -180,20 +185,48 @@ class RepairLinksViewModel(
 
     init {
         startSimulation()
+        viewModelScope.launch {
+            updateErrorStore.errorsFlow.collect { errors ->
+                val brokenIds = errors
+                    .filter { it.type == UpdateError.ErrorType.BROKEN_LINK }
+                    .mapTo(HashSet()) { it.mangaId }
+                syncItemsWithErrors(brokenIds)
+            }
+        }
     }
 
+    @Synchronized
     fun startSimulation() {
-        if (_state.value.isSimulating || _state.value.isMigrating) return
+        val current = _state.value
+        if (current.isLoading || current.isSimulating || current.isMigrating) return
+
+        val brokenErrors = updateErrorStore.getBrokenLinkErrors()
+        trackedBrokenIds = brokenErrors.mapTo(HashSet()) { it.mangaId }
+        _state.update {
+            it.copy(isLoading = true, isSimulating = true, progressCurrent = 0, progressTotal = 0)
+        }
+
+        if (brokenErrors.isEmpty()) {
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    isSimulating = false,
+                    progressCurrent = 0,
+                    progressTotal = 0,
+                    items = emptyList(),
+                    groups = emptyList(),
+                    repairedCount = 0,
+                    pendingReviewCount = 0,
+                    noMatchCount = 0,
+                    searchErrorCount = 0,
+                    matchFoundCount = 0,
+                    crossSourceCount = 0,
+                )
+            }
+            return
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
-            _state.update { it.copy(isLoading = true, isSimulating = true, progressCurrent = 0, progressTotal = 0) }
-
-            val brokenErrors = updateErrorStore.getBrokenLinkErrors()
-            if (brokenErrors.isEmpty()) {
-                _state.update { it.copy(isLoading = false, isSimulating = false) }
-                return@launch
-            }
-
             val brokenMangas = brokenErrors.mapNotNull { err ->
                 getManga.await(err.mangaId)
             }
@@ -203,6 +236,7 @@ class RepairLinksViewModel(
             _state.update {
                 it.copy(
                     isLoading = false,
+                    progressCurrent = 0,
                     progressTotal = brokenMangas.size,
                     items = initialItems,
                     groups = initialGroups,
@@ -234,6 +268,8 @@ class RepairLinksViewModel(
             }
 
             _state.update { it.copy(isSimulating = false) }
+            val latestBrokenIds = updateErrorStore.getBrokenLinkErrors().mapTo(HashSet()) { it.mangaId }
+            syncItemsWithErrors(latestBrokenIds)
         }
     }
 
@@ -333,6 +369,34 @@ class RepairLinksViewModel(
         searchErrorCount = updatedList.count { it.status == ProposedRepair.Status.SEARCH_ERROR },
     )
 
+    private suspend fun syncItemsWithErrors(brokenIds: Set<Long>) {
+        val current = _state.value
+        if (current.isLoading || current.isSimulating || current.isMigrating) return
+
+        if ((brokenIds - trackedBrokenIds).isNotEmpty()) {
+            startSimulation()
+            return
+        }
+
+        trackedBrokenIds = brokenIds
+        _state.update { state ->
+            if (state.isLoading || state.isSimulating || state.isMigrating) {
+                state
+            } else {
+                val updatedItems = state.items.filter { item ->
+                    item.status == ProposedRepair.Status.REPAIRED ||
+                        item.status == ProposedRepair.Status.FAILED ||
+                        item.currentManga.id in brokenIds
+                }
+                if (updatedItems.size == state.items.size) {
+                    state
+                } else {
+                    publishRepairs(state, updatedItems, progressDone = state.progressCurrent)
+                }
+            }
+        }
+    }
+
     /**
      * Runs the migration for ONE item: verifies the target actually has chapters (a broken
      * migration would strand the user's read state on an empty stub), then migrates and clears
@@ -406,6 +470,8 @@ class RepairLinksViewModel(
                     searchErrorCount = currentItems.count { it.status == ProposedRepair.Status.SEARCH_ERROR },
                 )
             }
+            val latestBrokenIds = updateErrorStore.getBrokenLinkErrors().mapTo(HashSet()) { it.mangaId }
+            syncItemsWithErrors(latestBrokenIds)
         }
     }
 
@@ -624,6 +690,8 @@ class RepairLinksViewModel(
             }
 
             _state.update { it.copy(isMigrating = false) }
+            val latestBrokenIds = updateErrorStore.getBrokenLinkErrors().mapTo(HashSet()) { it.mangaId }
+            syncItemsWithErrors(latestBrokenIds)
         }
     }
 }
