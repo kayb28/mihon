@@ -10,6 +10,20 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `d324ddbf`] - 2026-11-12
+
+> versionCode 39 (sin cambios) · commit de código: `3ba9da5cc` (la punta `d324ddbf6` añade solo docs). Se instala encima de la build `d650a1ad3` sin desinstalar (misma firma estable). CI verde: run 43143969010.
+
+### Fixed
+- Actualización de biblioteca — **no más errores de ráfaga en la pasada masiva**: el problema reportado de que la actualización masiva marcaba cientos de errores (502/522/526 en ráfaga, 429, timeouts) que en la actualización individual se resolvían sin problemas. Ahora la pasada principal reintenta los fallos transitorios (3 intentos, espera de 8 s si es límite de peticiones) con un ritmo suave entre títulos en colas grandes, corta la cola si detecta el origen caído (3 fallos 5xx seguidos) y hace una **segunda pasada en calma** con ritmo de actualización individual (secuencial por fuente, pausa entre títulos, 2 intentos, presupuesto por fuente). Solo lo que falla en **ambas** pasadas acaba en el log de errores; lo recuperado no genera ni notificación de errores (0cfd8b194, d650a1ad3, b0c6c351f).
+- Actualización de biblioteca — **enlaces rotos solo si se confirman**: un 404/410 ya no marca el título como enlace roto al primer fallo; entra como error temporal y solo pasa a «enlace roto» tras 3 fallos 404/410 consecutivos (se conserva la racha entre corridas). El reparador deja de llenarse de falsos rotos (d650a1ad3, 8a9d518c4).
+- Reparador de enlaces — **sincronizado en vivo con el almacén de errores**: los títulos que sanan (actualización con éxito, masiva o manual) desaparecen del reparador por sí solos, sin esperar a reabrir la pantalla; migrar desde el propio reparador limpia el error del título (d650a1ad3).
+- Reparador y errores — **los títulos ya migrados dejan de aparecer**: migrar por fuera del reparador (búsqueda global, lista de migración) no limpiaba el error del manga viejo, así que el título seguía listado hasta la siguiente pasada completa de biblioteca. Ahora la migración limpia el error del manga reemplazado y tanto el reparador como la pantalla de errores solo listan títulos que siguen en la biblioteca (3ba9da5cc).
+- Reparador — **errores de búsqueda/migración visibles**: los fallos de búsqueda o migración ya no se tragan en silencio; el ítem queda en revisión con el detalle del fallo, y la cancelación de la app no deja filas de error espurias ni borra errores ajenos (888a63116, 13d6ba998).
+
+### Other
+- Ramas reconciliadas: `main` pasó por fast-forward a la punta de la línea WebGPU (`d324ddbf6`); la advertencia de no instalar builds de `main` queda sin efecto — ambas ramas son idénticas. La CI lleva acciones pineadas por digests, triggers acotados y secretos por paso (eae7fe6a2, 5d95ba550).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `85ffc0d0`] - 2026-11-11
 
 > versionCode 39 (sin cambios) · commit de código: `85ffc0d0a` (fallback de motor web). Se instala encima de la build `e3ef56c` sin desinstalar (misma firma estable).
