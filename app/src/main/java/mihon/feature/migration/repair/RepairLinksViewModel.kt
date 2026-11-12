@@ -227,9 +227,12 @@ class RepairLinksViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            // Solo títulos vigentes en la biblioteca: un error persistido de un manga que ya
+            // fue migrado o eliminado (se limpia en la siguiente pasada completa) no debe
+            // aparecer jamás como candidato de reparación.
             val brokenMangas = brokenErrors.mapNotNull { err ->
                 getManga.await(err.mangaId)
-            }
+            }.filter { it.favorite }
 
             val initialItems = brokenMangas.map { ProposedRepair(currentManga = it) }
             val initialGroups = rebuildGroups(initialItems)

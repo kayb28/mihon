@@ -59,7 +59,7 @@ class UpdateErrorsViewModel(
                 }
 
                 val mangaMap = errors.mapNotNull { err ->
-                    getManga.await(err.mangaId)?.let { err.mangaId to it }
+                    getManga.await(err.mangaId)?.takeIf { it.favorite }?.let { err.mangaId to it }
                 }.toMap()
 
                 val broken = mutableListOf<ErrorMangaItem>()

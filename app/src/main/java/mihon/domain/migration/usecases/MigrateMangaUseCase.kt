@@ -6,6 +6,7 @@ import eu.kanade.domain.manga.model.hasCustomCover
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import kotlinx.coroutines.CancellationException
@@ -44,6 +45,7 @@ class MigrateMangaUseCase(
     private val upsertTrack: UpsertTrack,
     private val coverCache: CoverCache,
     private val updateMangaFromRemote: UpdateMangaFromRemote,
+    private val updateErrorStore: UpdateErrorStore,
 ) {
     private val enhancedServices by lazy { trackerManager.trackers.filterIsInstance<EnhancedTracker>() }
 
@@ -138,6 +140,13 @@ class MigrateMangaUseCase(
             }
 
             updateManga.awaitAll(listOfNotNull(currentMangaUpdate, targetMangaUpdate))
+
+            // Con reemplazo, el manga viejo sale de la biblioteca: su error de enlace roto
+            // (si lo tenía) ya no tiene a quién describir — sin esto, el reparador de enlaces
+            // seguía listando títulos que el usuario ya había migrado por fuera de la pantalla.
+            if (replace) {
+                updateErrorStore.removeErrorsForManga(current.id)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
