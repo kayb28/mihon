@@ -335,6 +335,10 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         lastFailure = null
                                         consecutiveOutageFailures = 0
                                     } catch (e: Throwable) {
+                                        // La cancelación no es un fallo del título: relanzarla como
+                                        // hace la pasada en calma, para que una corrida cancelada
+                                        // nunca persista errores espurios en el almacén.
+                                        if (e is CancellationException) throw e
                                         lastFailure = e
                                         failureCount++
                                         if (e.isCalmRetryable()) {
