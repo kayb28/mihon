@@ -14,6 +14,9 @@ import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
 
+private val BROKEN_LINK_HTTP_CODES = setOf(404, 410)
+private const val BROKEN_LINK_CONFIRMATION_THRESHOLD = 3
+
 @Serializable
 data class UpdateError(
     val mangaId: Long,
@@ -23,6 +26,7 @@ data class UpdateError(
     val type: ErrorType,
     val timestamp: Long = System.currentTimeMillis(),
     val retryCount: Int = 0,
+    val brokenLinkStreak: Int = 0,
 ) {
     @Serializable
     enum class ErrorType {
@@ -62,10 +66,7 @@ class UpdateErrorStore(
     @Synchronized
     fun setErrors(errors: List<UpdateError>) {
         val previous = _errorsFlow.value.associateBy { it.mangaId }
-        val merged = errors.map { err ->
-            val old = previous[err.mangaId]
-            if (old != null && old.retryCount > err.retryCount) err.copy(retryCount = old.retryCount) else err
-        }
+        val merged = errors.map { err -> mergeWithPrevious(err, previous[err.mangaId]) }
         saveToFile(merged)
     }
 
@@ -79,10 +80,9 @@ class UpdateErrorStore(
     fun replaceForManga(newErrors: List<UpdateError>, processedIds: Set<Long>) {
         if (processedIds.isEmpty()) return
         val previous = _errorsFlow.value.associateBy { it.mangaId }
-        val fresh = newErrors.map { err ->
-            val old = previous[err.mangaId]
-            if (old != null && old.retryCount > err.retryCount) err.copy(retryCount = old.retryCount) else err
-        }.associateBy { it.mangaId }
+        val fresh = newErrors
+            .map { err -> mergeWithPrevious(err, previous[err.mangaId]) }
+            .associateBy { it.mangaId }
         val updated = buildList {
             _errorsFlow.value.filterTo(this) { it.mangaId !in processedIds }
             addAll(fresh.values)
@@ -114,6 +114,30 @@ class UpdateErrorStore(
     @Synchronized
     fun clear() {
         saveToFile(emptyList())
+    }
+
+    private fun mergeWithPrevious(err: UpdateError, old: UpdateError?): UpdateError {
+        val isBrokenHttpCode = err.httpCode?.let { it in BROKEN_LINK_HTTP_CODES } == true
+        val streak = when {
+            old == null && isBrokenHttpCode -> 1
+            old == null -> 0
+            isBrokenHttpCode && old.httpCode?.let { it in BROKEN_LINK_HTTP_CODES } == true ->
+                old.brokenLinkStreak + 1
+            isBrokenHttpCode -> 1
+            else -> 0
+        }
+        val type = when {
+            err.type == UpdateError.ErrorType.BROKEN_LINK -> UpdateError.ErrorType.BROKEN_LINK
+            old?.brokenLinkStreak?.let { it >= BROKEN_LINK_CONFIRMATION_THRESHOLD } == true ->
+                UpdateError.ErrorType.BROKEN_LINK
+            streak >= BROKEN_LINK_CONFIRMATION_THRESHOLD -> UpdateError.ErrorType.BROKEN_LINK
+            else -> UpdateError.ErrorType.TEMPORARY
+        }
+        return err.copy(
+            type = type,
+            retryCount = maxOf(err.retryCount, old?.retryCount ?: 0),
+            brokenLinkStreak = streak,
+        )
     }
 
     // Guardado atómico (feature del fork): escribe a un .tmp y hace rename; si el rename

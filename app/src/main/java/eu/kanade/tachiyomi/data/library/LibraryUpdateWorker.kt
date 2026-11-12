@@ -38,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
@@ -329,10 +330,12 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         val httpException = (e as? eu.kanade.tachiyomi.network.HttpException)
                                             ?: (e.cause as? eu.kanade.tachiyomi.network.HttpException)
                                         val httpCode = httpException?.code
-                                        val errorType = when {
-                                            e is SourceNotInstalledException -> UpdateError.ErrorType.BROKEN_LINK
-                                            httpCode in listOf(404, 410) -> UpdateError.ErrorType.BROKEN_LINK
-                                            else -> UpdateError.ErrorType.TEMPORARY
+                                        val errorType = if (
+                                            e is SourceNotInstalledException || e.cause is SourceNotInstalledException
+                                        ) {
+                                            UpdateError.ErrorType.BROKEN_LINK
+                                        } else {
+                                            UpdateError.ErrorType.TEMPORARY
                                         }
                                         val errorMessage = when (e) {
                                             is NoChaptersException -> context.stringResource(
@@ -447,18 +450,47 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
      */
     private suspend fun updateManga(manga: Manga, fetchWindow: ClosedRange<Instant>): List<Chapter> {
         val source = sourceManager.getOrStub(manga.source)
-
-        val update = updateMangaFromRemote(
-            source = source,
-            manga = manga,
-            fetchDetails = libraryPreferences.autoUpdateMetadata.get(),
-            fetchChapters = true,
-            fetchWindow = fetchWindow,
-        )
-            .getOrThrow()
-
-        return if (update.manga.favorite) update.newChapters else emptyList()
+        var attempt = 1
+        while (true) {
+            try {
+                val update = updateMangaFromRemote(
+                    source = source,
+                    manga = manga,
+                    fetchDetails = libraryPreferences.autoUpdateMetadata.get(),
+                    fetchChapters = true,
+                    fetchWindow = fetchWindow,
+                ).getOrThrow()
+                return if (update.manga.favorite) update.newChapters else emptyList()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                if (attempt >= UPDATE_MAX_ATTEMPTS || !e.isTransientUpdateFailure()) throw e
+                val backoffMs = if (e.isRateLimitFailure()) {
+                    UPDATE_RETRY_RATE_LIMIT_MS
+                } else {
+                    UPDATE_RETRY_TRANSIENT_MS * attempt.toLong()
+                }
+                logcat(LogPriority.WARN, e) {
+                    "Transient update failure for manga ${manga.id}; retrying attempt " +
+                        "${attempt + 1}/$UPDATE_MAX_ATTEMPTS after ${backoffMs}ms"
+                }
+                delay(backoffMs)
+                attempt++
+            }
+        }
     }
+
+    private fun Throwable.httpExceptionOrNull(): eu.kanade.tachiyomi.network.HttpException? =
+        (this as? eu.kanade.tachiyomi.network.HttpException)
+            ?: (cause as? eu.kanade.tachiyomi.network.HttpException)
+
+    private fun Throwable.isTransientUpdateFailure(): Boolean {
+        if (this is CancellationException || cause is CancellationException) return false
+        if (this is SourceNotInstalledException || cause is SourceNotInstalledException) return false
+        return httpExceptionOrNull()?.code?.let { it !in BROKEN_LINK_HTTP_CODES } ?: true
+    }
+
+    private fun Throwable.isRateLimitFailure(): Boolean = httpExceptionOrNull()?.code == 429
 
     private suspend fun withUpdateNotification(
         updatingManga: CopyOnWriteArrayList<Manga>,
@@ -563,6 +595,11 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         private const val WORK_NAME_MANUAL = "LibraryUpdate-manual"
 
         private const val ERROR_LOG_HELP_URL = "https://mihon.app/docs/guides/troubleshooting/"
+
+        private val BROKEN_LINK_HTTP_CODES = setOf(404, 410)
+        private const val UPDATE_MAX_ATTEMPTS = 3
+        private const val UPDATE_RETRY_TRANSIENT_MS = 3000L
+        private const val UPDATE_RETRY_RATE_LIMIT_MS = 8000L
 
         /** Average seconds per series above which a source is reported as difficult. */
         private const val DIFFICULT_SOURCE_MIN_AVG_SECONDS = 10
