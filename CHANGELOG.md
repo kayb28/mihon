@@ -10,6 +10,13 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `519c7b43`] - 2026-11-12
+
+> versionCode 39 (sin cambios) · commit de código: `519c7b433`. Se instala encima de la build `f6eb34c8` sin desinstalar (misma firma estable). CI verde: Build APK 43158371764 (main) y 43158371836 (feature) + Build & Test 43158371652.
+
+### Added
+- Migración masiva — **opt-in de coincidencias no exactas**: el botón Migrar/Copiar en masa solo procesaba candidatos preseleccionados (título exacto o elección manual); todo lo aproximado (similitud por debajo de 100 %) y los de resultado único había que migrarlos uno por uno, aunque el usuario los hubiera revisado y confirmado por su cuenta. El diálogo de confirmación ahora muestra un checkbox «Migrar también las coincidencias no exactas (N)» — con nota recordatoria de revisar portadas y capítulos en la lista antes de continuar — que suma esos candidatos a la corrida masiva; el contador del título y el texto de «se omitirán» se recalculan al marcarlo, y la limpieza posterior de una corrida con fallos usa el mismo criterio para dejar de repetir lo ya migrado. Sin el opt-in el comportamiento es idéntico al anterior; el motor de búsqueda y el umbral de similitud no cambian (519c7b433).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `f6eb34c8`] - 2026-11-12
 
 > versionCode 39 (sin cambios) · commit de código: `3ba9da5cc` (+ fix de formato `f6eb34c89`, sin comportamiento; la punta añade docs). Se instala encima de la build `d650a1ad3` sin desinstalar (misma firma estable). CI verde: Build APK 43145620761 y Build & Test 43145623729.

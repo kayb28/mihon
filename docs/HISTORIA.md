@@ -122,7 +122,7 @@ Al consolidar quedaron **solo `main` y `feature/webgpu-clean`** (idénticas, `98
 
 ## Pendientes abiertos al cierre de esta consolidación
 
-- **Confirmaciones de usuario pendientes** (antigüedad primero): reanudación del visor continuo (`a523759`) · acumulador de errores (`a9bbaa7`) · resolvedor secundario (`e3ef56c`) · motor web de respaldo (`85ffc0d0`) · reintentos/enlaces rotos y reparador sincronizado (`d650a1ad3`) · pasada en calma + migrados limpios (`d324ddbf` → build final `f6eb34c8`).
+- **Confirmaciones de usuario pendientes** (antigüedad primero): reanudación del visor continuo (`a523759`) · acumulador de errores (`a9bbaa7`) · resolvedor secundario (`e3ef56c`) · motor web de respaldo (`85ffc0d0`) · reintentos/enlaces rotos y reparador sincronizado (`d650a1ad3`) · pasada en calma + migrados limpios (`d324ddbf` → build final `f6eb34c8`) · migración masiva opt-in de no exactas (`519c7b43`).
 - **Upstream 20 commits adelante** — revisar al llegar v0.21.4.
 - El changelog/REGISTRO son la memoria viva: cualquier cambio nuevo empieza por una entrada ahí.
 
