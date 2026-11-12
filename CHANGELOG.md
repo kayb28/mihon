@@ -10,9 +10,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
-## [Mihon Fix 0.21.3 — fork kayb28, build `d324ddbf`] - 2026-11-12
+## [Mihon Fix 0.21.3 — fork kayb28, build `f6eb34c8`] - 2026-11-12
 
-> versionCode 39 (sin cambios) · commit de código: `3ba9da5cc` (la punta `d324ddbf6` añade solo docs). Se instala encima de la build `d650a1ad3` sin desinstalar (misma firma estable). CI verde: run 43143969010.
+> versionCode 39 (sin cambios) · commit de código: `3ba9da5cc` (+ fix de formato `f6eb34c89`, sin comportamiento; la punta añade docs). Se instala encima de la build `d650a1ad3` sin desinstalar (misma firma estable). CI verde: Build APK 43145620761 y Build & Test 43145623729.
 
 ### Fixed
 - Actualización de biblioteca — **no más errores de ráfaga en la pasada masiva**: el problema reportado de que la actualización masiva marcaba cientos de errores (502/522/526 en ráfaga, 429, timeouts) que en la actualización individual se resolvían sin problemas. Ahora la pasada principal reintenta los fallos transitorios (3 intentos, espera de 8 s si es límite de peticiones) con un ritmo suave entre títulos en colas grandes, corta la cola si detecta el origen caído (3 fallos 5xx seguidos) y hace una **segunda pasada en calma** con ritmo de actualización individual (secuencial por fuente, pausa entre títulos, 2 intentos, presupuesto por fuente). Solo lo que falla en **ambas** pasadas acaba en el log de errores; lo recuperado no genera ni notificación de errores (0cfd8b194, d650a1ad3, b0c6c351f).
