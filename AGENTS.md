@@ -88,6 +88,8 @@ No verificado o fallando:
 3. **Actualizar `docs/REGISTRO.md` antes de terminar cualquier tarea**: añadir entrada
    con fecha/hora UTC, motivo, qué se hizo, commit/build que lo produjo y estado, según
    las convenciones que el propio REGISTRO.md define en su cabecera.
+   La entrada de `docs/REGISTRO.md` puede ir en un commit propio dentro de la misma rama:
+   así el commit de código y el de registro siguen siendo un cambio cada uno.
 
 ## 6. Operativa del entorno del agente
 
