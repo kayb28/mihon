@@ -42,11 +42,21 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 
 ## 3. Ramas
 
-- `main` — **rama oficial**. Punta al corte: `110c8f76e`. Todo PR parte de `main`.
+- `feature/webgpu-clean` — **línea de trabajo WebGPU**: visor, motor web de respaldo,
+  migración y el resto de funciones del fork. Punta al corte: `4f4b79c46`. Verificado:
+  la rama existe y apunta a ese commit. Es donde se desarrolla el código nuevo, según
+  `docs/TRASPASO.md` y `docs/REGISTRO.md`.
+- `main` — rama de corte de upstream y distribución. Punta: `110c8f76e` (commit de solo
+  docs). **La relación exacta entre `main` y `feature/webgpu-clean` está por verificar.**
+  Antes de abrir cualquier PR, ejecuta `git rev-list --left-right --count main...feature/webgpu-clean`
+  y deja el resultado en la descripción del PR.
+- ⚠️ No instales ninguna build generada desde `main` mientras no esté reconciliada con
+  `feature/webgpu-clean` (advertencia de `docs/REGISTRO.md`).
 - `fix/webview-fetch-pr1` — PR #1 (fallback WebView: puente en mundo de página, POST
   binario, puente endurecido). Punta `b24f4e29f`, 4 commits, en revisión, CI roja (§4).
   No rebasar ni pushear encima sin autorización explícita.
-- Ramas nuevas: prefijos `fix/` (código) o `docs/` (documentación), cortadas desde `main`.
+- Ramas nuevas: prefijos `fix/` (código) o `docs/` (documentación). Córtalas desde la
+  rama base que indique la tarea. Si la tarea no indica base, pregunta antes de decidir.
 - Las ramas obsoletas están archivadas como `archive/*` (ver `docs/HISTORIA.md`;
   restaurar una con `git checkout -b <rama> <tag>`).
 
