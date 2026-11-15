@@ -10,6 +10,18 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — fork kayb28, build `3ea8819`] - 2026-11-15
+
+> versionCode 39 (sin cambios) · commit de código: `3ea881954`. Se instala encima de la build `519c7b43` sin desinstalar (misma firma estable). CI: Build APK 43669204603.
+
+### Fixed
+- Migración masiva — **los fallos ya no se disfrazan de éxitos**: tras una corrida con fallos, solo las entradas que realmente migraron desaparecen de la lista; las que fallaron quedan como error con reintento (antes se borraban igual que las migradas y el diálogo de fallos hablaba de «X de N entradas» contando también las que nunca se intentaron). La migración de una sola entrada hace lo mismo: fila conservada en error + aviso, en lugar de desaparecer como si hubiera migrado (3ea881954).
+- Migración masiva — **la calidad del match manda sobre la novedad del capítulo**: con «priorizar por capítulos» un match exacto o de mayor similitud ya no pierde contra un candidato difuso que solo tiene un capítulo más reciente (secuelas y spin-offs suelen tenerlo); en modo secuencial, un match exacto en una fuente posterior gana al primer difuso de una fuente anterior (3ea881954).
+- Migración masiva — **coincidencias exactas entre fuentes distintas**: un título idéntico (normalizado) en otra fuente ahora llega como coincidencia exacta preseleccionada; antes la pasada exacta solo corría en la propia fuente del manga, empujando al usuario al checkbox de no exactas incluso para coincidencias perfectas (3ea881954).
+- Migración masiva — **conteos sincronizados y corrida a prueba de doble toque**: las filas que vuelven a estar buscándose (reintento o elección manual) invalidan el estado de «búsqueda completa» para que el diálogo de confirmación no cuente algo distinto de lo que migrará; un doble toque en Confirmar ya no lanza dos corridas solapadas; la barra de progreso llega al 100 % (3ea881954).
+- Migración masiva — **higiene de corrutinas**: los scopes por ítem son hijos del ciclo de vida del ViewModel, la eliminación de filas usa el estado atómico (sin carreras entre ocultar/saltar), y las cancelaciones ya no se tragan en la selección manual (3ea881954).
+- Migración masiva — **nota del opt-in más honesta**: el aviso del checkbox de no exactas ahora dice que incluye resultados únicos sin verificar (antes solo hablaba de «similitud del título», falso para el caso único-resultado, cuyo 100 % significa «único resultado», no «mismo título») (3ea881954).
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `519c7b43`] - 2026-11-12
 
 > versionCode 39 (sin cambios) · commit de código: `519c7b433`. Se instala encima de la build `f6eb34c8` sin desinstalar (misma firma estable). CI verde: Build APK 43158371764 (main) y 43158371836 (feature) + Build & Test 43158371652.
