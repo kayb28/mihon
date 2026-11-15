@@ -13,6 +13,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.webkit.JavaScriptExecutionWorld
 import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -44,9 +45,7 @@ import okio.Buffer
 import org.json.JSONObject
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -170,7 +169,7 @@ class WebViewFetchFallbackInterceptor(
     ): Response? {
         val host = request.url.host
         val origin = request.url.origin()
-        val session = FetchSession()
+        val session = FetchSession(MAX_RESPONSE_BYTES)
         val prevClearance = clearance(request.url)
         // A WebView can only load a page with GET; for other methods the clearance covers the
         // whole site, so it's earned on the site's root page instead (same trick as
@@ -192,7 +191,7 @@ class WebViewFetchFallbackInterceptor(
             session.fetchStarted = true
             e.sessionRef.set(session)
             try {
-                e.webview.evaluateJavascript(buildFetchScript(request, headersJson, bodyJson), null)
+                e.webview.evaluateJavascript(buildFetchScript(request, headersJson, bodyJson, session.key), null)
             } catch (t: Throwable) {
                 session.fail("evaluate failed: ${t.message}")
             }
@@ -205,7 +204,8 @@ class WebViewFetchFallbackInterceptor(
                     e.loadedOrigin = origin
                     if (!e.useIsolatedWorld && !listenerInjected && url == challengeUrl) {
                         listenerInjected = true
-                        view.evaluateJavascript(challengeListenerScript, null)
+                        // Legacy route: only the mihonfix interface exists in the page
+                        view.evaluateJavascript(legacyChallengeListenerScript, null)
                     }
                     // Fetch right away when the page loaded normally, wait for the clearance
                     // cookie when the loaded page was an auto-solving challenge.
@@ -312,7 +312,7 @@ class WebViewFetchFallbackInterceptor(
         val contentType = session.headers["content-type"]
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { it.toMediaTypeOrNull() }.getOrNull() }
-        val bytes = synchronized(session.buffer) { session.buffer.toByteArray() }
+        val bytes = session.body()
 
         val headers = Headers.Builder()
         for ((name, value) in session.headers) {
@@ -331,11 +331,12 @@ class WebViewFetchFallbackInterceptor(
             .build()
     }
 
-    private fun buildFetchScript(request: Request, headersJson: JSONObject, bodyJson: JSONObject): String {
+    private fun buildFetchScript(request: Request, headersJson: JSONObject, bodyJson: JSONObject, sessionKey: String): String {
         val params = JSONObject()
         params.put("url", request.url.toString())
         params.put("method", request.method)
         params.put("headers", headersJson)
+        params.put("k", sessionKey)
         for (key in bodyJson.keys()) params.put(key, bodyJson.get(key))
         return fetchScriptTemplate
             .replace("__PARAMS__", params.toString())
@@ -386,14 +387,31 @@ class WebViewFetchFallbackInterceptor(
             )
 
             if (useIsolatedWorld) {
-                // An isolated world keeps the bridge out of the page's reach
-                val world = WebViewCompat.getExecutionWorld(webview, BRIDGE_NAME)
                 val origins = setOf(origin)
+                // The fetch script is executed with evaluateJavascript(), which runs in the
+                // page's world. Registering the delivery bridge in the PAGE world keeps both
+                // sides in the same execution context (an isolated world would leave the
+                // script calling an undefined object). The per-session key carried by every
+                // message, the main-frame check and the origin allowlist are what keep this
+                // bridge safe to reach from page code.
+                val pageWorld = WebViewCompat.getExecutionWorld(webview, JavaScriptExecutionWorld.PAGE_WORLD_NAME)
                 WebViewCompat.addWebMessageListener(
                     webview,
                     BRIDGE_NAME,
                     origins,
-                    world,
+                    pageWorld,
+                ) { _, message, _, isMainFrame, _ ->
+                    if (isMainFrame) dispatchMessage(engine, message.data)
+                }
+                // The challenge listener only forwards Cloudflare events; it stays in an
+                // isolated world so page scripts can't reach the native side through it,
+                // and posts through its own bridge there.
+                val isolatedWorld = WebViewCompat.getExecutionWorld(webview, BRIDGE_NAME)
+                WebViewCompat.addWebMessageListener(
+                    webview,
+                    CHALLENGE_BRIDGE_NAME,
+                    origins,
+                    isolatedWorld,
                 ) { _, message, _, isMainFrame, _ ->
                     if (isMainFrame) dispatchMessage(engine, message.data)
                 }
@@ -402,7 +420,7 @@ class WebViewFetchFallbackInterceptor(
                     challengeListenerScript,
                     WebViewCompat.INJECTION_EVENT_DOCUMENT_START,
                     origins,
-                    world,
+                    isolatedWorld,
                 )
             } else {
                 webview.addJavascriptInterface(
@@ -567,55 +585,8 @@ class WebViewFetchFallbackInterceptor(
 
     // endregion
 
-    private class FetchSession {
-        val latch = CountDownLatch(1)
-        val headers = ConcurrentHashMap<String, String>()
-        val buffer = ByteArrayOutputStream()
-
-        @Volatile var failed: String? = null
-
-        @Volatile var status: Int = 0
-
-        @Volatile var statusText: String = ""
-
-        @Volatile var fetchStarted: Boolean = false
-
-        @Volatile var done: Boolean = false
-
-        fun fail(reason: String) {
-            if (failed == null) {
-                failed = reason
-                latch.countDown()
-            }
-        }
-
-        fun onChallengeAbort(event: String) {
-            if (!fetchStarted) fail("challenge $event")
-        }
-
-        fun onMessage(raw: String) {
-            val obj = runCatching { JSONObject(raw) }.getOrNull() ?: return
-            when (obj.optString("t")) {
-                "head" -> {
-                    status = obj.optInt("s")
-                    statusText = obj.optString("m")
-                    val h = obj.optJSONObject("h")
-                    if (h != null) {
-                        for (key in h.keys()) headers[key.lowercase()] = h.optString(key)
-                    }
-                }
-                "data" -> runCatching {
-                    val bytes = Base64.decode(obj.optString("b"), Base64.NO_WRAP)
-                    synchronized(buffer) { buffer.write(bytes) }
-                }.onFailure { fail("chunk decode failed") }
-                "end" -> {
-                    done = true
-                    latch.countDown()
-                }
-                "err" -> fail(obj.optString("m").ifBlank { "fetch error" })
-            }
-        }
-    }
+    // FetchSession lives in its own Android-free file so its protocol is unit-testable on
+    // the JVM; see FetchSession.kt and FetchSessionProtocolTest.
 
     private class Engine(
         val webview: WebView,
@@ -635,10 +606,17 @@ class WebViewFetchFallbackInterceptor(
             } catch (_: Throwable) {}
             try {
                 if (useIsolatedWorld) {
+                    // The delivery bridge lives in the page world; the challenge listener's
+                    // bridge lives in the isolated world registered under its own name
+                    WebViewCompat.removeWebMessageListener(
+                        webview,
+                        WebViewCompat.getExecutionWorld(webview, JavaScriptExecutionWorld.PAGE_WORLD_NAME),
+                        BRIDGE_NAME,
+                    )
                     WebViewCompat.removeWebMessageListener(
                         webview,
                         WebViewCompat.getExecutionWorld(webview, BRIDGE_NAME),
-                        BRIDGE_NAME,
+                        CHALLENGE_BRIDGE_NAME,
                     )
                 } else {
                     webview.removeJavascriptInterface(BRIDGE_NAME)
@@ -658,7 +636,7 @@ private const val BRIDGE_NAME = "mihonfix"
 private val FALLBACK_CODES = setOf(403, 503)
 private val SUPPORTED_METHODS = setOf("GET", "POST")
 private const val FALLBACK_HEADER = "X-MihonFix-Webview-Fallback"
-private const val MAX_RESPONSE_BYTES = 25L * 1024 * 1024
+internal const val MAX_RESPONSE_BYTES = 25L * 1024 * 1024
 private const val MAX_REQUEST_BODY_BYTES = 2L * 1024 * 1024
 private const val OP_TIMEOUT_SECONDS = 60L
 
@@ -689,7 +667,20 @@ private val FORBIDDEN_FETCH_HEADERS = setOf(
     "expect", "te", "trailer", "via", "date", "set-cookie", "proxy-connection",
 )
 
+// Runs in an isolated world while the delivery bridge lives in the page world, so this
+// listener posts through its own isolated-world bridge instead of the fetch bridge.
+private const val CHALLENGE_BRIDGE_NAME = "mihonfixchallenge"
+
 private val challengeListenerScript = """
+    addEventListener("message", ({data}) => {
+        if (data?.source === "cloudflare-challenge") {
+            mihonfixchallenge?.postMessage(data.event);
+        }
+    })
+""".trimIndent()
+
+// Legacy addJavascriptInterface route: the only native object in the page is mihonfix
+private val legacyChallengeListenerScript = """
     addEventListener("message", ({data}) => {
         if (data?.source === "cloudflare-challenge") {
             mihonfix?.postMessage(data.event);
@@ -702,6 +693,7 @@ private val fetchScriptTemplate = """
         var P = __PARAMS__;
         (async function() {
             try {
+                var send = function(o) { mihonfix.postMessage(JSON.stringify(o)); };
                 var init = {
                     method: P.method,
                     credentials: "include",
@@ -709,16 +701,21 @@ private val fetchScriptTemplate = """
                     headers: P.headers || {}
                 };
                 if (P.bodyB64) {
-                    init.body = Uint8Array.from(atob(P.bodyB64));
+                    // atob returns a binary string; convert each char through its char code so
+                    // every byte survives (Uint8Array.from() alone maps letters to 0)
+                    var s = atob(P.bodyB64);
+                    var bytes = new Uint8Array(s.length);
+                    for (var i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+                    init.body = bytes;
                 } else if (P.body !== null && P.body !== undefined) {
                     init.body = P.body;
                 }
                 var resp = await fetch(P.url, init);
                 var h = {};
                 resp.headers.forEach(function(v, k) { h[k] = v; });
-                mihonfix.postMessage(JSON.stringify({ t: "head", s: resp.status, m: resp.statusText || "", u: resp.url, h: h }));
+                send({ t: "head", k: P.k, s: resp.status, m: resp.statusText || "", u: resp.url, h: h });
                 if (!resp.body) {
-                    mihonfix.postMessage(JSON.stringify({ t: "end" }));
+                    send({ t: "end", k: P.k });
                     return;
                 }
                 var reader = resp.body.getReader();
@@ -729,7 +726,7 @@ private val fetchScriptTemplate = """
                     total += chunk.value.byteLength;
                     if (total > __MAX_BYTES__) {
                         try { reader.cancel(); } catch (e) {}
-                        mihonfix.postMessage(JSON.stringify({ t: "err", m: "response too large" }));
+                        send({ t: "err", k: P.k, m: "response too large" });
                         return;
                     }
                     var bin = "";
@@ -737,11 +734,11 @@ private val fetchScriptTemplate = """
                     for (var i = 0; i < chunk.value.length; i += CH) {
                         bin += String.fromCharCode.apply(null, chunk.value.subarray(i, Math.min(i + CH, chunk.value.length)));
                     }
-                    mihonfix.postMessage(JSON.stringify({ t: "data", b: btoa(bin) }));
+                    send({ t: "data", k: P.k, b: btoa(bin) });
                 }
-                mihonfix.postMessage(JSON.stringify({ t: "end" }));
+                send({ t: "end", k: P.k });
             } catch (e) {
-                mihonfix.postMessage(JSON.stringify({ t: "err", m: String(e && e.message ? e.message : e) }));
+                mihonfix.postMessage(JSON.stringify({ t: "err", k: P.k, m: String(e && e.message ? e.message : e) }));
             }
         })();
     })();
