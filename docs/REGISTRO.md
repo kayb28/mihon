@@ -11,6 +11,10 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 
 ---
 
+## 2026-11-15
+
+- **23:33 — fix(webgpu): selector único de visor, deslizar en experimental y destroy sin bloqueo (`ce9b8192b`).** Motivo: unificar los dos flags independientes (HQ / androidx experimental) en una sola preferencia STOCK/HQ/EXPERIMENTAL con migración desde las claves antiguas; añadir deslizar para pasar página en el paginado experimental solo con zoom=1; evitar el runBlocking de destroy de texturas en el hilo principal. Commits: 4ab60ad8d (selector + toViewer), 63fc0cea3 (UI + cadenas base/es), 916e667af (swipe), ce9b8192b (destroy no bloqueante). **Build pendiente** · Estado: **pendiente confirmar**.
+
 ## 2026-11-12
 
 - **05:13 — feat(migration): opt-in de coincidencias no exactas en la migración masiva (`519c7b433`).** Motivo: queja del usuario — el botón de migración masiva solo considera válidos los candidatos con coincidencia exacta; aunque revisara personalmente los resultados de la búsqueda y los confirmara, todo lo que cae por debajo queda fuera y toca migrarlo uno por uno. Mecánica: `isPreselected` (título exacto o elección manual) sigue gobernando el default, pero el diálogo de confirmación de Migrar/Copiar ahora ofrece un checkbox «Migrar también las coincidencias no exactas (N)» que añade a la corrida masiva los candidatos difusos y de resultado único; el contador del título y el texto de omisión se recalculan al marcarlo, y la limpieza tras una corrida con fallos usa el mismo criterio. Cadenas nuevas en base y es; sin cambios en el motor de búsqueda ni en el umbral de similitud. **Build `519c7b43`** (CI verde: Build APK 43158371764/43158371836, Build & Test 43158371652) · Estado: **pendiente confirmar del usuario** (probar: migración masiva con el checkbox marcado sobre candidatos revisados por debajo de 100 %; sin marcarlo, comportamiento anterior intacto).
