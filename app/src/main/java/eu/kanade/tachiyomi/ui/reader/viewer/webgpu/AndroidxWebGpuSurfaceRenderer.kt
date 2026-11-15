@@ -854,10 +854,10 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             if (!liveImages.remove(image)) return
             webgpu
         } ?: return
-        runBlocking {
-            environment.execute {
-                runCatching { image.texture.close() }
-            }
+        // Non-blocking: release on the WebGPU queue without waiting. stop() keeps the
+        // synchronous drain required by surfaceDestroyed; start failure path is unchanged.
+        environment.execute {
+            runCatching { image.texture.close() }
         }
     }
 
