@@ -7,6 +7,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.core.common.preference.getEnum
 import tachiyomi.i18n.MR
 
 @Inject
@@ -37,6 +38,33 @@ class BasePreferences(
         PRIVATE(MR.strings.ext_installer_private, false),
     }
 
+    /**
+     * Unified viewer mode for the reader.
+     * STOCK = stock pager/webtoon viewers.
+     * HQ = ca.mpreg WebGPU high-quality viewer.
+     * EXPERIMENTAL = androidx.webgpu viewer (falls back on device failure).
+     *
+     * Migrates from the previous independent flags on first read of the new key.
+     * Old keys are left in place and still readable.
+     */
+    enum class WebGpuViewerMode {
+        STOCK,
+        HQ,
+        EXPERIMENTAL,
+    }
+
+    val webGpuViewerMode: Preference<WebGpuViewerMode> = preferenceStore.getEnum(
+        "pref_webgpu_viewer_mode_key",
+        when {
+            preferenceStore.getBoolean("pref_androidx_webgpu_viewer_key", false).get() ->
+                WebGpuViewerMode.EXPERIMENTAL
+            preferenceStore.getBoolean("pref_high_quality_renderer_key", false).get() ->
+                WebGpuViewerMode.HQ
+            else -> WebGpuViewerMode.STOCK
+        },
+    )
+
+    // Kept for migration and any remaining direct reads; do not remove in this change.
     val highQualityRenderer: Preference<Boolean> = preferenceStore.getBoolean("pref_high_quality_renderer_key", false)
 
     /**
