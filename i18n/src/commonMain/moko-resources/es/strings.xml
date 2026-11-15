@@ -985,4 +985,9 @@
     <string name="action_group">Grupo</string>
     <string name="pref_continuous_minwidth">Ancho mínimo</string>
     <string name="pref_continuous_gap">Separación entre páginas</string>
+    <string name="pref_webgpu_viewer_mode">Renderizador del lector</string>
+    <string name="pref_webgpu_viewer_mode_summary">Elige el visor usado para las páginas. Experimental usa androidx.webgpu y vuelve atrás en dispositivos no compatibles.</string>
+    <string name="pref_webgpu_viewer_mode_stock">Stock</string>
+    <string name="pref_webgpu_viewer_mode_hq">Alta calidad (WebGPU)</string>
+    <string name="pref_webgpu_viewer_mode_experimental">Experimental (androidx.webgpu)</string>
 </resources>
