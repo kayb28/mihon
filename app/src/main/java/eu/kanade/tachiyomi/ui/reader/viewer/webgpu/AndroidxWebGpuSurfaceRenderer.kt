@@ -856,8 +856,10 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         } ?: return
         // Non-blocking: release on the WebGPU queue without waiting. stop() keeps the
         // synchronous drain required by surfaceDestroyed; start failure path is unchanged.
-        environment.execute {
-            runCatching { image.texture.close() }
+        renderScope.launch {
+            environment.execute {
+                runCatching { image.texture.close() }
+            }
         }
     }
 
