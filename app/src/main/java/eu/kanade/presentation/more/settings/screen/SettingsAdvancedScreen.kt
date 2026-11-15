@@ -346,18 +346,18 @@ object SettingsAdvancedScreen : SearchableSettings {
     private fun getReaderGroup(
         basePreferences: BasePreferences,
     ): Preference.PreferenceGroup {
-        val context = LocalContext.current
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_reader),
             preferenceItems = listOf(
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = basePreferences.highQualityRenderer,
-                    title = stringResource(MR.strings.pref_high_quality_renderer),
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = basePreferences.androidxWebGpuViewer,
-                    title = stringResource(MR.strings.pref_androidx_webgpu_viewer),
-                    subtitle = stringResource(MR.strings.pref_androidx_webgpu_viewer_summary),
+                Preference.PreferenceItem.ListPreference(
+                    preference = basePreferences.webGpuViewerMode,
+                    entries = mapOf(
+                        BasePreferences.WebGpuViewerMode.STOCK to stringResource(MR.strings.pref_webgpu_viewer_mode_stock),
+                        BasePreferences.WebGpuViewerMode.HQ to stringResource(MR.strings.pref_webgpu_viewer_mode_hq),
+                        BasePreferences.WebGpuViewerMode.EXPERIMENTAL to stringResource(MR.strings.pref_webgpu_viewer_mode_experimental),
+                    ),
+                    title = stringResource(MR.strings.pref_webgpu_viewer_mode),
+                    subtitle = stringResource(MR.strings.pref_webgpu_viewer_mode_summary),
                 ),
             ),
         )
