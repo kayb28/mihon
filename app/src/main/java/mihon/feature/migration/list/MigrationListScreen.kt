@@ -55,6 +55,14 @@ class MigrationListScreen(private val mangaIds: Collection<Long>, private val ex
                 navigator.pop()
             }
         }
+
+        // A failed single-item migration keeps its row (as a retryable Error state) and
+        // surfaces a toast instead of silently looking like a success.
+        LaunchedEffect(viewModel) {
+            viewModel.singleMigrationFailedEvent.collect {
+                context.toast(MR.strings.migration_error_generic, Toast.LENGTH_LONG)
+            }
+        }
         MigrationListScreenContent(
             items = state.items,
             migrationComplete = state.migrationComplete,

@@ -2,6 +2,7 @@ package mihon.feature.migration.list.models
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import tachiyomi.domain.manga.model.Manga
@@ -14,7 +15,9 @@ class MigratingManga(
     val source: String,
     parentContext: CoroutineContext,
 ) {
-    val migrationScope = CoroutineScope(parentContext + SupervisorJob() + Dispatchers.Default)
+    // SupervisorJob(parent's Job): keeps per-item failures isolated while staying a child of
+    // the ViewModel's scope — cancelling viewModelScope now cancels every item search too.
+    val migrationScope = CoroutineScope(parentContext + SupervisorJob(parentContext[Job]) + Dispatchers.Default)
 
     val searchResult = MutableStateFlow<SearchResult>(SearchResult.Searching)
 

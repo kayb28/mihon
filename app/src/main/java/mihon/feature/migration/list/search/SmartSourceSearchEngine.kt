@@ -71,7 +71,10 @@ class SmartSourceSearchEngine(
         title: String,
         currentUrl: String?,
     ): ScoredManga? {
-        if (currentUrl != null && entries.isNotEmpty()) {
+        // currentUrl is a String? — callers pass null only in flows where the exact pass makes
+        // no sense (deep search over non-migration screens); the sentinel "" a migration caller
+        // uses to keep the pass alive cross-source never matches a real candidate URL.
+        if (!currentUrl.isNullOrEmpty() && entries.isNotEmpty()) {
             val candidates = entries.map { it.entry }.distinctBy { it.url }
             val exact = TitleMatcher.findMatch(title, currentUrl, candidates)
             if (exact is TitleMatcher.MatchResult.AutoAccept) {

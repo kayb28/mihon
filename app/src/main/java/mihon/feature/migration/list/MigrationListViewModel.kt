@@ -193,8 +193,22 @@ class MigrationListViewModel(
                         }
                     }
                         .mapNotNull { it.await() }
-                        .maxByOrNull { it.second.latestChapter ?: 0.0 }
+                        // Match quality beats raw recency: an exact title (or a higher
+                        // similarity) must never lose to a fuzzy candidate that just happens
+                        // to have a newer chapter — sequels and spin-offs tend to.
+                        // latestChapter is only the tiebreaker.
+                        .maxWithOrNull(
+                            compareBy(
+                                { it.first.isExactTitle },
+                                { it.first.similarity },
+                                { it.second.latestChapter ?: 0.0 },
+                            ),
+                        )
                 } else {
+                    // Keep the first fuzzy hit as a fallback but keep scanning: an exact-title
+                    // match on a later source must win over a fuzzy one on an earlier source.
+                    // Only an exact hit stops the pass early (nothing can outrank it).
+                    var firstHit: Pair<ScoredManga, ChapterInfo>? = null
                     sources.forEach { source ->
                         val result = try {
                             searchSource(manga.manga, source, deepSearchMode)
@@ -205,9 +219,12 @@ class MigrationListViewModel(
                             searchHadError = true
                             null
                         }
-                        if (result != null) return@async result
+                        if (result != null) {
+                            if (result.first.isExactTitle) return@async result
+                            if (firstHit == null) firstHit = result
+                        }
                     }
-                    null
+                    firstHit
                 }
             }
                 .await()
@@ -253,6 +270,9 @@ class MigrationListViewModel(
         val manga = items.find { it.manga.id == mangaId } ?: return
         if (manga.searchResult.value != SearchResult.Error) return
         manga.searchResult.value = SearchResult.Searching
+        // A row back in Searching invalidates the "all searches finished" flag; without this
+        // the bulk buttons stay enabled and the dialog counts can desync from the list.
+        state.update { it.copy(migrationComplete = false) }
         viewModelScope.launch(Dispatchers.IO) {
             runSearch(manga, migrationSources())
         }
@@ -269,8 +289,10 @@ class MigrationListViewModel(
         deepSearchMode: Boolean,
     ): Pair<ScoredManga, ChapterInfo>? {
         // The exact-match pass (hybrid pick) must only reject same-URL candidates on the manga's
-        // own source: a matching URL on a different site is a different manga, not the current one.
-        val currentUrl = if (source.id == manga.source) manga.url else null
+        // own source. On other sources the pass still runs — an identical normalized title is an
+        // exact match worth reporting even cross-site — but the URL can never match there, so we
+        // pass a sentinel instead of null, which used to disable the pass entirely.
+        val currentUrl = if (source.id == manga.source) manga.url else ""
         val searchResult = if (deepSearchMode) {
             smartSearchEngine.deepSearch(source, manga.title, currentUrl)
         } else {
@@ -300,9 +322,11 @@ class MigrationListViewModel(
 
     private suspend fun updateMigrationProgress() {
         state.update { state ->
+            val currentItems = state.items
             state.copy(
-                finishedCount = items.count { it.searchResult.value != SearchResult.Searching },
-                migrationComplete = migrationComplete(),
+                finishedCount = currentItems.count { it.searchResult.value != SearchResult.Searching },
+                migrationComplete = currentItems.all { it.searchResult.value != SearchResult.Searching } &&
+                    currentItems.any { it.searchResult.value is SearchResult.Success },
             )
         }
         if (items.isEmpty()) {
@@ -310,18 +334,18 @@ class MigrationListViewModel(
         }
     }
 
-    private fun migrationComplete() = items.all { it.searchResult.value != SearchResult.Searching } &&
-        items.any { it.searchResult.value is SearchResult.Success }
-
     fun useMangaForMigration(current: Long, target: Long, onMissingChapters: () -> Unit) {
         val migratingManga = items.find { it.manga.id == current } ?: return
         migratingManga.searchResult.value = SearchResult.Searching
+        state.update { it.copy(migrationComplete = false) }
         viewModelScope.launch(Dispatchers.IO) {
             val result = migratingManga.migrationScope.async {
                 val manga = getManga.await(target) ?: return@async null
                 try {
                     val source = sourceManager.get(manga.source)!!
                     updateMangaFromRemote(source = source, manga = manga, fetchChapters = true).getOrThrow().manga
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     null
                 }
@@ -330,6 +354,7 @@ class MigrationListViewModel(
 
             if (result == null) {
                 migratingManga.searchResult.value = SearchResult.NotFound
+                updateMigrationProgress()
                 withContext(Dispatchers.Main) { onMissingChapters() }
                 return@launch
             }
@@ -348,10 +373,20 @@ class MigrationListViewModel(
     }
 
     private fun migrateMangas(replace: Boolean, includeNonExact: Boolean) {
+        // Reentry guard: a double tap on the confirm button must not launch two overlapping
+        // bulk runs over the same entries (the second would orphan the first's job handle).
+        if (migrateJob?.isActive == true) return
+        // Progress dialog is shown synchronously so the button visually locks before the
+        // coroutine even dispatches, closing the double-tap window entirely.
+        state.update { it.copy(dialog = Dialog.Progress(0f)) }
         migrateJob = viewModelScope.launch(Dispatchers.IO) {
-            state.update { it.copy(dialog = Dialog.Progress(0f)) }
             val items = items
             var failedCount = 0
+            val failedIds = mutableSetOf<Long>()
+            val attemptedCount = items.count { entry ->
+                (entry.searchResult.value as? SearchResult.Success)
+                    ?.let { it.isPreselected || includeNonExact } == true
+            }
             try {
                 items.forEachIndexed { index, manga ->
                     try {
@@ -368,13 +403,14 @@ class MigrationListViewModel(
                         }
                     } catch (e: Exception) {
                         if (e is CancellationException) throw e
-                        // MigrateMangaUseCase propagates failures; count them instead of letting
-                        // the run end as if every entry had been copied.
+                        // MigrateMangaUseCase propagates failures; count them and remember WHICH
+                        // entry failed so the post-run cleanup can tell migrated from failed.
                         failedCount++
+                        failedIds.add(manga.manga.id)
                         logcat(LogPriority.WARN, throwable = e)
                     }
                     state.update {
-                        it.copy(dialog = Dialog.Progress((index.toFloat() / items.size).coerceAtMost(1f)))
+                        it.copy(dialog = Dialog.Progress(((index + 1).toFloat() / items.size).coerceAtMost(1f)))
                     }
                 }
             } finally {
@@ -384,20 +420,24 @@ class MigrationListViewModel(
 
             if (failedCount > 0) {
                 // Stay on the list and tell the user what failed instead of navigateBack(), which
-                // looked like a fully successful run. Entries that DID migrate this run (the
-                // preselected ones — or every success when includeNonExact) are dropped so a
-                // retry only re-processes the failures; intentionally skipped entries stay.
+                // looked like a fully successful run. Only entries that actually MIGRATED are
+                // dropped; the ones whose migration threw are flipped to SearchResult.Error —
+                // visible, retryable — instead of silently vanishing as fake successes.
+                // Intentionally skipped entries (no match / non-exact without opt-in) stay.
                 items.filter { entry ->
-                    val result = entry.searchResult.value
-                    result is SearchResult.Success && (result.isPreselected || includeNonExact)
+                    entry.manga.id !in failedIds &&
+                        (entry.searchResult.value as? SearchResult.Success)
+                            ?.let { it.isPreselected || includeNonExact } == true
                 }
                     .forEach { removeManga(it) }
+                items.filter { it.manga.id in failedIds }
+                    .forEach { it.searchResult.value = SearchResult.Error }
                 updateMigrationProgress()
                 state.update {
                     it.copy(
                         dialog = Dialog.MigrateFailed(
                             failedCount = failedCount,
-                            totalCount = items.size,
+                            totalCount = attemptedCount,
                         ),
                     )
                 }
@@ -425,14 +465,22 @@ class MigrationListViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // MigrateMangaUseCase now propagates failures; this single-item path has no dialog
-                // to show them, so log instead of crashing the scope.
+                // MigrateMangaUseCase now propagates failures. A failed single migration must
+                // NOT look like a success: the row stays on the list as a retryable Error
+                // instead of disappearing, and the user gets a toast, not silence.
                 logcat(LogPriority.ERROR, e) { "Single migration failed for manga ${manga.manga.id}" }
+                manga.searchResult.value = SearchResult.Error
+                singleMigrationFailedChannel.trySend(Unit)
+                return@launch
             }
 
             removeManga(mangaId)
         }
     }
+
+    /** One-shot event when a single-item migration fails; the Screen turns it into a toast. */
+    private val singleMigrationFailedChannel = Channel<Unit>(Channel.CONFLATED)
+    val singleMigrationFailedEvent = singleMigrationFailedChannel.receiveAsFlow()
 
     fun removeManga(mangaId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -444,7 +492,13 @@ class MigrationListViewModel(
     }
 
     private fun removeManga(item: MigratingManga) {
-        state.update { it.copy(items = items.toMutableList().apply { remove(item) }) }
+        // state.update is the atomic CAS; reading `items` (a snapshot of state.value) outside
+        // the lambda races any concurrent removal. Read the current list inside the lambda,
+        // and cancel the item's scope so no in-flight search outlives its row.
+        state.update { state ->
+            state.copy(items = state.items.filterNot { it.manga.id == item.manga.id })
+        }
+        item.migrationScope.cancel()
     }
 
     override fun onCleared() {
