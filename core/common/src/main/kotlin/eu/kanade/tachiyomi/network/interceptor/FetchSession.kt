@@ -6,6 +6,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * State of one WebView fetch fallback request: it accumulates the response that the page-world
@@ -19,17 +20,31 @@ import java.util.concurrent.atomic.AtomicLong
  *  - {"t":"data","k":...,"b":<base64 chunk>}
  *  - {"t":"end","k":...}
  *  - {"t":"err","k":...,"m":reason}
+ *
+ * Sequencing is strict: a valid stream is head, zero or more data chunks, then end.
+ * An invalid sequence carrying the session's own key (data/end before head, duplicated
+ * head, head without a status in 100–599) fails the session right away, releasing the
+ * latch so the caller gets a controlled error instead of waiting for the whole operation
+ * timeout.
  */
 internal class FetchSession(
     private val maxBytes: Long,
     keyGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
-    // One-time key stamped into every bridge message; a session only accepts its own
-    // messages, so scripts from other frames/origins can't inject data into it
+    // One-time key stamped into every bridge message. It correlates messages with their
+    // session and keeps concurrent sessions isolated from each other; frames that don't
+    // know the key can't inject into this session. It is NOT a security boundary against
+    // the page itself: the delivery bridge lives in the page world on purpose, and the
+    // page serves the response anyway.
     val key: String = keyGenerator()
 
-    @Volatile var failed: String? = null
-        private set
+    // First failure reason wins: CAS closes the write-write race when two threads fail the
+    // session at once (the OkHttp thread on "evaluate failed: ..." while the main thread
+    // processes a bridge message). An extra countDown would be harmless, but the recorded
+    // reason would depend on thread scheduling.
+    private val failure = AtomicReference<String?>(null)
+    val failed: String?
+        get() = failure.get()
 
     @Volatile var status: Int = 0
         private set
@@ -54,8 +69,7 @@ internal class FetchSession(
     private val assembled = java.io.ByteArrayOutputStream()
 
     fun fail(reason: String) {
-        if (failed == null) {
-            failed = reason
+        if (failure.compareAndSet(null, reason)) {
             latch.countDown()
         }
     }
@@ -65,8 +79,9 @@ internal class FetchSession(
     }
 
     /**
-     * Processes one bridge message. Returns false when the message was rejected as not
-     * belonging to this session (wrong key, message after finishing, oversized...).
+     * Processes one bridge message. Returns false when the message was rejected — wrong
+     * key, message after finishing, or an invalid sequence (which also fails the session
+     * and releases the latch).
      */
     fun onMessage(raw: String?): Boolean {
         val obj = runCatching { JSONObject(raw) }.getOrNull() ?: return false
@@ -74,8 +89,23 @@ internal class FetchSession(
         if (done || failed != null) return false
         when (obj.optString("t")) {
             "head" -> {
-                if (status != 0 || receivedBytes.get() != 0L) return false
-                status = obj.optInt("s")
+                // Data only arrives after a head, so a non-zero status is exactly the
+                // "head already seen" case; only real HTTP statuses (100–599) are accepted,
+                // so a malformed head can't feed an invalid code into the response builder
+                val s = obj.optInt("s")
+                if (status != 0) {
+                    fail("duplicate head")
+                    return false
+                }
+                if (s == 0) {
+                    fail("head without status")
+                    return false
+                }
+                if (s !in 100..599) {
+                    fail("head with invalid status")
+                    return false
+                }
+                status = s
                 statusText = obj.optString("m")
                 val h = obj.optJSONObject("h")
                 if (h != null) {
@@ -83,6 +113,10 @@ internal class FetchSession(
                 }
             }
             "data" -> {
+                if (status == 0) {
+                    fail("data before head")
+                    return false
+                }
                 val bytes = runCatching { Base64.getDecoder().decode(obj.optString("b")) }.getOrNull()
                 if (bytes == null) {
                     fail("chunk decode failed")
@@ -95,9 +129,14 @@ internal class FetchSession(
                 synchronized(bufferLock) { assembled.write(bytes) }
             }
             "end" -> {
-                if (status == 0) return false
-                done = true
+                if (status == 0) {
+                    fail("end before head")
+                    return false
+                }
+                // buffer first, then done: once done is visible, body() is guaranteed
+                // non-null without relying on the latch's happens-before edge
                 synchronized(bufferLock) { buffer = assembled.toByteArray() }
+                done = true
                 latch.countDown()
             }
             "err" -> fail(obj.optString("m").ifBlank { "fetch error" })

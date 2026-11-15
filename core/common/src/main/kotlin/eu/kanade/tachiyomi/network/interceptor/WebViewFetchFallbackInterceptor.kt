@@ -270,25 +270,37 @@ class WebViewFetchFallbackInterceptor(
             }
         }
 
-        session.latch.await(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-
-        val result = assembleResponse(request, session)
-
-        engine?.let { e ->
-            e.sessionRef.set(null)
-            e.inUse.set(false)
-            mainHandler.post {
-                if (result != null) {
-                    if (recordActivation(host) || e.pooled) {
-                        maybePool(origin, e)
+        var result: Response? = null
+        try {
+            try {
+                session.latch.await(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            } catch (_: InterruptedException) {
+                // The OkHttp thread was cancelled mid-wait: put the session in a controlled
+                // failed state instead of propagating, and restore the interrupt flag so the
+                // surrounding call stack still sees the cancellation.
+                session.fail("interrupted")
+                Thread.currentThread().interrupt()
+            }
+            result = assembleResponse(request, session)
+        } finally {
+            // Every exit path (success, failure, timeout, interruption) releases the engine;
+            // without this an interrupted await would leave it marked inUse forever.
+            engine?.let { e ->
+                e.sessionRef.set(null)
+                e.inUse.set(false)
+                mainHandler.post {
+                    if (result != null) {
+                        if (recordActivation(host) || e.pooled) {
+                            maybePool(origin, e)
+                        } else {
+                            destroyEngine(e, checkOutdated = false)
+                        }
                     } else {
-                        destroyEngine(e, checkOutdated = false)
+                        if (e.pooled) {
+                            synchronized(poolMutex) { if (pool[origin] === e) pool.remove(origin) }
+                        }
+                        destroyEngine(e, checkOutdated = true)
                     }
-                } else {
-                    if (e.pooled) {
-                        synchronized(poolMutex) { if (pool[origin] === e) pool.remove(origin) }
-                    }
-                    destroyEngine(e, checkOutdated = true)
                 }
             }
         }
@@ -373,11 +385,14 @@ class WebViewFetchFallbackInterceptor(
         val sessionRef = AtomicReference<FetchSession?>(null)
         val useIsolatedWorld = WebViewFeature.isFeatureSupported(WebViewFeature.JS_INJECTION_IN_FRAME_AND_WORLD)
 
+        // Hoisted so the catch can destroy a WebView whose registration threw halfway; a
+        // leaked WebView keeps its native render process alive until finalization
+        var created: WebView? = null
         return try {
-            val webview = WebView(context).apply {
-                setDefaultSettings()
-                setUserAgent(userAgent)
-            }
+            val webview = WebView(context)
+            created = webview
+            webview.setDefaultSettings()
+            webview.setUserAgent(userAgent)
             val engine = Engine(
                 webview = webview,
                 sessionRef = sessionRef,
@@ -436,6 +451,7 @@ class WebViewFetchFallbackInterceptor(
             engine
         } catch (t: Throwable) {
             logcat(LogPriority.WARN, t) { "Failed to create fallback WebView" }
+            runCatching { created?.destroy() }
             null
         }
     }
