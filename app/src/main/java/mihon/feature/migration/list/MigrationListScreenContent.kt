@@ -340,12 +340,12 @@ private fun MetadataVerdictLine(metadataVerdict: MetadataMatcher.MetadataVerdict
 }
 
 @Composable
-private fun metadataSignalLabel(signal: MetadataMatcher.MetadataVerdict.Signal): String = when (signal) {
-    MetadataMatcher.MetadataVerdict.Signal.AUTHOR -> stringResource(MR.strings.author)
-    MetadataMatcher.MetadataVerdict.Signal.STATUS -> stringResource(MR.strings.status)
-    MetadataMatcher.MetadataVerdict.Signal.DESCRIPTION ->
+private fun metadataSignalLabel(signal: MetadataMatcher.Signal): String = when (signal) {
+    MetadataMatcher.Signal.AUTHOR -> stringResource(MR.strings.author)
+    MetadataMatcher.Signal.STATUS -> stringResource(MR.strings.status)
+    MetadataMatcher.Signal.DESCRIPTION ->
         stringResource(MR.strings.migrationListScreen_signalDescription)
-    MetadataMatcher.MetadataVerdict.Signal.GENRES -> stringResource(MR.strings.migrationListScreen_signalGenres)
+    MetadataMatcher.Signal.GENRES -> stringResource(MR.strings.migrationListScreen_signalGenres)
 }
 
 @Composable
