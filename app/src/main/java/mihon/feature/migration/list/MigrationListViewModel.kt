@@ -311,10 +311,11 @@ class MigrationListViewModel(
             0
         }
         val originalChapterCount = getChapterInfo(manga.id).chapterCount
-        val chaptersBehind = when (val chapterVerdict = MetadataMatcher.validateChapters(
+        val chapterVerdict = MetadataMatcher.validateChapters(
             currentChapterCount = originalChapterCount,
             candidateChapterCount = candidateChapterCount,
-        )) {
+        )
+        val chaptersBehind = when (chapterVerdict) {
             is MetadataMatcher.ChapterVerdict.Rejected -> {
                 logcat(LogPriority.INFO) {
                     "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
