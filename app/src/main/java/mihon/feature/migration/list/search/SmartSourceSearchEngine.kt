@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mihon.domain.manga.model.toDomainManga
+import mihon.feature.migration.repair.MetadataMatcher
 import mihon.feature.migration.repair.TitleMatcher
 import tachiyomi.domain.manga.model.Manga
 
@@ -29,6 +30,12 @@ data class ScoredManga(
      * no title comparison happened, so 1.0 here means "only result", not "same title".
      */
     val isSingleResult: Boolean = false,
+    /**
+     * Outcome of the metadata validation applied after the pick (author/status/description/
+     * genres agreement with the source manga). Null when the pick was not validated — e.g. the
+     * link repair flow, which uses this class without the migration validation gate.
+     */
+    val metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
 )
 
 class SmartSourceSearchEngine(

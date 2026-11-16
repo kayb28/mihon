@@ -189,4 +189,109 @@ object MetadataMatcher {
         val withoutSymbols = NON_WORD_PATTERN.matcher(withoutAccents).replaceAll(" ")
         return MULTI_SPACE_PATTERN.matcher(withoutSymbols).replaceAll(" ").trim()
     }
+
+    /**
+     * Which metadata signals a candidate was validated against. Each signal is only
+     * *evaluated* when both sides have data: a field missing on either side counts neither
+     * for nor against the candidate.
+     */
+    enum class Signal { AUTHOR, STATUS, DESCRIPTION, GENRES }
+
+    /**
+     * Outcome of [validate]. [NoData] is distinct from [Rejected] with zero matches: "the
+     * source gave us nothing to compare" is not "the source contradicted the manga".
+     */
+    sealed interface MetadataVerdict {
+        /** Title passed and at least [MIN_MATCHED_SIGNALS] signals agree. */
+        data class Accepted(val matchedSignals: Set<Signal>) : MetadataVerdict
+
+        /** None of the four fields could be compared; the caller decides the fallback. */
+        data object NoData : MetadataVerdict
+
+        /** Data was present but fewer than [MIN_MATCHED_SIGNALS] signals agree. */
+        data class Rejected(
+            val matchedSignals: Set<Signal>,
+            val evaluatedSignals: Set<Signal>,
+        ) : MetadataVerdict
+    }
+
+    /**
+     * Minimum agreement for a candidate to be accepted once the title criterion passed:
+     * at least 2 of the 4 metadata signals must match.
+     */
+    const val MIN_MATCHED_SIGNALS = 2
+
+    /**
+     * Initial description-similarity threshold (adjustable via preferences at the call
+     * site): normalized descriptions must score at least this much for the signal to match.
+     */
+    const val DEFAULT_DESCRIPTION_THRESHOLD = 0.6
+
+    /**
+     * Compares the source manga's metadata against a candidate's and returns the verdict.
+     * The title criterion is NOT re-checked here — the caller applies it first and only
+     * asks this whether the metadata agrees:
+     *
+     * 1. Author: normalized name sets intersect.
+     * 2. Status: same [StatusCategory], and not [StatusCategory.UNKNOWN] on either side.
+     * 3. Description: similarity ≥ [descriptionThreshold] (normalized Levenshtein).
+     * 4. Genres: intersection ≥ 50% of the smaller genre set.
+     *
+     * A signal is evaluated only when both sides have data for it; if no signal can be
+     * evaluated the verdict is [MetadataVerdict.NoData] — the caller then applies its
+     * configured fallback (the old title-only criterion) instead of rejecting blindly.
+     */
+    fun validate(
+        currentAuthor: String?,
+        currentStatus: Int,
+        currentDescription: String?,
+        currentGenres: List<String>?,
+        candidateAuthor: String?,
+        candidateStatus: Int,
+        candidateDescription: String?,
+        candidateGenres: List<String>?,
+        descriptionThreshold: Double = DEFAULT_DESCRIPTION_THRESHOLD,
+    ): MetadataVerdict {
+        val evaluated = mutableSetOf<Signal>()
+        val matched = mutableSetOf<Signal>()
+
+        val currentAuthors = normalizeAuthors(currentAuthor)
+        val candidateAuthors = normalizeAuthors(candidateAuthor)
+        if (currentAuthors.isNotEmpty() && candidateAuthors.isNotEmpty()) {
+            evaluated += Signal.AUTHOR
+            if (currentAuthors.intersect(candidateAuthors).isNotEmpty()) matched += Signal.AUTHOR
+        }
+
+        val currentStatusCategory = normalizeStatus(currentStatus)
+        val candidateStatusCategory = normalizeStatus(candidateStatus)
+        if (currentStatusCategory != StatusCategory.UNKNOWN && candidateStatusCategory != StatusCategory.UNKNOWN) {
+            evaluated += Signal.STATUS
+            if (currentStatusCategory == candidateStatusCategory) matched += Signal.STATUS
+        }
+
+        val currentDescriptionNormalized = normalizeDescription(currentDescription)
+        val candidateDescriptionNormalized = normalizeDescription(candidateDescription)
+        if (currentDescriptionNormalized.isNotEmpty() && candidateDescriptionNormalized.isNotEmpty()) {
+            evaluated += Signal.DESCRIPTION
+            if (descriptionSimilarity(currentDescription, candidateDescription) >= descriptionThreshold) {
+                matched += Signal.DESCRIPTION
+            }
+        }
+
+        val currentGenreSet = normalizeGenres(currentGenres)
+        val candidateGenreSet = normalizeGenres(candidateGenres)
+        if (currentGenreSet.isNotEmpty() && candidateGenreSet.isNotEmpty()) {
+            evaluated += Signal.GENRES
+            val smallerSize = minOf(currentGenreSet.size, candidateGenreSet.size)
+            if (currentGenreSet.intersect(candidateGenreSet).size * 2 >= smallerSize) {
+                matched += Signal.GENRES
+            }
+        }
+
+        return when {
+            evaluated.isEmpty() -> MetadataVerdict.NoData
+            matched.size >= MIN_MATCHED_SIGNALS -> MetadataVerdict.Accepted(matched.toSet())
+            else -> MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
+        }
+    }
 }

@@ -131,7 +131,10 @@ class MetadataMatcherTest {
         // Accented/punctuated vs plain: same normalized text → 1.0.
         assertEquals(
             1.0,
-            MetadataMatcher.descriptionSimilarity("Un héroe esqueleto, condenado a luchar.", "un heroe esqueleto condenado a luchar"),
+            MetadataMatcher.descriptionSimilarity(
+                "Un héroe esqueleto, condenado a luchar.",
+                "un heroe esqueleto condenado a luchar",
+            ),
             1e-9,
         )
     }
@@ -149,5 +152,202 @@ class MetadataMatcherTest {
     fun `description similarity with a blank side is zero`() {
         assertEquals(0.0, MetadataMatcher.descriptionSimilarity(null, "algo"), 1e-9)
         assertEquals(0.0, MetadataMatcher.descriptionSimilarity("algo", ""), 1e-9)
+    }
+
+    @Test
+    fun `validate accepts when two signals match`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Yoshihiro Togashi",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = null,
+            candidateAuthor = "yoshihiro togashi",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.AUTHOR, MetadataMatcher.Signal.STATUS),
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
+        )
+    }
+
+    @Test
+    fun `validate rejects when only one signal matches`() {
+        // Same author, but the description clearly talks about another work.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Yoshihiro Togashi",
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = "Un heroe esqueleto condenado a luchar contra el rey demonio.",
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Yoshihiro Togashi",
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = "Una historia de amor entre dos estudiantes de secundaria.",
+            candidateGenres = listOf("Romance", "Drama"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.AUTHOR),
+            (verdict as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+        )
+        assertEquals(
+            setOf(MetadataMatcher.Signal.AUTHOR, MetadataMatcher.Signal.DESCRIPTION, MetadataMatcher.Signal.GENRES),
+            verdict.evaluatedSignals,
+        )
+    }
+
+    @Test
+    fun `validate reports no data when neither side has comparable fields`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = null,
+            currentGenres = null,
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.NoData)
+    }
+
+    @Test
+    fun `validate does not evaluate signals missing on one side`() {
+        // Author only on the candidate side: not evaluated, cannot count for or against.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Acción"),
+            candidateAuthor = "Alguien",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Action", "Aventura"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
+        )
+    }
+
+    @Test
+    fun `validate ignores status when either side is unknown`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = null,
+            currentGenres = null,
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.NoData)
+    }
+
+    @Test
+    fun `validate description signal respects threshold`() {
+        val current = "Un heroe esqueleto condenado a luchar contra el ejercito del rey demonio."
+        val candidateSame = "Un héroe esqueleto condenado a luchar contra el ejército del rey demonio."
+        // Identical after normalization → similarity 1.0 ≥ 0.6 → DESCRIPTION matched.
+        // It is the only evaluated signal, so the verdict is Rejected (1 < 2) — the point
+        // here is that the signal itself matched.
+        val sameDescription = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = current,
+            currentGenres = null,
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = candidateSame,
+            candidateGenres = null,
+        )
+        assertTrue(sameDescription is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.DESCRIPTION),
+            (sameDescription as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+        )
+
+        val candidateDifferent = "Una historia de amor entre dos estudiantes de secundaria en Tokyo."
+        val differentDescription = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = current,
+            currentGenres = null,
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = candidateDifferent,
+            candidateGenres = null,
+        )
+        assertTrue(differentDescription is MetadataMatcher.MetadataVerdict.Rejected)
+        assertTrue(
+            (differentDescription as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `validate genres signal needs half of the smaller set`() {
+        // "Acción" overlaps: 1 of the smaller set of 2 = exactly 50% → genres matched.
+        // Status unknown on both sides → only one signal evaluated → still rejected.
+        val halfOverlap = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Aventura", "Drama", "Comedia"),
+        )
+        assertTrue(halfOverlap is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.GENRES),
+            (halfOverlap as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+        )
+
+        // Below 50% of the smaller set: 1 overlapping genre of smaller set of 4 →
+        // 1*2 = 2 < 4 → genres NOT matched. Only status agrees, so still rejected.
+        val belowHalf = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy", "Drama", "Misterio"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Aventura", "Comedia", "Romance"),
+        )
+        assertTrue(belowHalf is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.STATUS),
+            (belowHalf as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+        )
+        assertEquals(
+            setOf(MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
+            belowHalf.evaluatedSignals,
+        )
+
+        // No overlap at all: genres evaluated but not matched; status equal is the only match.
+        val none = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Drama"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Romance", "Comedia", "Deportes", "Misterio"),
+        )
+        assertTrue(none is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.STATUS),
+            (none as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+        )
+        assertEquals(
+            setOf(MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
+            none.evaluatedSignals,
+        )
     }
 }

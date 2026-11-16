@@ -145,6 +145,26 @@ class SourcePreferences(
         40,
     )
 
+    /**
+     * Minimum description similarity (as a percentage, 0-100) for the description metadata
+     * signal to count as a match during migration candidate validation. Stored as Int because
+     * the preference store has no float support.
+     */
+    val migrationMetadataDescriptionThreshold: Preference<Int> = preferenceStore.getInt(
+        "migration_metadata_description_threshold",
+        60,
+    )
+
+    /**
+     * When a migration candidate carries none of the four metadata fields (author, status,
+     * description, genres), the old title-only criterion stays available as a fallback:
+     * enabled (default) accepts it and marks it "no data to validate"; disabled rejects it.
+     */
+    val migrationMetadataFallbackToTitle: Preference<Boolean> = preferenceStore.getBoolean(
+        "migration_metadata_fallback_to_title",
+        true,
+    )
+
     fun sourceClassification(sourceId: Long): SourceClassification =
         sourceClassificationFor(sourceId, sourceClassifications.get())
 
