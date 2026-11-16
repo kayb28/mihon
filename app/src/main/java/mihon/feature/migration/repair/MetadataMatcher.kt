@@ -267,22 +267,77 @@ object MetadataMatcher {
     )
 
     /**
+     * Sub-genre vocabulary added after the real-device false positives of phase 3: two
+     * works of the SAME sub-genre share these on every synopsis, so they are not evidence
+     * of the same work. "Regresor" (regression fantasy) and "El regreso de mi ex" (romantic
+     * second-chance) both counted "regresa/universidad/oportunidad/destino" as narrative
+     * anchors — the vocabulary of the second-chance sub-genre, not of either work. Same
+     * root for the tower/volleyball pair: tower-climb and campus-romance boilerplate.
+     */
+    private val SUBGENRE_WORDS = setOf(
+        // Regression / time-travel fantasy boilerplate
+        "regresa", "regreso", "regresion", "regresor", "regresar", "regresan", "volver",
+        "vuelve", "volvio", "pasado", "segunda", "oportunidad", "cambia", "cambiar",
+        "cambio", "cambió", "elige", "elegir", "corregir", "destino", "futuro", "arrepentido",
+        "regret", "returns", "returned", "back", "past", "second", "chance", "again",
+        // Campus romance / rom-com boilerplate
+        "universidad", "colegio", "instituto", "campus", "romance", "romantica", "amor",
+        "amiga", "amigo", "novia", "novio", "ex", "expareja", "exesposa", "exnovia",
+        "college", "university", "love", "loves", "crush", "girlfriend", "boyfriend",
+        "date", "dating", "kiss", "popular", "guapo", "guapa", "hermosa", "atractivo",
+        // Tower-climb / hunter boilerplate
+        "torre", "piso", "planta", "nivel", "niveles", "escala", "escalar", "escalando",
+        "ascenso", "desafiar", "desafio", "portero", "cazador", "cazadores", "monstruos",
+        "puertas", "gate", "gates", "tower", "floor", "climb", "hunter", "hunters",
+        "monsters", "challenge", "clearing",
+        // Volleyball / sports rom-com boilerplate (Ookii's own sub-genre)
+        "equipo", "team", "entrenamiento", "partido", "voleibol", "volleyball", "sport",
+        "sports", "coach", "capitan", "captain",
+    )
+
+    /**
+     * Korean particle suffixes in their romanized form: when Korean glue does not use
+     * spaces ("bremen을" → "bremeneul"), the fused token ends in one of these. Anchors may
+     * match such a fused token by stripping the suffix, which is how a hangul description
+     * anchors on the same proper noun as a Latin one ("bremeneul" ↔ "bremen") — without
+     * opening the prefix loophole that let "regresa" match "regresar".
+     */
+    private val KOREAN_PARTICLE_SUFFIXES = listOf(
+        "eul", "reul", "eun", "neun", "ega", "ga", "eseo", "ese", "ro", "ro", "wa", "gwa",
+        "man", "boda", "cheoreom", "hago", "hago",
+    )
+
+    /**
      * How many distinct narrative anchors (non-generic specific words: character names,
-     * occupations, places, powers) [b]'s description shares with [a]'s. Korean does not
-     * delimit particles with spaces — "bremen을" romanizes to the fused token
-     * "bremeneul" — so an anchor matches on equality OR on one token being a ≥4-letter
-     * prefix of the other ("junjikeun" ↔ "junjik", "potterro" ↔ "potter"); the length
-     * floor keeps short generic fragments ("cha" matching "chapter") out.
+     * occupations, places, powers) [b]'s description shares with [a]'s. An anchor is
+     * DISTINCTIVE: at least [MIN_ANCHOR_LENGTH] letters, outside the genre boilerplate
+     * ([GENERIC_WORDS]) AND the sub-genre boilerplate ([SUBGENRE_WORDS]). Korean glue is
+     * unblocked by stripping a romanized particle suffix ("bremeneul" → "bremen"), never
+     * by raw prefix matching: prefixes are how sub-genre vocabulary ("regresa" matching
+     * "regresar") masqueraded as evidence in the phase-3 false positives.
      */
     fun narrativeOverlap(a: String?, b: String?): Int {
         val tokensA = anchorTokens(a)
         val tokensB = anchorTokens(b)
         if (tokensA.isEmpty() || tokensB.isEmpty()) return 0
-        return tokensB.count { token ->
-            tokensA.any { other ->
-                other == token ||
-                    (other.length >= 4 && token.length >= 4 && (other.startsWith(token) || token.startsWith(other)))
-            }
+        return tokensB.count { token -> tokensA.any { other -> anchorsMatch(other, token) } }
+    }
+
+    /**
+     * Minimum length a word must reach to count as a narrative anchor at all: below this
+     * the word is too easy to collide across unrelated synopses ("torre" vs "torture").
+     */
+    const val MIN_ANCHOR_LENGTH = 4
+
+    private fun anchorsMatch(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (a.length < MIN_ANCHOR_LENGTH || b.length < MIN_ANCHOR_LENGTH) return false
+        // Korean glue only: one side must be the other side plus a romanized particle
+        // suffix — "bremeneul" == "bremen" + "eul". A bare prefix (regresa/regresar) is
+        // deliberately NOT an anchor match anymore.
+        return KOREAN_PARTICLE_SUFFIXES.any { suffix ->
+            (a.endsWith(suffix) && a.removeSuffix(suffix) == b) ||
+                (b.endsWith(suffix) && b.removeSuffix(suffix) == a)
         }
     }
 
@@ -296,7 +351,7 @@ object MetadataMatcher {
         val normalized = normalizeDescription(romanized)
         if (normalized.isEmpty()) return emptySet()
         return normalized.split(" ")
-            .filter { it.length >= 3 && it !in GENERIC_WORDS }
+            .filter { it.length >= MIN_ANCHOR_LENGTH && it !in GENERIC_WORDS && it !in SUBGENRE_WORDS }
             .toSet()
     }
 
@@ -450,6 +505,16 @@ object MetadataMatcher {
         data object Rejected : ChapterVerdict
 
         /**
+         * Identity of the work may well be right, but the source is NOT USEFUL to keep reading
+         * (phase 3): the candidate passes the ratio floor yet trails by an absolute gap no
+         * reader would migrate into — 93/211 chapters is "correct work, wrong mirror", not an
+         * alternative comparable to one that is one or two chapters behind. The work is not
+         * offered as a migration destination, but this is a VIABILITY verdict, not an identity
+         * one: the same source may still be perfect for other titles.
+         */
+        data object NotViable : ChapterVerdict
+
+        /**
          * Accepted; [chaptersBehind] is positive when the candidate trails the library copy by
          * more than [CHAPTER_BEHIND_TOLERANCE] chapters (shown as a warning line), zero when the
          * counts are close enough or the candidate has more chapters than the library copy.
@@ -469,15 +534,40 @@ object MetadataMatcher {
     const val CHAPTER_BEHIND_TOLERANCE = 5
 
     /**
+     * Absolute gap past which a ratio-passing candidate stops being a useful migration
+     * destination altogether ([ChapterVerdict.NotViable]). Calibrated on the real-device
+     * phase-3 report: the two observed false-positive migrations carried 93 and 62 chapters
+     * of delay while the healthy matches reported 1-2; a weekly serial amasses ~25 chapters
+     * per quarter, so a source 26+ chapters behind is months stale. Gaps in
+     * (CHAPTER_BEHIND_TOLERANCE, CHAPTER_NOT_VIABLE_GAP] stay accepted with the «Va N caps
+     * atrás» warning so borderline mirrors remain visible choices.
+     */
+    const val CHAPTER_NOT_VIABLE_GAP = 25
+
+    /**
      * Compares the library manga's chapter count against the candidate's. Unknown counts on
      * either side (0, missing, failed fetch) never reject: the gate skips and the metadata
      * gate (with its configured fallback) decides.
+     *
+     * Viability policy (phase 3): ratio under [CHAPTER_REJECT_RATIO] rejects; ratio at or
+     * above it but a very large absolute delay — over [CHAPTER_NOT_VIABLE_GAP] chapters —
+     * is [ChapterVerdict.NotViable]: same work, useless source, not offered as a
+     * destination. Smaller delays stay accepted, with the «Va N caps atrás» flag past
+     * [CHAPTER_BEHIND_TOLERANCE].
+     *
+     * Note on short series: an explicit small-series window turned out to be dead code —
+     * once the ratio floor of 0.5 holds, the candidate trails by at most half the original
+     * (behind ≤ original - 0.5·original = 0.5·original), so the gap ALREADY scales with the
+     * original's size. A separate cutoff would only ever fire above 50 chapters, where the
+     * absolute gap is the meaningful measure anyway: 25 behind a 60-chapter series is
+     * "months stale", 25 behind a 200-chapter series is "a season catch-up".
      */
     fun validateChapters(currentChapterCount: Int, candidateChapterCount: Int): ChapterVerdict {
         if (currentChapterCount <= 0 || candidateChapterCount <= 0) return ChapterVerdict.Skip
         val ratio = candidateChapterCount.toDouble() / currentChapterCount
         if (ratio < CHAPTER_REJECT_RATIO) return ChapterVerdict.Rejected
         val behind = currentChapterCount - candidateChapterCount
+        if (ratio <= 1.0 && behind > CHAPTER_NOT_VIABLE_GAP) return ChapterVerdict.NotViable
         val flaggedBehind = ratio <= 1.0 && behind > CHAPTER_BEHIND_TOLERANCE
         return ChapterVerdict.Accepted(if (flaggedBehind) behind else 0)
     }
@@ -498,7 +588,13 @@ object MetadataMatcher {
      * The identity decision, pure so it can be unit tested: how a candidate's metadata
      * verdict combines with its title level.
      *
-     * - Accepted verdicts always identify (any title level).
+     * - Accepted verdicts always identify (any title level) — EXCEPT the weak-signal shape:
+     *   status+genres only, with neither author nor description having been evaluated as a
+     *   match. Status is unreliable (sources keep "completed" works updating) and genres
+     *   are sub-genre-wide, so that pair identifying a FUZZY/NONE title is exactly the
+     *   phase-3 false positive ("Regresor"→"El regreso de mi ex": status+genres agreed on
+     *   two different works of the same sub-genre). All ten real-device positives carry
+     *   EXACT/ROMANIZED titles, so the requirement costs them nothing.
      * - Rejected verdicts identify only when the title is STRONG ([STRONG_TITLE_LEVELS])
      *   AND the verdict does not outright contradict the candidate: at least one signal
      *   agreed, and no signal was evaluated-and-disagreed while none agreed. A pair whose
@@ -507,11 +603,22 @@ object MetadataMatcher {
      * - NoData follows the title: strong titles identify on their own (a source that
      *   extracted no fields at all is not evidence of a different work — see extraction
      *   quality), weak ones fall back to the configured [fallbackToTitle].
+     *
+     * Phase 3 guard: when DESCRIPTION matched but nothing else did, the pair is never the
+     * same work however strong the title is. A lone description match is the classic false
+     * positive shape ("torre→Ookii": status+description agreed on two unrelated works) —
+     * description boilerplate travels across sub-genres, so it only counts as identity
+     * evidence together with a second, non-status signal (author or genres).
      */
     fun isSameWork(verdict: MetadataVerdict, titleLevel: TitleLevel, fallbackToTitle: Boolean): Boolean {
         return when (verdict) {
-            is MetadataVerdict.Accepted -> true
+            is MetadataVerdict.Accepted -> {
+                val weakSignalsOnly = Signal.AUTHOR !in verdict.matchedSignals &&
+                    Signal.DESCRIPTION !in verdict.matchedSignals
+                if (weakSignalsOnly) titleLevel in STRONG_TITLE_LEVELS else true
+            }
             is MetadataVerdict.Rejected -> {
+                if (verdict.matchedSignals == setOf(Signal.DESCRIPTION)) return false
                 titleLevel in STRONG_TITLE_LEVELS &&
                     verdict.matchedSignals.isNotEmpty() &&
                     verdict.matchedSignals.size >= verdict.evaluatedSignals.size / 2
