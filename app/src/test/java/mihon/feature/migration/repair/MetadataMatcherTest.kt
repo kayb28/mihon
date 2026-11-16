@@ -660,4 +660,75 @@ class MetadataMatcherTest {
             (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
         )
     }
+
+    // ------------------------------------------------------------------
+    // Title-only fallback: disabled by default, so a candidate that gives
+    // no metadata at all stays "no data to validate" and is not accepted.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `propuesta laboral 124 con candidata sin datos is rejected without title fallback`() {
+        // Caso real del usuario: la candidata no da ningún campo de metadatos (ni capítulos
+        // conocidos). La puerta de capítulos salta, el veredicto es NoData («Sin datos para
+        // validar») y, con el respaldo por título desactivado (default nuevo), no se acepta.
+        assertTrue(MetadataMatcher.validateChapters(124, 0) is MetadataMatcher.ChapterVerdict.Skip)
+
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = "Una propuesta de trabajo inesperada cambia la vida del protagonista.",
+            currentGenres = listOf("Drama", "Romance"),
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.NoData)
+        assertFalse(MetadataMatcher.isAccepted(verdict, fallbackToTitle = false))
+    }
+
+    @Test
+    fun `title-only fallback accepts no-data candidate when explicitly enabled`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = "Una propuesta de trabajo inesperada cambia la vida del protagonista.",
+            currentGenres = listOf("Drama", "Romance"),
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.NoData)
+        assertTrue(MetadataMatcher.isAccepted(verdict, fallbackToTitle = true))
+    }
+
+    @Test
+    fun `isAccepted always passes accepted and blocks rejected verdicts regardless of fallback`() {
+        val accepted = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(accepted is MetadataMatcher.MetadataVerdict.Accepted)
+        assertTrue(MetadataMatcher.isAccepted(accepted, fallbackToTitle = false))
+
+        val rejected = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Otro Autor",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(rejected is MetadataMatcher.MetadataVerdict.Rejected)
+        assertFalse(MetadataMatcher.isAccepted(rejected, fallbackToTitle = true))
+    }
 }
