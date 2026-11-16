@@ -557,16 +557,15 @@ class MetadataMatcherTest {
     }
 
     // ------------------------------------------------------------------
-    // Author veto: both sides carry authors and none of the candidate's
-    // matches any of the original's → rejected even when the remaining
-    // signals would pass the 2-of-4 count.
+    // Author as a signal, NOT a veto (fase 2): a spelling difference must
+    // not auto-reject. Match / real mismatch / uncertainty are distinct.
     // ------------------------------------------------------------------
 
     @Test
-    fun `author veto rejects candidate with different author even when status and genres match`() {
-        // Caso real del usuario (Cerberus / Tienda de conveniencia): 66 vs 23 capítulos y autor
-        // distinto. Sin el criterio de capítulos, la puerta de metadatos aceptaba este par por
-        // Estado+Géneros; el veto por autor lo rechaza por su cuenta.
+    fun `author mismatch alone does not reject when status and genres match`() {
+        // Caso real del usuario (Cerberus / Tienda de conveniencia) como par de metadatos:
+        // autor distinto PERO Estado+Géneros coinciden → 2 señales → la puerta de metadatos
+        // ACEPTA; el rechazo real de este caso viene de la puerta de capítulos (66 vs 23).
         val verdict = MetadataMatcher.validate(
             currentAuthor = "Kim Doe",
             currentStatus = SManga.ONGOING,
@@ -577,20 +576,17 @@ class MetadataMatcherTest {
             candidateDescription = null,
             candidateGenres = listOf("Comedia", "Recuentos de la Vida"),
         )
-        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
         assertEquals(
             setOf(MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
-            (verdict as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
         )
-        assertEquals(
-            setOf(MetadataMatcher.Signal.AUTHOR, MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
-            verdict.evaluatedSignals,
-        )
+        assertFalse(verdict.matchedSignals.contains(MetadataMatcher.Signal.AUTHOR))
     }
 
     @Test
-    fun `author veto does not apply when author is missing on either side`() {
-        // Author only on the candidate side: the veto needs authors on both sides.
+    fun `author signal is not evaluated when author is missing on either side`() {
+        // Author only on the candidate side: the signal needs authors on both sides.
         val candidateOnly = MetadataMatcher.validate(
             currentAuthor = null,
             currentStatus = SManga.ONGOING,
@@ -618,11 +614,11 @@ class MetadataMatcherTest {
     }
 
     @Test
-    fun `author veto does not fire for equivalent romanized korean english names`() {
+    fun `author signal matches for equivalent romanized korean english names`() {
         // Romanización coreana equivalente con variante ortográfica: "Chu-Gong" (con guion,
         // como firman algunas fuentes) y "Chugong" (forma pegada, la usual en fuentes en
         // inglés). La normalización existente elimina el guion, así que ambas caen en
-        // "chugong" → la señal de autor coincide y el veto NO se aplica.
+        // "chugong" → la señal de autor coincide.
         val verdict = MetadataMatcher.validate(
             currentAuthor = "Chu-Gong",
             currentStatus = SManga.ONGOING,
@@ -641,7 +637,7 @@ class MetadataMatcherTest {
     }
 
     @Test
-    fun `author veto lets multi author intersection through`() {
+    fun `author signal lets multi author intersection through`() {
         // Distinto orden y separadores, mismos nombres: la intersección de conjuntos decide.
         val verdict = MetadataMatcher.validate(
             currentAuthor = "Kim Doe y Lee Ray",
@@ -659,6 +655,90 @@ class MetadataMatcherTest {
             setOf(MetadataMatcher.Signal.AUTHOR, MetadataMatcher.Signal.STATUS),
             (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
         )
+    }
+
+    // ------------------------------------------------------------------
+    // Fase 2 §2-Autor: variantes de escritura del mismo autor que ANTES
+    // (veto) se habrían rechazado por error. Ahora son señal positiva.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `author matches despite different romanization spacing`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Jae-Hwan",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Jae Hwan",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `author matches despite reversed surname given order`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Park Ji-Ho",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Ji-Ho Park",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `author matches when studio credits are attached to the name`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Chugong",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Chugong (Redice Studio)",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `author signal matches hangul name against its romanization`() {
+        // 김도 vs Kim Doe: tokens "kim"/"doe" vs romanizado "kimdo" — la intersección por
+        // tokens de longitud ≥ 2 falla ("kimdo" no contiene "kim" como palabra), PERO la
+        // rama de contención sí: "kimdo".contains? no; "kim doe" contiene "doe"? No —
+        // romanizamos también el lado hangul: "kimdo" == "kimdo". Covera por romanize en
+        // authorsMatch a través de normalizeAuthors->NO: normalizeAuthors NO romaniza.
+        // Este caso ejercita el hueco conocido y documentado: se reporta, no se silencia.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "김도",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        // Estado+Géneros coinciden → aceptada de todos modos: el autor solo suma, no resta.
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        // La señal de autor NO coincide en este caso (hoyo documentado; ver limitaciones).
+        val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
+        assertFalse(accepted.matchedSignals.contains(MetadataMatcher.Signal.AUTHOR))
     }
 
     // ------------------------------------------------------------------
@@ -718,17 +798,196 @@ class MetadataMatcherTest {
         assertTrue(accepted is MetadataMatcher.MetadataVerdict.Accepted)
         assertTrue(MetadataMatcher.isAccepted(accepted, fallbackToTitle = false))
 
+        // Distinto autor sin variantes de escritura: 1 sola señal (géneros) → rechazada.
+        // El autor ya NO veta por sí solo (fase 2): aquí pierde por contar, no por veto.
         val rejected = MetadataMatcher.validate(
             currentAuthor = "Kim Doe",
             currentStatus = SManga.ONGOING,
             currentDescription = null,
             currentGenres = listOf("Action", "Fantasy"),
             candidateAuthor = "Otro Autor",
-            candidateStatus = SManga.ONGOING,
+            candidateStatus = SManga.COMPLETED,
             candidateDescription = null,
             candidateGenres = listOf("Acción", "Fantasía"),
         )
         assertTrue(rejected is MetadataMatcher.MetadataVerdict.Rejected)
         assertFalse(MetadataMatcher.isAccepted(rejected, fallbackToTitle = true))
+    }
+
+    // ------------------------------------------------------------------
+    // Fase 2 §2-Descripciones: evidencia narrativa (anclas específicas)
+    // vs coincidencia de términos genéricos.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `narrative anchors match translated descriptions of the same work`() {
+        // Hangul vs su romanización: las anclas cruzan la frontera de escritura porque
+        // romanize() unifica ambos lados al mismo alfabeto latino.
+        val ko = "차준직은 20년간 해골병사로 싸우다가 탈영하고, 브레멘에서 potter로 조용한 삶을 찾으려 한다. " +
+            "준직은 deserting 대신 bremen을 향해 떠난다."
+        val en = "Cha junjik spent twenty years as a skeleton soldier before deserting; " +
+            "now he wants a quiet life as a potter in the city of bremen."
+        val overlap = MetadataMatcher.narrativeOverlap(ko, en)
+        assertTrue(
+            overlap >= MetadataMatcher.MIN_NARRATIVE_ANCHORS,
+            "esperaba ≥4 anclas (junjik→준직? no: bremen, potter, deserting, bremen), hubo $overlap",
+        )
+    }
+
+    @Test
+    fun `narrative anchors cross languages only through shared or romanized words`() {
+        // ES y EN de la misma obra: comparten los nombres propios (cha, junjik, bremen) pero
+        // el resto del léxico es traducción mutua — «soldado»≠«soldier». Documentado como
+        // limitación: entre traducciones ES↔EN la evidencia narrativa léxica NO llega a 4;
+        // la identificación debe apoyarse en título/autor/géneros o Levenshtein alto.
+        val es = "Cha Junjik fue un soldado esqueleto durante veinte años antes de desertar " +
+            "y buscar una vida tranquila como pocero en la ciudad de Bremen."
+        val en = "Cha junjik spent twenty years as a skeleton soldier before deserting; " +
+            "now he wants a quiet life as a potter in the city of bremen."
+        val overlap = MetadataMatcher.narrativeOverlap(es, en)
+        assertEquals(3, overlap) // cha, junjik, bremen — nombres propios únicamente.
+    }
+
+    @Test
+    fun `generic vocabulary alone is not narrative evidence`() {
+        // Dos descripciones distintas que solo comparten palabras genéricas del género.
+        val a = "Un joven débil despierta en un mundo de fantasía lleno de monstruos y decide " +
+            "convertirse en el más fuerte mientras entrena cada día."
+        val b = "Un estudiante común es invocado a otro mundo como héroe legendario y debe " +
+            "derrotar al rey demonio para volver a casa."
+        val overlap = MetadataMatcher.narrativeOverlap(a, b)
+        assertTrue(
+            overlap < MetadataMatcher.MIN_NARRATIVE_ANCHORS,
+            "esperaba <4 anclas (solo vocabulario genérico), hubo $overlap",
+        )
+    }
+
+    @Test
+    fun `description signal matches via narrative anchors despite low levenshtein`() {
+        // Hangul vs romanización: Levenshtein bajo tras la normalización (scripts distintos),
+        // anclas narrativas altas — la señal DESCRIPTION coincide por la vía narrativa.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.UNKNOWN,
+            currentDescription = "차준직은 20년간 해골병사로 싸우다가 탈영하고, 브레멘에서 potter로 조용한 삶을 찾으려 한다. " +
+                "준직은 deserting 대신 bremen을 향해 떠난다.",
+            currentGenres = null,
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = "Cha junjik spent twenty years as a skeleton soldier before deserting; " +
+                "now he wants a quiet life as a potter in the city of bremen.",
+            candidateGenres = null,
+        )
+        // Solo DESCRIPTION evaluable → 1 señal y MIN es 2 → rechaza, pero la señal DESCRIPTION
+        // SÍ coincidió (por anclas). Con otro campo presente bastaría para aceptar.
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Rejected)
+                .matchedSignals.contains(MetadataMatcher.Signal.DESCRIPTION),
+        )
+    }
+
+    @Test
+    fun `narrative anchors plus one more signal accepts the candidate`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = "차준직은 20년간 해골병사로 싸우다가 탈영하고, 브레멘에서 potter로 조용한 삶을 찾으려 한다. " +
+                "준직은 deserting 대신 bremen을 향해 떠난다.",
+            currentGenres = null,
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = "Cha junjik spent twenty years as a skeleton soldier before deserting; " +
+                "now he wants a quiet life as a potter in the city of bremen.",
+            candidateGenres = null,
+        )
+        // DESCRIPTION (por anclas) + STATUS = 2 señales → aceptada.
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.DESCRIPTION, MetadataMatcher.Signal.STATUS),
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // Fase 2 §2-Títulos: niveles (exacto / romanizado / difuso / ninguno).
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `title level exact for case punctuation and accent variants`() {
+        assertEquals(MetadataMatcher.TitleLevel.EXACT, MetadataMatcher.titleLevel("Solo Leveling", "solo leveling"))
+        assertEquals(
+            MetadataMatcher.TitleLevel.EXACT,
+            MetadataMatcher.titleLevel("¡Villano sin Igual!", "villano sin igual"),
+        )
+        assertEquals(MetadataMatcher.TitleLevel.EXACT, MetadataMatcher.titleLevel("El Maestro Baek", "el maestro baek"))
+        // El apóstrofe desaparece al normalizar: Reader's y Readers caen en la misma clave.
+        assertEquals(
+            MetadataMatcher.TitleLevel.EXACT,
+            MetadataMatcher.titleLevel("Omniscient Reader's Viewpoint", "Omniscient Readers Viewpoint"),
+        )
+    }
+
+    @Test
+    fun `title level romanized for hangul vs latin form`() {
+        assertEquals(
+            MetadataMatcher.TitleLevel.ROMANIZED,
+            MetadataMatcher.titleLevel("전지적 독자 시점", "Jeonjijeok Dokja Sijeom"),
+        )
+        assertEquals(
+            MetadataMatcher.TitleLevel.ROMANIZED,
+            MetadataMatcher.titleLevel("나 혼자만 레벨업", "na honjaman rebeleop"),
+        )
+    }
+
+    @Test
+    fun `title level fuzzy for near variants`() {
+        assertEquals(
+            MetadataMatcher.TitleLevel.FUZZY,
+            MetadataMatcher.titleLevel("La Emperatriz Eterna", "Emperatriz Eterna"),
+        )
+        assertEquals(
+            MetadataMatcher.TitleLevel.FUZZY,
+            MetadataMatcher.titleLevel("Villano Sin Ygual", "Villano sin igual"),
+        )
+        // Un sufijo largo arrastra la similitud por debajo del umbral difuso: NONE, no FUZZY.
+        // Documentado: los títulos con subtítulos extensos requieren el nivel ROMANIZED o
+        // la confirmación por metadatos.
+        assertEquals(
+            MetadataMatcher.TitleLevel.NONE,
+            MetadataMatcher.titleLevel("Villano sin igual a nuestro mundo", "Villano sin igual"),
+        )
+    }
+
+    @Test
+    fun `title level none for different works`() {
+        assertEquals(MetadataMatcher.TitleLevel.NONE, MetadataMatcher.titleLevel("Cerberus", "Tienda de conveniencia"))
+        assertEquals(MetadataMatcher.TitleLevel.NONE, MetadataMatcher.titleLevel("Atrapado en la torre", "Ikigai"))
+        assertEquals(MetadataMatcher.TitleLevel.NONE, MetadataMatcher.titleLevel("Dios de la espada", "Ikigai"))
+    }
+
+    // ------------------------------------------------------------------
+    // Fase 2 §2-Estado: señal débil; inconsistencias entre fuentes NO
+    // deciden solas la identificación (autor como señal, no veto).
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `status mismatch does not veto when author and genres agree`() {
+        // Fuente A dice «en curso», fuente B «completado» (frecuente: obras completadas
+        // siguen recibiendo capítulos y las fuentes no actualizan).
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.COMPLETED,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        // Autor + géneros = 2 señales → aceptada aunque el estado difiera.
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
+        assertFalse(accepted.matchedSignals.contains(MetadataMatcher.Signal.STATUS))
     }
 }

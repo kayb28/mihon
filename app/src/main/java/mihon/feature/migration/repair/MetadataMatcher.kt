@@ -228,17 +228,144 @@ object MetadataMatcher {
     const val DEFAULT_DESCRIPTION_THRESHOLD = 0.6
 
     /**
-     * Compares the source manga's metadata against a candidate's and returns the verdict.
-     * The title criterion is NOT re-checked here — the caller applies it first and only
-     * asks this whether the metadata agrees:
+     * Author agreement, tolerant to how scan sources actually write the same name:
      *
-     * 1. Author: normalized name sets intersect. When both sides carry authors and none
-     *    intersects, the candidate is vetoed outright — even if status, description and
-     *    genres all agree (a remake or a same-title different-work entry by another
-     *    author). When the author is missing on either side the veto does not apply and
-     *    the field simply does not evaluate.
+     * - Full-name intersection ("Kim Doe" on both sides) — the exact case.
+     * - Token overlap ("Kim Jae-Hwan" vs "Jae Hwan Kim"): romanization spacing, punctuation
+     *   and surname/given-name order flip constantly between sources.
+     * - Containment ("Chugong" vs "Chugong (Redice Studio)" or "Gim Do" vs "Do"): studio
+     *   credits and initials-only forms still point at the same person.
+     *
+     * Anything else is a real mismatch for this pair — but callers treat AUTHOR as ONE signal
+     * among four (no veto): the pair above is a match, "Kim Doe" vs "Park Joo" is not.
+     */
+    private fun authorsMatch(current: Set<String>, candidate: Set<String>): Boolean {
+        if (current.intersect(candidate).isNotEmpty()) return true
+        val currentTokens = current.flatMap { it.split(" ") }.filter { it.length >= 2 }.toSet()
+        val candidateTokens = candidate.flatMap { it.split(" ") }.filter { it.length >= 2 }.toSet()
+        if (currentTokens.intersect(candidateTokens).isNotEmpty()) return true
+        return current.any { name -> candidate.any { it.contains(name) || name.contains(it) } }
+    }
+
+    /**
+     * Words that carry no evidence of the same work: filler, structural markup and the
+     * vocabulary every description in the genre shares ("world", "story", "power").
+     */
+    private val GENERIC_WORDS = setOf(
+        "a", "an", "the", "of", "and", "or", "to", "in", "on", "at", "for", "with", "by", "from",
+        "his", "her", "their", "its", "he", "she", "they", "it", "who", "that", "this", "these",
+        "those", "is", "are", "was", "were", "be", "been", "being", "has", "have", "had",
+        "will", "would", "can", "could", "must", "may", "one", "man", "woman", "girl", "boy",
+        "young", "life", "world", "story", "tale", "new", "old", "great", "best", "top",
+        "power", "powers", "strong", "strongest", "weak", "hero", "villain", "god", "gods",
+        "demon", "demons", "sword", "king", "lords", "war", "battle", "school", "student",
+        "de", "la", "el", "los", "las", "un", "una", "del", "al", "que", "y", "o", "en",
+        "por", "para", "con", "su", "sus", "se", "es", "son", "fue", "mas", "mundo", "vida",
+        "historia", "poder", "poderes", "fuerte", "debil", "heroe", "villano", "dios",
+        "demonio", "demonios", "espada", "rey", "guerra", "batalla", "escuela", "estudiante",
+        "un", "joven", "chica", "chico",
+    )
+
+    /**
+     * How many distinct narrative anchors (non-generic specific words: character names,
+     * occupations, places, powers) [b]'s description shares with [a]'s. Korean does not
+     * delimit particles with spaces — "bremen을" romanizes to the fused token
+     * "bremeneul" — so an anchor matches on equality OR on one token being a ≥4-letter
+     * prefix of the other ("junjikeun" ↔ "junjik", "potterro" ↔ "potter"); the length
+     * floor keeps short generic fragments ("cha" matching "chapter") out.
+     */
+    fun narrativeOverlap(a: String?, b: String?): Int {
+        val tokensA = anchorTokens(a)
+        val tokensB = anchorTokens(b)
+        if (tokensA.isEmpty() || tokensB.isEmpty()) return 0
+        return tokensB.count { token ->
+            tokensA.any { other ->
+                other == token ||
+                    (other.length >= 4 && token.length >= 4 && (other.startsWith(token) || token.startsWith(other)))
+            }
+        }
+    }
+
+    private fun anchorTokens(description: String?): Set<String> {
+        // Romanize BEFORE normalizing: normalizeDescription's NFD decomposition would break
+        // hangul into scattered jamo (차준직 → 차준직은) that Romanizer's precomposed-syllable
+        // arithmetic cannot read. Romanizing first keeps syllables whole, then normalize folds
+        // case/accents/punctuation on the Latin result.
+        if (description.isNullOrBlank()) return emptySet()
+        val romanized = Romanizer.romanize(description)
+        val normalized = normalizeDescription(romanized)
+        if (normalized.isEmpty()) return emptySet()
+        return normalized.split(" ")
+            .filter { it.length >= 3 && it !in GENERIC_WORDS }
+            .toSet()
+    }
+
+    /**
+     * Minimum number of shared narrative anchors for the description signal to match when
+     * the overall Levenshtein similarity is below [DEFAULT_DESCRIPTION_THRESHOLD]: two
+     * descriptions that name the same people doing the same things are the same work's
+     * synopsis even when they were written independently (translations, paraphrases).
+     */
+    const val MIN_NARRATIVE_ANCHORS = 4
+
+    /**
+     * Levels of title agreement, in decreasing strength. The search flow uses them to decide
+     * how much metadata evidence a candidate needs: an EXACT normalized title is strong
+     * evidence on its own, a ROMANIZED match (hangul ↔ Latin form of the same title) is
+     * nearly as strong, a FUZZY near-match needs the full metadata gate.
+     */
+    enum class TitleLevel {
+        /** Identical after [TitleMatcher.normalize] (case, accents, punctuation folded). */
+        EXACT,
+
+        /** Identical after romanizing both sides: "전지적 독자 시점" == "jeonjijeok dokja sijeom". */
+        ROMANIZED,
+
+        /** High normalized-Levenshtein similarity — needs the full metadata gate. */
+        FUZZY,
+
+        /** Below the fuzzy threshold: not the same title as far as this comparison goes. */
+        NONE,
+    }
+
+    /**
+     * Fuzzy titles at or above this similarity count as [TitleLevel.FUZZY] (the engine's own
+     * eligible threshold mirrors this: candidates below it never even get picked).
+     */
+    const val TITLE_FUZZY_THRESHOLD = 0.6
+
+    /**
+     * Classifies how two titles compare after [TitleMatcher.normalize]: EXACT (identical
+     * keys), ROMANIZED (identical once the non-Latin script is transliterated — Korean vs
+     * its romanized form, or a Japanese kana title vs its romaji), FUZZY (similarity ≥
+     * [TITLE_FUZZY_THRESHOLD]) or NONE. Used by the migration gate to weigh title evidence.
+     */
+    fun titleLevel(currentTitle: String, candidateTitle: String): TitleLevel {
+        val a = TitleMatcher.normalize(currentTitle)
+        val b = TitleMatcher.normalize(candidateTitle)
+        if (a.isEmpty() || b.isEmpty()) return TitleLevel.NONE
+        if (a == b) return TitleLevel.EXACT
+        val romanizedA = TitleMatcher.normalize(Romanizer.romanize(currentTitle))
+        val romanizedB = TitleMatcher.normalize(Romanizer.romanize(candidateTitle))
+        if (romanizedA.isNotEmpty() && romanizedA == romanizedB) return TitleLevel.ROMANIZED
+        if (descriptionSimilarity(a, b) >= TITLE_FUZZY_THRESHOLD) return TitleLevel.FUZZY
+        return TitleLevel.NONE
+    }
+
+    /**
+     * Compares the source manga's metadata against a candidate's and returns the verdict.
+     * The title criterion is NOT re-checked here — the caller applies its own title levels
+     * and only asks this whether the metadata agrees:
+     *
+     * 1. Author: normalized name sets intersect → [Signal.AUTHOR] matches. Both sides carry
+     *    authors and none intersects → the signal does not match (NOT a veto: romanization
+     *    variants, reversed name order or studio credits attached to the name keep this from
+     *    being decisive on its own). Missing author on either side → not evaluated.
      * 2. Status: same [StatusCategory], and not [StatusCategory.UNKNOWN] on either side.
-     * 3. Description: similarity ≥ [descriptionThreshold] (normalized Levenshtein).
+     *    Deliberately weak: sources mislabel publication state (works marked completed keep
+     *    receiving chapters), so it counts as one more signal, never as a veto.
+     * 3. Description: similarity ≥ [descriptionThreshold] (normalized Levenshtein) OR the
+     *    two share enough narrative anchors ([narrativeOverlap]).
      * 4. Genres: intersection ≥ 50% of the smaller genre set.
      *
      * A signal is evaluated only when both sides have data for it; if no signal can be
@@ -263,7 +390,7 @@ object MetadataMatcher {
         val candidateAuthors = normalizeAuthors(candidateAuthor)
         if (currentAuthors.isNotEmpty() && candidateAuthors.isNotEmpty()) {
             evaluated += Signal.AUTHOR
-            if (currentAuthors.intersect(candidateAuthors).isNotEmpty()) matched += Signal.AUTHOR
+            if (authorsMatch(currentAuthors, candidateAuthors)) matched += Signal.AUTHOR
         }
 
         val currentStatusCategory = normalizeStatus(currentStatus)
@@ -277,7 +404,9 @@ object MetadataMatcher {
         val candidateDescriptionNormalized = normalizeDescription(candidateDescription)
         if (currentDescriptionNormalized.isNotEmpty() && candidateDescriptionNormalized.isNotEmpty()) {
             evaluated += Signal.DESCRIPTION
-            if (descriptionSimilarity(currentDescription, candidateDescription) >= descriptionThreshold) {
+            if (descriptionSimilarity(currentDescription, candidateDescription) >= descriptionThreshold ||
+                narrativeOverlap(currentDescription, candidateDescription) >= MIN_NARRATIVE_ANCHORS
+            ) {
                 matched += Signal.DESCRIPTION
             }
         }
@@ -294,12 +423,6 @@ object MetadataMatcher {
 
         return when {
             evaluated.isEmpty() -> MetadataVerdict.NoData
-            // Author veto: both sides carried authors and none of the candidate's matched any
-            // of the original's. That is a different work wearing the same title (or a remake
-            // by another author), whatever the remaining signals say — reject even when the
-            // 2-of-4 count would accept it.
-            Signal.AUTHOR in evaluated && Signal.AUTHOR !in matched ->
-                MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
             matched.size >= MIN_MATCHED_SIGNALS -> MetadataVerdict.Accepted(matched.toSet())
             else -> MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
         }
