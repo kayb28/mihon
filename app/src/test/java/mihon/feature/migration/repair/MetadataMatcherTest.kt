@@ -555,4 +555,109 @@ class MetadataMatcherTest {
         )
         assertFalse(acceptedByGates(42, 3, verdict))
     }
+
+    // ------------------------------------------------------------------
+    // Author veto: both sides carry authors and none of the candidate's
+    // matches any of the original's → rejected even when the remaining
+    // signals would pass the 2-of-4 count.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `author veto rejects candidate with different author even when status and genres match`() {
+        // Caso real del usuario (Cerberus / Tienda de conveniencia): 66 vs 23 capítulos y autor
+        // distinto. Sin el criterio de capítulos, la puerta de metadatos aceptaba este par por
+        // Estado+Géneros; el veto por autor lo rechaza por su cuenta.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Comedy", "Slice of Life"),
+            candidateAuthor = "Otro Autor",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Comedia", "Recuentos de la Vida"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
+            (verdict as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals,
+        )
+        assertEquals(
+            setOf(MetadataMatcher.Signal.AUTHOR, MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
+            verdict.evaluatedSignals,
+        )
+    }
+
+    @Test
+    fun `author veto does not apply when author is missing on either side`() {
+        // Author only on the candidate side: the veto needs authors on both sides.
+        val candidateOnly = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Alguien Distinto",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(candidateOnly is MetadataMatcher.MetadataVerdict.Accepted)
+
+        // Author only on the original side: same.
+        val originalOnly = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(originalOnly is MetadataMatcher.MetadataVerdict.Accepted)
+    }
+
+    @Test
+    fun `author veto does not fire for equivalent romanized korean english names`() {
+        // Romanización coreana equivalente con variante ortográfica: "Chu-Gong" (con guion,
+        // como firman algunas fuentes) y "Chugong" (forma pegada, la usual en fuentes en
+        // inglés). La normalización existente elimina el guion, así que ambas caen en
+        // "chugong" → la señal de autor coincide y el veto NO se aplica.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Chu-Gong",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Chugong",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `author veto lets multi author intersection through`() {
+        // Distinto orden y separadores, mismos nombres: la intersección de conjuntos decide.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe y Lee Ray",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = null,
+            candidateAuthor = "Lee Ray / Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        // Autor + estado: 2 señales → aceptada a pesar de descripción y géneros ausentes.
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        assertEquals(
+            setOf(MetadataMatcher.Signal.AUTHOR, MetadataMatcher.Signal.STATUS),
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted).matchedSignals,
+        )
+    }
 }

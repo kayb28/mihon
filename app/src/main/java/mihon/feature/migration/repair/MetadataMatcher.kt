@@ -208,7 +208,7 @@ object MetadataMatcher {
         /** None of the four fields could be compared; the caller decides the fallback. */
         data object NoData : MetadataVerdict
 
-        /** Data was present but fewer than [MIN_MATCHED_SIGNALS] signals agree. */
+        /** Data was present but fewer than [MIN_MATCHED_SIGNALS] signals agree, or the author veto fired. */
         data class Rejected(
             val matchedSignals: Set<Signal>,
             val evaluatedSignals: Set<Signal>,
@@ -232,7 +232,11 @@ object MetadataMatcher {
      * The title criterion is NOT re-checked here — the caller applies it first and only
      * asks this whether the metadata agrees:
      *
-     * 1. Author: normalized name sets intersect.
+     * 1. Author: normalized name sets intersect. When both sides carry authors and none
+     *    intersects, the candidate is vetoed outright — even if status, description and
+     *    genres all agree (a remake or a same-title different-work entry by another
+     *    author). When the author is missing on either side the veto does not apply and
+     *    the field simply does not evaluate.
      * 2. Status: same [StatusCategory], and not [StatusCategory.UNKNOWN] on either side.
      * 3. Description: similarity ≥ [descriptionThreshold] (normalized Levenshtein).
      * 4. Genres: intersection ≥ 50% of the smaller genre set.
@@ -290,6 +294,12 @@ object MetadataMatcher {
 
         return when {
             evaluated.isEmpty() -> MetadataVerdict.NoData
+            // Author veto: both sides carried authors and none of the candidate's matched any
+            // of the original's. That is a different work wearing the same title (or a remake
+            // by another author), whatever the remaining signals say — reject even when the
+            // 2-of-4 count would accept it.
+            Signal.AUTHOR in evaluated && Signal.AUTHOR !in matched ->
+                MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
             matched.size >= MIN_MATCHED_SIGNALS -> MetadataVerdict.Accepted(matched.toSet())
             else -> MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
         }
