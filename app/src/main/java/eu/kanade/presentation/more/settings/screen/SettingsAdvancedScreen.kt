@@ -352,9 +352,11 @@ object SettingsAdvancedScreen : SearchableSettings {
                 Preference.PreferenceItem.ListPreference(
                     preference = basePreferences.webGpuViewerMode,
                     entries = mapOf(
-                        BasePreferences.WebGpuViewerMode.STOCK to stringResource(MR.strings.pref_webgpu_viewer_mode_stock),
+                        BasePreferences.WebGpuViewerMode.STOCK to
+                            stringResource(MR.strings.pref_webgpu_viewer_mode_stock),
                         BasePreferences.WebGpuViewerMode.HQ to stringResource(MR.strings.pref_webgpu_viewer_mode_hq),
-                        BasePreferences.WebGpuViewerMode.EXPERIMENTAL to stringResource(MR.strings.pref_webgpu_viewer_mode_experimental),
+                        BasePreferences.WebGpuViewerMode.EXPERIMENTAL to
+                            stringResource(MR.strings.pref_webgpu_viewer_mode_experimental),
                     ),
                     title = stringResource(MR.strings.pref_webgpu_viewer_mode),
                     subtitle = stringResource(MR.strings.pref_webgpu_viewer_mode_summary),
