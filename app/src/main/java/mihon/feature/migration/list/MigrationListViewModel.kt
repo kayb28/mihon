@@ -291,25 +291,70 @@ class MigrationListViewModel(
         }
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
-        // Chapter-count gate, applied before the metadata gate: a candidate that reports a much
-        // shorter chapter list than the library copy is a stale mirror or a same-title different
-        // work, whatever the metadata would say. The chapter list is fetched for the pick only
-        // (one extra request), and when this gate rejects, the details request below never
-        // happens. A source that reports no chapters (0, unknown, failed fetch) is not judged
-        // here — the metadata gate and its fallback decide.
-        val candidateChapterCount = try {
+        // ONE getMangaUpdate per pick: details AND the chapter list in a single request
+        // (the pre-phase-2 flow fired two). Fetched only for the candidate this source's
+        // query actually returned — never across all sources. Deep-search mode stays
+        // untouched: it still fires its multi-query pass and only its final pick reaches
+        // this fetch and the gates below. A failure downgrades to "no chapters known, no
+        // details" — the viability gate skips and the identity gate lands on NoData.
+        val candidateUpdate = try {
             source.getMangaUpdate(
                 manga = searchResult.manga.toSManga(),
                 chapters = emptyList(),
-                fetchDetails = false,
+                fetchDetails = true,
                 fetchChapters = true,
-            ).chapters.size
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logcat(LogPriority.WARN, e) { "Source ${source.id} chapter list fetch failed for manga ${manga.id}" }
-            0
+            logcat(LogPriority.WARN, e) { "Source ${source.id} update fetch failed for manga ${manga.id}" }
+            null
         }
+        val candidateChapterCount = candidateUpdate?.chapters?.size ?: 0
+        val detailedManga = if (candidateUpdate != null) {
+            searchResult.manga.copyFrom(candidateUpdate.manga)
+        } else {
+            searchResult.manga
+        }
+
+        // ---- GATE A: identity of the work ---------------------------------------------
+        // Does this candidate represent the SAME work as the library copy? Title levels
+        // (EXACT / ROMANIZED / FUZZY via MetadataMatcher.titleLevel) weigh how much metadata
+        // agreement is needed (isSameWork, pure and unit-tested); the metadata gate itself
+        // stays the 2-of-4 signal count with author as a signal (not a veto — phase 2).
+        // Chapter counts play NO role here: a stale mirror of the right work is the right work.
+        val titleLevel = MetadataMatcher.titleLevel(manga.title, detailedManga.title)
+        val metadataVerdict = MetadataMatcher.validate(
+            currentAuthor = manga.author,
+            currentStatus = manga.status.toInt(),
+            currentDescription = manga.description,
+            currentGenres = manga.genre,
+            candidateAuthor = detailedManga.author,
+            candidateStatus = detailedManga.status.toInt(),
+            candidateDescription = detailedManga.description,
+            candidateGenres = detailedManga.genre,
+            descriptionThreshold = preferences.migrationMetadataDescriptionThreshold.get() / 100.0,
+        )
+        val identified = MetadataMatcher.isSameWork(
+            metadataVerdict,
+            titleLevel,
+            fallbackToTitle = preferences.migrationMetadataFallbackToTitle.get(),
+        )
+        if (!identified) {
+            logcat(LogPriority.INFO) {
+                "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                    "identity title=$titleLevel verdict=$metadataVerdict"
+            }
+            return null
+        }
+
+        // ---- GATE B: viability for migration ------------------------------------------
+        // Same work identified — is this source actually USEFUL to keep reading? Chapter
+        // coverage is the criterion: under half the library's chapters is not worth
+        // migrating to (stale mirror or abandoned translation); within [0.5, 1.0] but more
+        // than 5 behind, the candidate is accepted AND flagged («Va N caps atrás»). A
+        // source that reports no chapters is not judged here (its viability is unknown,
+        // not rejected — the parser may simply fail to list them).
         val originalChapterCount = getChapterInfo(manga.id).chapterCount
         val chapterVerdict = MetadataMatcher.validateChapters(
             currentChapterCount = originalChapterCount,
@@ -326,75 +371,6 @@ class MigrationListViewModel(
             is MetadataMatcher.ChapterVerdict.Accepted -> chapterVerdict.chaptersBehind
             MetadataMatcher.ChapterVerdict.Skip -> 0
         }
-
-        // Details for the metadata gate are fetched only for the candidate this source's query
-        // actually returned — one extra request per source that produced a pick, never across
-        // all sources. Deep-search mode stays untouched: it still fires its multi-query pass
-        // (up to five queries per source) and only its final pick goes through the same details
-        // fetch and validation gate below.
-        val candidateDetails = try {
-            source.getMangaUpdate(
-                manga = searchResult.manga.toSManga(),
-                chapters = emptyList(),
-                fetchDetails = true,
-                fetchChapters = false,
-            ).manga
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // No details means nothing to validate: the gate below lands on NoData and the
-            // configured fallback decides.
-            logcat(LogPriority.WARN, e) { "Source ${source.id} details fetch failed for manga ${manga.id}" }
-            null
-        }
-        val detailedManga = if (candidateDetails != null) {
-            searchResult.manga.copyFrom(candidateDetails)
-        } else {
-            searchResult.manga
-        }
-
-        // Metadata gate: a title alone must not decide the match (same-title different-work
-        // entries exist). The candidate has to agree with the source manga on at least two of
-        // author/status/description/genres. Fields missing on either side are not evaluated;
-        // when the source provides none of the four, the verdict is NoData and the configured
-        // fallback decides (accept-and-mark, or reject).
-        val metadataVerdict = MetadataMatcher.validate(
-            currentAuthor = manga.author,
-            currentStatus = manga.status.toInt(),
-            currentDescription = manga.description,
-            currentGenres = manga.genre,
-            candidateAuthor = detailedManga.author,
-            candidateStatus = detailedManga.status.toInt(),
-            candidateDescription = detailedManga.description,
-            candidateGenres = detailedManga.genre,
-            descriptionThreshold = preferences.migrationMetadataDescriptionThreshold.get() / 100.0,
-        )
-        // Acceptance is pure and unit-tested (MetadataMatcher.isAccepted): Accepted passes,
-        // Rejected never does, and NoData follows the title-only fallback preference — disabled
-        // by default, so "Sin datos para validar" means the candidate is not accepted.
-        val accepted = MetadataMatcher.isAccepted(
-            metadataVerdict,
-            fallbackToTitle = preferences.migrationMetadataFallbackToTitle.get(),
-        )
-        when (metadataVerdict) {
-            is MetadataMatcher.MetadataVerdict.Rejected ->
-                logcat(LogPriority.INFO) {
-                    "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
-                        "matched=${metadataVerdict.matchedSignals} evaluated=${metadataVerdict.evaluatedSignals}"
-                }
-            MetadataMatcher.MetadataVerdict.NoData ->
-                logcat(LogPriority.INFO) {
-                    if (accepted) {
-                        "Migration candidate from source ${source.id} for manga ${manga.id} has no metadata " +
-                            "to validate; accepting via title-only fallback"
-                    } else {
-                        "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
-                            "no metadata to validate and title-only fallback is disabled"
-                    }
-                }
-            else -> {}
-        }
-        if (!accepted) return null
 
         val localManga = networkToLocalManga(detailedManga)
         try {

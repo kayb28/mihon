@@ -335,6 +335,14 @@ object MetadataMatcher {
     const val TITLE_FUZZY_THRESHOLD = 0.6
 
     /**
+     * Title levels strong enough to carry a match with LESS metadata agreement than the
+     * 2-of-4 rule: an EXACT normalized title or a ROMANIZED form of the same title is
+     * evidence the candidate IS the work searched for — the metadata gate then only needs
+     * no outright contradiction (one agreeing signal, or none evaluated at all).
+     */
+    val STRONG_TITLE_LEVELS = setOf(TitleLevel.EXACT, TitleLevel.ROMANIZED)
+
+    /**
      * Classifies how two titles compare after [TitleMatcher.normalize]: EXACT (identical
      * keys), ROMANIZED (identical once the non-Latin script is transliterated — Korean vs
      * its romanized form, or a Japanese kana title vs its romaji), FUZZY (similarity ≥
@@ -484,5 +492,31 @@ object MetadataMatcher {
         is MetadataVerdict.Accepted -> true
         is MetadataVerdict.Rejected -> false
         MetadataVerdict.NoData -> fallbackToTitle
+    }
+
+    /**
+     * The identity decision, pure so it can be unit tested: how a candidate's metadata
+     * verdict combines with its title level.
+     *
+     * - Accepted verdicts always identify (any title level).
+     * - Rejected verdicts identify only when the title is STRONG ([STRONG_TITLE_LEVELS])
+     *   AND the verdict does not outright contradict the candidate: at least one signal
+     *   agreed, and no signal was evaluated-and-disagreed while none agreed. A pair whose
+     *   author AND status AND genres all disagree is a different work wearing a similar
+     *   title, however exact the title is.
+     * - NoData follows the title: strong titles identify on their own (a source that
+     *   extracted no fields at all is not evidence of a different work — see extraction
+     *   quality), weak ones fall back to the configured [fallbackToTitle].
+     */
+    fun isSameWork(verdict: MetadataVerdict, titleLevel: TitleLevel, fallbackToTitle: Boolean): Boolean {
+        return when (verdict) {
+            is MetadataVerdict.Accepted -> true
+            is MetadataVerdict.Rejected -> {
+                titleLevel in STRONG_TITLE_LEVELS &&
+                    verdict.matchedSignals.isNotEmpty() &&
+                    verdict.matchedSignals.size >= verdict.evaluatedSignals.size / 2
+            }
+            MetadataVerdict.NoData -> titleLevel in STRONG_TITLE_LEVELS || fallbackToTitle
+        }
     }
 }

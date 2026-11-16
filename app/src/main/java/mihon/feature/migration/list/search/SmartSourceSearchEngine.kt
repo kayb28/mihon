@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mihon.domain.manga.model.toDomainManga
 import mihon.feature.migration.repair.MetadataMatcher
+import mihon.feature.migration.repair.Romanizer
 import mihon.feature.migration.repair.TitleMatcher
 import tachiyomi.domain.manga.model.Manga
 
@@ -62,9 +63,25 @@ class SmartSourceSearchEngine(
     suspend fun deepSearch(source: Source, title: String, currentUrl: String? = null): ScoredManga? {
         val cleanedTitle = cleanDeepSearchTitle(title)
 
-        val entries = rankedCandidates(makeSearchAction(source), getDeepSearchQueries(cleanedTitle)) {
+        // One extra query per source, only when the title carries a romanizable script:
+        // a source that indexes the Korean original ("전지적 독자 시점") needs the Latin form
+        // ("jeonjijeok dokja sijeom") to be findable at all, and a Latin-indexing source may
+        // list the work under its hangul title. isRomanizable is a pure string check — the
+        // extra request only fires when the two query sets actually differ.
+        val queries = getDeepSearchQueries(cleanedTitle).let { base ->
+            val romanized = cleanDeepSearchTitle(Romanizer.romanize(title))
+            if (romanized != cleanedTitle) base + listOf(romanized) else base
+        }
+
+        val entries = rankedCandidates(makeSearchAction(source), queries) {
             val cleanedMangaTitle = cleanDeepSearchTitle(getTitle(it))
-            normalizedLevenshtein.similarity(cleanedTitle, cleanedMangaTitle)
+            // Candidates kept in the original script score against the romanized search
+            // title too, so a hangul listing still ranks when the query was romanized.
+            val romanizedMangaTitle = cleanDeepSearchTitle(Romanizer.romanize(getTitle(it)))
+            maxOf(
+                normalizedLevenshtein.similarity(cleanedTitle, cleanedMangaTitle),
+                normalizedLevenshtein.similarity(cleanedTitle, romanizedMangaTitle),
+            )
         }
         return pickHybridBest(entries, source.id, title, currentUrl)
     }
