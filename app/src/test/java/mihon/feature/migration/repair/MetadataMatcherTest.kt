@@ -990,4 +990,111 @@ class MetadataMatcherTest {
         val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
         assertFalse(accepted.matchedSignals.contains(MetadataMatcher.Signal.STATUS))
     }
+
+    // ------------------------------------------------------------------
+    // Fase 2 §1: identidad de la obra (isSameWork) — combinación título
+    // + metadatos. El título fuerte sostiene solo; el difuso exige la
+    // cuenta 2-de-4; el rechazo solo cede ante evidencia REAL.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `isSameWork accepted verdicts identify regardless of title level`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        for (level in MetadataMatcher.TitleLevel.entries) {
+            assertTrue(
+                MetadataMatcher.isSameWork(verdict, level, fallbackToTitle = false),
+                "level=$level",
+            )
+        }
+    }
+
+    @Test
+    fun `isSameWork rejected verdict needs strong title and partial agreement`() {
+        // Autor distinto SIN variantes + estado distinto + géneros iguales: 1 señal de 3.
+        val oneOfThree = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Otro Autor",
+            candidateStatus = SManga.COMPLETED,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(oneOfThree is MetadataMatcher.MetadataVerdict.Rejected)
+        // Título EXACTO + 1 señal de 3 (>= evaluadas/2) → identifica: obra con traducciones
+        // que discrepan en autor y estado pero coinciden en géneros y título.
+        assertTrue(
+            MetadataMatcher.isSameWork(oneOfThree, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
+        )
+        // Título FUZZY con 1 señal → NO identifica: la cuenta 2-de-4 no se alcanzó.
+        assertFalse(
+            MetadataMatcher.isSameWork(oneOfThree, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false),
+        )
+    }
+
+    @Test
+    fun `isSameWork full contradiction never identifies even with exact title`() {
+        // Caso Cerberus→Tienda de conveniencia como par de metadatos: autor, estado y
+        // géneros TODOS en desacuerdo (0 señales de 3 evaluadas). El título exacto NO
+        // sostiene la identidad: es otra obra con el mismo título.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Comedy", "Slice of Life"),
+            candidateAuthor = "Otro Autor",
+            candidateStatus = SManga.COMPLETED,
+            candidateDescription = null,
+            candidateGenres = listOf("Horror", "Psicológico"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertEquals(0, (verdict as MetadataMatcher.MetadataVerdict.Rejected).matchedSignals.size)
+        assertFalse(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = true),
+        )
+    }
+
+    @Test
+    fun `isSameWork no data identifies via strong title without fallback`() {
+        // Candidata sin metadatos (parser que no extrae) + título EXACTO: la ausencia de
+        // datos no es evidencia de obra distinta (§4) — la identidad sostiene en el título.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = "Una propuesta de trabajo inesperada.",
+            currentGenres = listOf("Drama"),
+            candidateAuthor = null,
+            candidateStatus = SManga.UNKNOWN,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.NoData)
+        assertTrue(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
+        )
+        assertTrue(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.ROMANIZED, fallbackToTitle = false),
+        )
+        // Título débil (FUZZY/NONE) sin respaldo → no identifica.
+        assertFalse(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false),
+        )
+        assertFalse(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.NONE, fallbackToTitle = false),
+        )
+        // ...y el respaldo configurable sigue decidiendo para títulos débiles.
+        assertTrue(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = true),
+        )
+    }
 }
