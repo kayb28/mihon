@@ -351,10 +351,13 @@ class MigrationListViewModel(
         // ---- GATE B: viability for migration ------------------------------------------
         // Same work identified — is this source actually USEFUL to keep reading? Chapter
         // coverage is the criterion: under half the library's chapters is not worth
-        // migrating to (stale mirror or abandoned translation); within [0.5, 1.0] but more
-        // than 5 behind, the candidate is accepted AND flagged («Va N caps atrás»). A
-        // source that reports no chapters is not judged here (its viability is unknown,
-        // not rejected — the parser may simply fail to list them).
+        // migrating to (stale mirror or abandoned translation); ratio-passing candidates
+        // with a very large absolute delay (25+ chapters for full series, half the original
+        // for short ones) are NOT offered as destinations (NotViable — the work is the same,
+        // the mirror is months stale); within [0.5, 1.0] but more than 5 behind, the
+        // candidate is accepted AND flagged («Va N caps atrás»). A source that reports no
+        // chapters is not judged here (its viability is unknown, not rejected — the parser
+        // may simply fail to list them).
         val originalChapterCount = getChapterInfo(manga.id).chapterCount
         val chapterVerdict = MetadataMatcher.validateChapters(
             currentChapterCount = originalChapterCount,
@@ -364,6 +367,16 @@ class MigrationListViewModel(
             is MetadataMatcher.ChapterVerdict.Rejected -> {
                 logcat(LogPriority.INFO) {
                     "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                        "chapter count $candidateChapterCount vs $originalChapterCount in library"
+                }
+                return null
+            }
+            MetadataMatcher.ChapterVerdict.NotViable -> {
+                // Same work, useless source (phase 3): passing the ratio floor is not enough
+                // when the absolute delay is months of serialisation. Logged as viability, not
+                // identity — the source may be fine for other titles.
+                logcat(LogPriority.INFO) {
+                    "Migration candidate from source ${source.id} not viable for manga ${manga.id}: " +
                         "chapter count $candidateChapterCount vs $originalChapterCount in library"
                 }
                 return null

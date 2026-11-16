@@ -410,11 +410,12 @@ class MetadataMatcherTest {
     }
 
     @Test
-    fun `chapter gate boundary at exactly half ratio flags instead of rejecting`() {
-        // 33 of 66: la fracción es exactamente 0.5 (no < 0.5) → acepta, y marca los 33 atrás.
+    fun `chapter gate boundary at exactly half ratio is not viable for full series`() {
+        // 33 of 66: the fraction is exactly 0.5 (no < 0.5) so the ratio floor passes, but the
+        // 33-chapter absolute delay is past the phase-3 viability gap (25) → NotViable: the
+        // work is right, the mirror is too stale to offer as a migration destination.
         val half = MetadataMatcher.validateChapters(66, 33)
-        assertTrue(half is MetadataMatcher.ChapterVerdict.Accepted)
-        assertEquals(33, (half as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+        assertTrue(half is MetadataMatcher.ChapterVerdict.NotViable)
     }
 
     @Test
@@ -845,7 +846,9 @@ class MetadataMatcherTest {
         val en = "Cha junjik spent twenty years as a skeleton soldier before deserting; " +
             "now he wants a quiet life as a potter in the city of bremen."
         val overlap = MetadataMatcher.narrativeOverlap(es, en)
-        assertEquals(3, overlap) // cha, junjik, bremen — nombres propios únicamente.
+        // junjik y bremen cruzan (≥4 letras, distintivos); «cha» quedó fuera al subir el
+        // largo mínimo de ancla a 4 — los nombres de 3 letras ya no cuentan solos.
+        assertEquals(2, overlap)
     }
 
     @Test
@@ -1095,6 +1098,224 @@ class MetadataMatcherTest {
         // ...y el respaldo configurable sigue decidiendo para títulos débiles.
         assertTrue(
             MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = true),
+        )
+    }
+
+    // ==================================================================
+    // FASE 3 — falsos positivos REALES reportados por la prueba en
+    // dispositivo (10 aciertos, 2 falsos positivos, ~3 aciertos con
+    // 1-2 caps de diferencia). Casos y cifras tal como se observaron.
+    // ==================================================================
+
+    @Test
+    fun `falso positivo real Regresor vs El regreso de mi ex no identifica`() {
+        // Observado en dispositivo: original "Regresor" (211 caps), candidata incorrecta
+        // "El regreso de mi ex" (118 caps), ACEPTADA por señales descripción+géneros.
+        // Causa (reproducida en harness antes del fix): las sinopsis de ambos comparten el
+        // léxico del subgénero "regresión/segunda oportunidad" — regresa, universidad,
+        // oportunidad, destino — y cuatro de esas palabras contaban como anclas narrativas.
+        // Con SUBGENRE_WORDS y anclas de ≥4 letras, la descripción ya no coincide:
+        val esRegresor = "Arrepentido de sus decisiones, el protagonista recibe la oportunidad de " +
+            "regresar al pasado y corregir su vida. Usando el conocimiento de su vida anterior, " +
+            "regresa a los días de universidad para cambiar el futuro que lo llevó a la ruina: " +
+            "cada elección que cambie reescribe su destino."
+        val esEx = "Cinco años después, su expareja regresa a su vida. Cuando la vuelve a ver en la " +
+            "universidad, el destino le da una segunda oportunidad para recuperar el amor que " +
+            "perdió: ella cambió, él también, y esta vez quiere elegir distinto."
+        assertTrue(MetadataMatcher.narrativeOverlap(esRegresor, esEx) < MetadataMatcher.MIN_NARRATIVE_ANCHORS)
+
+        // El veredicto con las señales observadas (descripción+géneros coincidentes en el
+        // caso real; géneros románticos compartidos aquí) ya no llega a 2 señales:
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = esRegresor,
+            currentGenres = listOf("Romance", "Drama", "Fantasía"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = esEx,
+            candidateGenres = listOf("Romance", "Drama", "Comedia"),
+        )
+        // El par cae en la forma débil del falso positivo: veredicto Accepted construido
+        // solo con señales débiles (estado+géneros románticos compartidos del subgénero;
+        // «Regresor» es Fantasía/Acción pero las candidatas románticas solapan en Romance/
+        // Drama en las fuentes reales). El guard de fase 3 niega la identidad cuando solo
+        // señales débiles sostienen el veredicto y el título no es fuerte:
+        val weakTitle = MetadataMatcher.titleLevel("Regresor", "El regreso de mi ex")
+        assertEquals(MetadataMatcher.TitleLevel.NONE, weakTitle)
+        for (level in listOf(MetadataMatcher.TitleLevel.NONE, MetadataMatcher.TitleLevel.FUZZY)) {
+            assertFalse(
+                MetadataMatcher.isSameWork(verdict, level, fallbackToTitle = true),
+                "level=$level",
+            )
+        }
+        // Con un título fuerte (la misma obra hallada por su nombre real) la identidad
+        // sigue válida — la corrección no rompe los aciertos con título exacto:
+        assertTrue(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
+        )
+        assertTrue(
+            MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.ROMANIZED, fallbackToTitle = false),
+        )
+    }
+
+    @Test
+    fun `falso positivo real Atrapado en la torre vs Ookii Onnanoko no identifica`() {
+        // Observado en dispositivo: original "Atrapado en la torre" (143 caps), candidata
+        // incorrecta "Ookii Onnanoko wa Suki Desu ka?" (81 caps), ACEPTADA por señales
+        // estado+descripción. Causa: la sinopsis ES de Ookii traduce la EN con tropos de
+        // comedia romántica escolar que el léxico de subgénero compartía con la de torre;
+        // más un STATUS que documentamos como poco fiable. Sinopsis reales verificadas
+        // (komiwa ES para torre; MAL/Seven Seas EN para Ookii):
+        val esTorre = "Un mundo donde las puertas se abren y los monstruos salen a jugar. Hyunsoo anhela " +
+            "ingresar a la torre y asumir el papel de cazador, pero en la realidad trabaja como portero " +
+            "y escudo de carne de cazadores de Clase E peores que gánsteres, que lo explotaron hasta " +
+            "casi matarlo. Al creerse muerto, es convocado a la torre, revive y comienza a escalarla. " +
+            "¡Hyunsoo, que está atrapado en la torre, comienza su conquista!"
+        val enOokii = "Souta Tachibana jumps from one part-time job to the next, just trying to get by. " +
+            "He is short, but a new gig lands in his lap: working as a gopher for his older sister's " +
+            "college volleyball team. He is suddenly surrounded by tall, voluptuous women who tower " +
+            "over him, attracting more female attention than he has ever experienced. His challenge " +
+            "becomes deciding which girl he actually wants to pursue, and surviving their big athletic " +
+            "bodies, which could very well crush him."
+        // Con las sinopsis reales la señal DESCRIPTION ya no coincide (Levenshtein 0.24,
+        // anclas distintivas 0 — «cazador/torre/monstruos» es léxico de subgénero):
+        assertTrue(MetadataMatcher.narrativeOverlap(esTorre, enOokii) < MetadataMatcher.MIN_NARRATIVE_ANCHORS)
+
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = esTorre,
+            currentGenres = listOf(
+                "Sobrenatural",
+                "Acción",
+                "Supervivencia",
+                "Drama",
+                "Aventura",
+                "Superpoderes",
+                "Fantasía",
+            ),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = enOokii,
+            candidateGenres = listOf("Comedia", "Romance", "Vida escolar", "Ecchi", "Seinen"),
+        )
+        // El par cae en la forma del falso positivo: solo DESCRIPTION habría coincidido
+        // (caso real) — el guard de fase 3 niega la identidad para matchedSignals == {DESCRIPTION}:
+        val loneDescription = MetadataMatcher.MetadataVerdict.Rejected(
+            matchedSignals = setOf(MetadataMatcher.Signal.DESCRIPTION),
+            evaluatedSignals = setOf(
+                MetadataMatcher.Signal.DESCRIPTION,
+                MetadataMatcher.Signal.GENRES,
+                MetadataMatcher.Signal.STATUS,
+            ),
+        )
+        for (level in MetadataMatcher.TitleLevel.entries) {
+            assertFalse(
+                MetadataMatcher.isSameWork(loneDescription, level, fallbackToTitle = true),
+                "level=$level",
+            )
+        }
+        // Y el veredicto real del par completo tampoco identifica:
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertFalse(
+            MetadataMatcher.isSameWork(
+                verdict,
+                MetadataMatcher.titleLevel("Atrapado en la torre", "Ookii Onnanoko wa Suki Desu ka?"),
+                fallbackToTitle = true,
+            ),
+        )
+    }
+
+    // ==================================================================
+    // FASE 3 §3 — política de viabilidad por capítulos: absoluto +
+    // proporcional + tamaño de la serie original.
+    // ==================================================================
+
+    @Test
+    fun `chapter policy very large delay on full series is not viable`() {
+        // Los dos falsos positivos reales, medidos en dispositivo:
+        // Regresor 211 vs 118: ratio 0.56 (pasa 0.5) pero 93 caps de retraso → NotViable.
+        assertTrue(MetadataMatcher.validateChapters(211, 118) is MetadataMatcher.ChapterVerdict.NotViable)
+        // Torre 143 vs 81: ratio 0.57, 62 caps de retraso → NotViable.
+        assertTrue(MetadataMatcher.validateChapters(143, 81) is MetadataMatcher.ChapterVerdict.NotViable)
+        // 100 vs 74: ratio 0.74, 26 atrás → NotViable (26 > 25).
+        assertTrue(MetadataMatcher.validateChapters(100, 74) is MetadataMatcher.ChapterVerdict.NotViable)
+    }
+
+    @Test
+    fun `chapter policy moderate delay stays accepted with warning`() {
+        // 100 vs 90: 10 atrás (5 < 10 ≤ 25) → aceptado marcado «Va 10 caps atrás».
+        val flagged = MetadataMatcher.validateChapters(100, 90)
+        assertTrue(flagged is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(10, (flagged as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+        // 100 vs 75: exactamente 25 atrás (25 no es > 25) → sigue siendo viable marcado.
+        val boundary = MetadataMatcher.validateChapters(100, 75)
+        assertTrue(boundary is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(25, (boundary as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+        // 100 vs 95: dentro de la tolerancia → aceptado silencioso.
+        val silent = MetadataMatcher.validateChapters(100, 95)
+        assertTrue(silent is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(0, (silent as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+    }
+
+    @Test
+    fun `chapter policy short series scales the gap with the original`() {
+        // Serie corta: la ventana explícita resultó código muerto (con ratio ≥ 0.5, el
+        // retraso ya es ≤ mitad del original — escala sola); la política absoluta la cubre:
+        // 20 vs 9: ratio 0.45 < 0.5 → rechazo de ratio (intacto).
+        assertTrue(MetadataMatcher.validateChapters(20, 9) is MetadataMatcher.ChapterVerdict.Rejected)
+        // 20 vs 10: ratio 0.5 pasa, retraso 10 ≤ 25 → aceptado marcado (10 > 5).
+        val short = MetadataMatcher.validateChapters(20, 10)
+        assertTrue(short is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(10, (short as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+        // 20 vs 14: retraso 6 → aceptado marcado.
+        val mid = MetadataMatcher.validateChapters(20, 14)
+        assertTrue(mid is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(6, (mid as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+        // 20 vs 18: retraso 2 → aceptado silencioso (los aciertos con 1-2 caps de diferencia).
+        val healthy = MetadataMatcher.validateChapters(20, 18)
+        assertTrue(healthy is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(0, (healthy as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+    }
+
+    @Test
+    fun `chapter policy candidate ahead or equal stays accepted`() {
+        assertTrue(MetadataMatcher.validateChapters(100, 120) is MetadataMatcher.ChapterVerdict.Accepted)
+        assertTrue(MetadataMatcher.validateChapters(100, 100) is MetadataMatcher.ChapterVerdict.Accepted)
+        // Ratio floor intacto para los rechazos originales:
+        assertTrue(MetadataMatcher.validateChapters(66, 23) is MetadataMatcher.ChapterVerdict.Rejected)
+        assertTrue(MetadataMatcher.validateChapters(143, 37) is MetadataMatcher.ChapterVerdict.Rejected)
+        assertTrue(MetadataMatcher.validateChapters(42, 3) is MetadataMatcher.ChapterVerdict.Rejected)
+    }
+
+    @Test
+    fun `falso positivo real Regresor vs El regreso de mi ex no es viable como destino`() {
+        // Aunque la identidad fallara por otro camino, la fuente con 93 caps de retraso no
+        // se ofrece como destino de migración (fase 3 §3): misma obra o no, 118/211 no es
+        // una alternativa equiparable a una fuente 1-2 caps atrás.
+        assertTrue(MetadataMatcher.validateChapters(211, 118) is MetadataMatcher.ChapterVerdict.NotViable)
+    }
+
+    @Test
+    fun `anclas distintivas no cuentan prefijos de subgenero`() {
+        // «regresa» ya no ancla con «regresar» (prefijo), y ninguna de las dos cuenta:
+        // ambas son léxico del subgénero de regresión.
+        val regresorDesc = "El protagonista regresa al pasado para regresar a la universidad."
+        val exDesc = "Su ex regresar al campus universitario tras cinco años."
+        assertTrue(MetadataMatcher.narrativeOverlap(regresorDesc, exDesc) < MetadataMatcher.MIN_NARRATIVE_ANCHORS)
+    }
+
+    @Test
+    fun `anclas distintivas mantienen nombres propios y ocupaciones especificas`() {
+        // El caso legítimo de la fase 2 sigue cruzando: mismos nombres/ocupaciones/lugares
+        // específicos en dos traducciones independientes de la MISMA obra.
+        val ko = "차준직은 20년간 해골병사로 싸우다가 탈영하고, 브레멘에서 potter로 조용한 삶을 찾으려 한다. " +
+            "준직은 deserting 대신 bremen을 향해 떠난다."
+        val en = "Cha junjik spent twenty years as a skeleton soldier before deserting; " +
+            "now he wants a quiet life as a potter in the city of bremen."
+        assertTrue(
+            MetadataMatcher.narrativeOverlap(ko, en) >= MetadataMatcher.MIN_NARRATIVE_ANCHORS,
         )
     }
 }
