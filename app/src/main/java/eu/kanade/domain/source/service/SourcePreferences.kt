@@ -157,12 +157,13 @@ class SourcePreferences(
 
     /**
      * When a migration candidate carries none of the four metadata fields (author, status,
-     * description, genres), the old title-only criterion stays available as a fallback:
-     * enabled (default) accepts it and marks it "no data to validate"; disabled rejects it.
+     * description, genres), the old title-only criterion is available as a fallback. Disabled
+     * (default): the match stays "no data to validate" and the candidate is not accepted —
+     * a title alone is not evidence. Enabled: it accepts and marks it "no data to validate".
      */
     val migrationMetadataFallbackToTitle: Preference<Boolean> = preferenceStore.getBoolean(
         "migration_metadata_fallback_to_title",
-        true,
+        false,
     )
 
     fun sourceClassification(sourceId: Long): SourceClassification =

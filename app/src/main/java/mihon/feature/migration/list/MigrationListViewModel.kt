@@ -368,29 +368,30 @@ class MigrationListViewModel(
             candidateGenres = detailedManga.genre,
             descriptionThreshold = preferences.migrationMetadataDescriptionThreshold.get() / 100.0,
         )
-        val accepted = when (metadataVerdict) {
-            is MetadataMatcher.MetadataVerdict.Accepted -> true
-            is MetadataMatcher.MetadataVerdict.Rejected -> {
+        // Acceptance is pure and unit-tested (MetadataMatcher.isAccepted): Accepted passes,
+        // Rejected never does, and NoData follows the title-only fallback preference — disabled
+        // by default, so "Sin datos para validar" means the candidate is not accepted.
+        val accepted = MetadataMatcher.isAccepted(
+            metadataVerdict,
+            fallbackToTitle = preferences.migrationMetadataFallbackToTitle.get(),
+        )
+        when (metadataVerdict) {
+            is MetadataMatcher.MetadataVerdict.Rejected ->
                 logcat(LogPriority.INFO) {
                     "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
                         "matched=${metadataVerdict.matchedSignals} evaluated=${metadataVerdict.evaluatedSignals}"
                 }
-                false
-            }
             MetadataMatcher.MetadataVerdict.NoData ->
-                if (preferences.migrationMetadataFallbackToTitle.get()) {
-                    logcat(LogPriority.INFO) {
+                logcat(LogPriority.INFO) {
+                    if (accepted) {
                         "Migration candidate from source ${source.id} for manga ${manga.id} has no metadata " +
                             "to validate; accepting via title-only fallback"
-                    }
-                    true
-                } else {
-                    logcat(LogPriority.INFO) {
+                    } else {
                         "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
                             "no metadata to validate and title-only fallback is disabled"
                     }
-                    false
                 }
+            else -> {}
         }
         if (!accepted) return null
 

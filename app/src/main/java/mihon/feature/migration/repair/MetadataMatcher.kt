@@ -350,4 +350,16 @@ object MetadataMatcher {
         val flaggedBehind = ratio <= 1.0 && behind > CHAPTER_BEHIND_TOLERANCE
         return ChapterVerdict.Accepted(if (flaggedBehind) behind else 0)
     }
+
+    /**
+     * The acceptance decision of the metadata gate, pure so it can be unit tested: an
+     * [MetadataVerdict.Accepted] verdict always accepts and a [MetadataVerdict.Rejected] one
+     * never does. [MetadataVerdict.NoData] (nothing to validate) follows [fallbackToTitle] —
+     * disabled by default, so a candidate that reports no metadata at all is not accepted.
+     */
+    fun isAccepted(verdict: MetadataVerdict, fallbackToTitle: Boolean): Boolean = when (verdict) {
+        is MetadataVerdict.Accepted -> true
+        is MetadataVerdict.Rejected -> false
+        MetadataVerdict.NoData -> fallbackToTitle
+    }
 }
