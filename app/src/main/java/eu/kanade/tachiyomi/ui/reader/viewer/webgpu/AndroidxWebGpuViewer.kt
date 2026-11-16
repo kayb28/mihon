@@ -58,6 +58,7 @@ class AndroidxWebGpuViewer(
     private var zoom = 1f
     private var panX = 0f
     private var panY = 0f
+
     /** Accumulated drag while fitted (zoom == 1); used to turn pages by swipe. */
     private var swipeAccum = 0f
 
@@ -224,7 +225,13 @@ class AndroidxWebGpuViewer(
             val vertical = mode.direction is eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.Direction.Vertical
             val delta = if (vertical) pan.y else pan.x
             // RTL: finger moving right should go backward (previous page in reading order).
-            val readingDelta = if (mode == eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.RIGHT_TO_LEFT) -delta else delta
+            val readingDelta = if (mode ==
+                eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.RIGHT_TO_LEFT
+            ) {
+                -delta
+            } else {
+                delta
+            }
             swipeAccum += readingDelta
             val threshold = (if (vertical) container.height else container.width) * 0.18f
             if (kotlin.math.abs(swipeAccum) >= threshold) {
