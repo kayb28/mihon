@@ -10,6 +10,8 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import eu.kanade.domain.manga.model.copyFrom
+import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
@@ -286,6 +288,32 @@ class MigrationListViewModel(
         }
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
+        // Details for the metadata gate are fetched only for the candidate this source's query
+        // actually returned — one extra request per source that produced a pick, never across
+        // all sources. Deep-search mode stays untouched: it still fires its multi-query pass
+        // (up to five queries per source) and only its final pick goes through the same details
+        // fetch and validation gate below.
+        val candidateDetails = try {
+            source.getMangaUpdate(
+                manga = searchResult.manga.toSManga(),
+                chapters = emptyList(),
+                fetchDetails = true,
+                fetchChapters = false,
+            ).manga
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // No details means nothing to validate: the gate below lands on NoData and the
+            // configured fallback decides.
+            logcat(LogPriority.WARN, e) { "Source ${source.id} details fetch failed for manga ${manga.id}" }
+            null
+        }
+        val detailedManga = if (candidateDetails != null) {
+            searchResult.manga.copyFrom(candidateDetails)
+        } else {
+            searchResult.manga
+        }
+
         // Metadata gate: a title alone must not decide the match (same-title different-work
         // entries exist). The candidate has to agree with the source manga on at least two of
         // author/status/description/genres. Fields missing on either side are not evaluated;
@@ -296,10 +324,10 @@ class MigrationListViewModel(
             currentStatus = manga.status.toInt(),
             currentDescription = manga.description,
             currentGenres = manga.genre,
-            candidateAuthor = searchResult.manga.author,
-            candidateStatus = searchResult.manga.status.toInt(),
-            candidateDescription = searchResult.manga.description,
-            candidateGenres = searchResult.manga.genre,
+            candidateAuthor = detailedManga.author,
+            candidateStatus = detailedManga.status.toInt(),
+            candidateDescription = detailedManga.description,
+            candidateGenres = detailedManga.genre,
             descriptionThreshold = preferences.migrationMetadataDescriptionThreshold.get() / 100.0,
         )
         val accepted = when (metadataVerdict) {
@@ -328,7 +356,7 @@ class MigrationListViewModel(
         }
         if (!accepted) return null
 
-        val localManga = networkToLocalManga(searchResult.manga)
+        val localManga = networkToLocalManga(detailedManga)
         try {
             updateMangaFromRemote(localManga, fetchChapters = true).getOrThrow()
         } catch (e: Exception) {
