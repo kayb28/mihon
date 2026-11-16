@@ -36,6 +36,12 @@ data class ScoredManga(
      * link repair flow, which uses this class without the migration validation gate.
      */
     val metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+    /**
+     * How many chapters the candidate trails the library copy by, when the chapter-count gate
+     * accepted it past the tolerance (the list shows a warning line). Null when the counts were
+     * close, the candidate had more chapters, or no gate ran (manual picks, link repair).
+     */
+    val chaptersBehind: Int? = null,
 )
 
 class SmartSourceSearchEngine(

@@ -123,6 +123,7 @@ class MigrationListViewModel(
         isExactTitle: Boolean = false,
         isSingleResult: Boolean = false,
         metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+        chaptersBehind: Int? = null,
     ): SearchResult.Success {
         val chapterInfo = getChapterInfo(id)
         val source = sourceManager.getOrStub(source).getNameForMangaInfo()
@@ -135,6 +136,7 @@ class MigrationListViewModel(
             isExactTitle = isExactTitle,
             isSingleResult = isSingleResult,
             metadataVerdict = metadataVerdict,
+            chaptersBehind = chaptersBehind,
         )
     }
 
@@ -237,6 +239,7 @@ class MigrationListViewModel(
                     scored.isExactTitle,
                     scored.isSingleResult,
                     scored.metadataVerdict,
+                    scored.chaptersBehind,
                 )
             }
             searchHadError -> SearchResult.Error
@@ -287,6 +290,41 @@ class MigrationListViewModel(
             smartSearchEngine.regularSearch(source, manga.title, currentUrl)
         }
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
+
+        // Chapter-count gate, applied before the metadata gate: a candidate that reports a much
+        // shorter chapter list than the library copy is a stale mirror or a same-title different
+        // work, whatever the metadata would say. The chapter list is fetched for the pick only
+        // (one extra request), and when this gate rejects, the details request below never
+        // happens. A source that reports no chapters (0, unknown, failed fetch) is not judged
+        // here — the metadata gate and its fallback decide.
+        val candidateChapterCount = try {
+            source.getMangaUpdate(
+                manga = searchResult.manga.toSManga(),
+                chapters = emptyList(),
+                fetchDetails = false,
+                fetchChapters = true,
+            ).chapters.size
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "Source ${source.id} chapter list fetch failed for manga ${manga.id}" }
+            0
+        }
+        val originalChapterCount = getChapterInfo(manga.id).chapterCount
+        val chaptersBehind = when (val chapterVerdict = MetadataMatcher.validateChapters(
+            currentChapterCount = originalChapterCount,
+            candidateChapterCount = candidateChapterCount,
+        )) {
+            is MetadataMatcher.ChapterVerdict.Rejected -> {
+                logcat(LogPriority.INFO) {
+                    "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                        "chapter count $candidateChapterCount vs $originalChapterCount in library"
+                }
+                return null
+            }
+            is MetadataMatcher.ChapterVerdict.Accepted -> chapterVerdict.chaptersBehind
+            MetadataMatcher.ChapterVerdict.Skip -> 0
+        }
 
         // Details for the metadata gate are fetched only for the candidate this source's query
         // actually returned — one extra request per source that produced a pick, never across
@@ -373,6 +411,7 @@ class MigrationListViewModel(
             searchResult.isExactTitle,
             isSingleResult = searchResult.isSingleResult,
             metadataVerdict = metadataVerdict,
+            chaptersBehind = chaptersBehind.takeIf { it > 0 },
         )
         return scored to getChapterInfo(localManga.id)
     }

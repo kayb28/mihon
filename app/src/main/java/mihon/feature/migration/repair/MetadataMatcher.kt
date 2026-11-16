@@ -294,4 +294,50 @@ object MetadataMatcher {
             else -> MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
         }
     }
+
+    /**
+     * Outcome of [validateChapters], the chapter-count gate applied before the metadata gate.
+     * A candidate whose source reports a chapter list much shorter than the library copy is a
+     * stale mirror or a different work sharing the title, regardless of what any metadata
+     * signal would say.
+     */
+    sealed interface ChapterVerdict {
+        /** Either side reports no chapter count (0 or unknown): this gate does not judge. */
+        data object Skip : ChapterVerdict
+
+        /** candidate/original is under [CHAPTER_REJECT_RATIO]: rejected outright. */
+        data object Rejected : ChapterVerdict
+
+        /**
+         * Accepted; [chaptersBehind] is positive when the candidate trails the library copy by
+         * more than [CHAPTER_BEHIND_TOLERANCE] chapters (shown as a warning line), zero when the
+         * counts are close enough or the candidate has more chapters than the library copy.
+         */
+        data class Accepted(val chaptersBehind: Int) : ChapterVerdict
+    }
+
+    /**
+     * A candidate reporting fewer than this fraction of the library copy's chapters is rejected.
+     */
+    const val CHAPTER_REJECT_RATIO = 0.5
+
+    /**
+     * A candidate within [0.5, 1.0] of the library copy is accepted, but when it trails by more
+     * than this many chapters the list flags it («Va N caps atrás») instead of showing nothing.
+     */
+    const val CHAPTER_BEHIND_TOLERANCE = 5
+
+    /**
+     * Compares the library manga's chapter count against the candidate's. Unknown counts on
+     * either side (0, missing, failed fetch) never reject: the gate skips and the metadata
+     * gate (with its configured fallback) decides.
+     */
+    fun validateChapters(currentChapterCount: Int, candidateChapterCount: Int): ChapterVerdict {
+        if (currentChapterCount <= 0 || candidateChapterCount <= 0) return ChapterVerdict.Skip
+        val ratio = candidateChapterCount.toDouble() / currentChapterCount
+        if (ratio < CHAPTER_REJECT_RATIO) return ChapterVerdict.Rejected
+        val behind = currentChapterCount - candidateChapterCount
+        val flaggedBehind = ratio <= 1.0 && behind > CHAPTER_BEHIND_TOLERANCE
+        return ChapterVerdict.Accepted(if (flaggedBehind) behind else 0)
+    }
 }

@@ -203,6 +203,7 @@ fun MigrationListItem(
     isSingleResult: Boolean = false,
     originalChapterCount: Int? = null,
     metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+    chaptersBehind: Int? = null,
 ) {
     Column(
         modifier = modifier
@@ -308,7 +309,7 @@ fun MigrationListItem(
                 maxLines = 1,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            MetadataVerdictLine(metadataVerdict)
+            MetadataVerdictLine(metadataVerdict, chaptersBehind)
         }
     }
 }
@@ -316,10 +317,15 @@ fun MigrationListItem(
 /**
  * One-line summary of why the candidate was accepted, under the chapter info: the matching
  * metadata signals ("Matches: Author, Status") or the "no data to validate" mark when the
- * title-only fallback let it through. Rejected candidates never reach the list.
+ * title-only fallback let it through, plus the "N chapters behind" warning when the
+ * chapter-count gate accepted a candidate short of the library copy's chapters. Rejected
+ * candidates never reach the list.
  */
 @Composable
-private fun MetadataVerdictLine(metadataVerdict: MetadataMatcher.MetadataVerdict?) {
+private fun MetadataVerdictLine(
+    metadataVerdict: MetadataMatcher.MetadataVerdict?,
+    chaptersBehind: Int? = null,
+) {
     val text = when (metadataVerdict) {
         is MetadataMatcher.MetadataVerdict.Accepted -> {
             val signals = metadataVerdict.matchedSignals.map { signal -> metadataSignalLabel(signal) }
@@ -331,6 +337,15 @@ private fun MetadataVerdictLine(metadataVerdict: MetadataMatcher.MetadataVerdict
     if (text != null) {
         Text(
             text = text,
+            overflow = TextOverflow.Ellipsis,
+            maxLines = 1,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (chaptersBehind != null) {
+        Text(
+            text = stringResource(MR.strings.migrationListScreen_chaptersBehindLabel, chaptersBehind),
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
             style = MaterialTheme.typography.bodySmall,
@@ -430,6 +445,7 @@ fun MigrationListItemResult(
                     isSingleResult = result.isSingleResult,
                     originalChapterCount = originalChapterCount,
                     metadataVerdict = result.metadataVerdict,
+                    chaptersBehind = result.chaptersBehind,
                 )
             }
         }

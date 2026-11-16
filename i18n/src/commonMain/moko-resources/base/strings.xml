@@ -1142,6 +1142,7 @@
     <string name="migrationListScreen.singleResultBadge">ONLY RESULT</string>
     <string name="migrationListScreen.metadataMatchLabel">Matches: %1$s</string>
     <string name="migrationListScreen.metadataNoDataLabel">No data to validate</string>
+    <string name="migrationListScreen.chaptersBehindLabel">%1$d chapters behind</string>
     <string name="migrationListScreen.signalDescription">Description</string>
     <string name="migrationListScreen.signalGenres">Genres</string>
     <string name="migrationListScreen.failedDialog.title">Some migrations failed</string>

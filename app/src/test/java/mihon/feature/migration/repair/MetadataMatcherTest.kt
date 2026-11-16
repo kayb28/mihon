@@ -3,6 +3,7 @@ package mihon.feature.migration.repair
 import eu.kanade.tachiyomi.source.model.SManga
 import mihon.feature.migration.repair.MetadataMatcher.StatusCategory
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -349,5 +350,209 @@ class MetadataMatcherTest {
             setOf(MetadataMatcher.Signal.STATUS, MetadataMatcher.Signal.GENRES),
             none.evaluatedSignals,
         )
+    }
+
+    // ------------------------------------------------------------------
+    // Chapter-count gate, applied before the metadata gate. The named
+    // cases below come from the user's real migration test run.
+    // ------------------------------------------------------------------
+
+    /** The two-gate order [mihon.feature.migration.list.MigrationListViewModel] applies:
+     * chapters first, metadata second; the candidate must pass both. */
+    private fun acceptedByGates(
+        currentChapterCount: Int,
+        candidateChapterCount: Int,
+        metadataVerdict: MetadataMatcher.MetadataVerdict,
+    ): Boolean = when (MetadataMatcher.validateChapters(currentChapterCount, candidateChapterCount)) {
+        is MetadataMatcher.ChapterVerdict.Rejected -> false
+        else -> metadataVerdict is MetadataMatcher.MetadataVerdict.Accepted
+    }
+
+    @Test
+    fun `chapter gate skips when either side has no chapter count`() {
+        assertTrue(MetadataMatcher.validateChapters(0, 10) is MetadataMatcher.ChapterVerdict.Skip)
+        assertTrue(MetadataMatcher.validateChapters(10, 0) is MetadataMatcher.ChapterVerdict.Skip)
+        assertTrue(MetadataMatcher.validateChapters(0, 0) is MetadataMatcher.ChapterVerdict.Skip)
+    }
+
+    @Test
+    fun `chapter gate rejects candidates under half the library chapters`() {
+        assertTrue(
+            MetadataMatcher.validateChapters(66, 23) is MetadataMatcher.ChapterVerdict.Rejected,
+        ) // Cerberus / Tienda de conveniencia
+        assertTrue(
+            MetadataMatcher.validateChapters(143, 37) is MetadataMatcher.ChapterVerdict.Rejected,
+        ) // Atrapado en la torre
+        assertTrue(
+            MetadataMatcher.validateChapters(42, 3) is MetadataMatcher.ChapterVerdict.Rejected,
+        ) // Dios de la espada
+        assertTrue(MetadataMatcher.validateChapters(10, 4) is MetadataMatcher.ChapterVerdict.Rejected)
+    }
+
+    @Test
+    fun `chapter gate flags candidates more than five chapters behind`() {
+        // 90 of 100: dentro del rango 0.5-1.0 pero 10 caps atrás → acepta marcando.
+        val behind = MetadataMatcher.validateChapters(100, 90)
+        assertTrue(behind is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(10, (behind as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+
+        // Exactly 5 behind: dentro de la tolerancia → acepta sin marca.
+        val fiveBehind = MetadataMatcher.validateChapters(100, 95)
+        assertTrue(fiveBehind is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(0, (fiveBehind as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+    }
+
+    @Test
+    fun `chapter gate stays silent when candidate has more chapters`() {
+        val ahead = MetadataMatcher.validateChapters(100, 120)
+        assertTrue(ahead is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(0, (ahead as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+    }
+
+    @Test
+    fun `chapter gate boundary at exactly half ratio flags instead of rejecting`() {
+        // 33 of 66: la fracción es exactamente 0.5 (no < 0.5) → acepta, y marca los 33 atrás.
+        val half = MetadataMatcher.validateChapters(66, 33)
+        assertTrue(half is MetadataMatcher.ChapterVerdict.Accepted)
+        assertEquals(33, (half as MetadataMatcher.ChapterVerdict.Accepted).chaptersBehind)
+    }
+
+    @Test
+    fun `soldado esqueleto 395 vs 395 estado y generos is accepted`() {
+        // Author absent on the candidate side → not evaluated; Estado+Géneros decide.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy", "Adventure"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía", "Aventura"),
+        )
+        assertTrue(acceptedByGates(395, 395, verdict))
+    }
+
+    @Test
+    fun `villano sin igual 80 vs 80 autor estado y generos is accepted`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(acceptedByGates(80, 80, verdict))
+    }
+
+    @Test
+    fun `maestro baek 168 vs 168 estado y generos is accepted`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Martial Arts", "Drama"),
+            candidateAuthor = "Otro Estudio",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Artes Marciales", "Drama"),
+        )
+        assertTrue(acceptedByGates(168, 168, verdict))
+    }
+
+    @Test
+    fun `me jubilare despues de salvar el mundo 110 vs 110 autor estado y descripcion is accepted`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Park Ji-Ho",
+            currentStatus = SManga.ONGOING,
+            currentDescription = "Un hombre que salva el mundo decide jubilarse y vivir tranquilo.",
+            currentGenres = null,
+            candidateAuthor = "Park Ji-Ho",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = "Un hombre que salva el mundo decide jubilarse y vivir tranquilo.",
+            candidateGenres = null,
+        )
+        assertTrue(acceptedByGates(110, 110, verdict))
+    }
+
+    @Test
+    fun `regresor instruction manual 211 vs 211 estado y generos is accepted`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Fantasy", "Action"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Fantasía", "Acción"),
+        )
+        assertTrue(acceptedByGates(211, 211, verdict))
+    }
+
+    @Test
+    fun `emperatriz 250 vs 250 is accepted`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.COMPLETED,
+            currentDescription = null,
+            currentGenres = listOf("Romance", "Drama", "Fantasy"),
+            candidateAuthor = null,
+            candidateStatus = SManga.COMPLETED,
+            candidateDescription = null,
+            candidateGenres = listOf("Romance", "Drama", "Fantasía"),
+        )
+        assertTrue(acceptedByGates(250, 250, verdict))
+    }
+
+    @Test
+    fun `cerberus tienda de conveniencia 66 vs 23 con autor distinto is rejected`() {
+        // The chapter gate rejects on its own: 23/66 = 0.35 < 0.5. The metadata verdict for the
+        // same pair (status+genres agree) is asserted by the author-veto tests once the veto
+        // exists; here the chapter gate alone decides.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Comedy", "Slice of Life"),
+            candidateAuthor = "Otro Autor",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Comedia", "Recuentos de la Vida"),
+        )
+        assertFalse(acceptedByGates(66, 23, verdict))
+    }
+
+    @Test
+    fun `atrapado en la torre 143 vs 37 is rejected`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertFalse(acceptedByGates(143, 37, verdict))
+    }
+
+    @Test
+    fun `dios de la espada 42 vs 3 is rejected`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = null,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = null,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertFalse(acceptedByGates(42, 3, verdict))
     }
 }
