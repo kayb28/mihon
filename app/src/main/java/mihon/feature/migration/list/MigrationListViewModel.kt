@@ -38,6 +38,7 @@ import mihon.feature.migration.list.models.MigratingManga
 import mihon.feature.migration.list.models.MigratingManga.SearchResult
 import mihon.feature.migration.list.search.ScoredManga
 import mihon.feature.migration.list.search.SmartSourceSearchEngine
+import mihon.feature.migration.repair.MetadataMatcher
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChapterSummaryByMangaId
 import tachiyomi.domain.manga.interactor.GetManga
@@ -119,6 +120,7 @@ class MigrationListViewModel(
         similarity: Double? = null,
         isExactTitle: Boolean = false,
         isSingleResult: Boolean = false,
+        metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
     ): SearchResult.Success {
         val chapterInfo = getChapterInfo(id)
         val source = sourceManager.getOrStub(source).getNameForMangaInfo()
@@ -130,6 +132,7 @@ class MigrationListViewModel(
             similarity = similarity,
             isExactTitle = isExactTitle,
             isSingleResult = isSingleResult,
+            metadataVerdict = metadataVerdict,
         )
     }
 
@@ -227,7 +230,12 @@ class MigrationListViewModel(
         manga.searchResult.value = when {
             result != null -> {
                 val (scored, _) = result
-                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle, scored.isSingleResult)
+                scored.manga.toSuccessSearchResult(
+                    scored.similarity,
+                    scored.isExactTitle,
+                    scored.isSingleResult,
+                    scored.metadataVerdict,
+                )
             }
             searchHadError -> SearchResult.Error
             else -> SearchResult.NotFound
@@ -278,6 +286,48 @@ class MigrationListViewModel(
         }
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
+        // Metadata gate: a title alone must not decide the match (same-title different-work
+        // entries exist). The candidate has to agree with the source manga on at least two of
+        // author/status/description/genres. Fields missing on either side are not evaluated;
+        // when the source provides none of the four, the verdict is NoData and the configured
+        // fallback decides (accept-and-mark, or reject).
+        val metadataVerdict = MetadataMatcher.validate(
+            currentAuthor = manga.author,
+            currentStatus = manga.status.toInt(),
+            currentDescription = manga.description,
+            currentGenres = manga.genre,
+            candidateAuthor = searchResult.manga.author,
+            candidateStatus = searchResult.manga.status.toInt(),
+            candidateDescription = searchResult.manga.description,
+            candidateGenres = searchResult.manga.genre,
+            descriptionThreshold = preferences.migrationMetadataDescriptionThreshold.get() / 100.0,
+        )
+        val accepted = when (metadataVerdict) {
+            is MetadataMatcher.MetadataVerdict.Accepted -> true
+            is MetadataMatcher.MetadataVerdict.Rejected -> {
+                logcat(LogPriority.INFO) {
+                    "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                        "matched=${metadataVerdict.matchedSignals} evaluated=${metadataVerdict.evaluatedSignals}"
+                }
+                false
+            }
+            MetadataMatcher.MetadataVerdict.NoData ->
+                if (preferences.migrationMetadataFallbackToTitle.get()) {
+                    logcat(LogPriority.INFO) {
+                        "Migration candidate from source ${source.id} for manga ${manga.id} has no metadata " +
+                            "to validate; accepting via title-only fallback"
+                    }
+                    true
+                } else {
+                    logcat(LogPriority.INFO) {
+                        "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                            "no metadata to validate and title-only fallback is disabled"
+                    }
+                    false
+                }
+        }
+        if (!accepted) return null
+
         val localManga = networkToLocalManga(searchResult.manga)
         try {
             updateMangaFromRemote(localManga, fetchChapters = true).getOrThrow()
@@ -294,6 +344,7 @@ class MigrationListViewModel(
             searchResult.similarity,
             searchResult.isExactTitle,
             isSingleResult = searchResult.isSingleResult,
+            metadataVerdict = metadataVerdict,
         )
         return scored to getChapterInfo(localManga.id)
     }

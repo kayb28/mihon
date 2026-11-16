@@ -47,6 +47,7 @@ import eu.kanade.presentation.util.formatChapterNumber
 import eu.kanade.presentation.util.rememberResourceBitmapPainter
 import eu.kanade.tachiyomi.R
 import mihon.feature.migration.list.models.MigratingManga
+import mihon.feature.migration.repair.MetadataMatcher
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowForward
 import mihon.icons.materialsymbols.rounded.Check
@@ -201,6 +202,7 @@ fun MigrationListItem(
     isExactTitle: Boolean = false,
     isSingleResult: Boolean = false,
     originalChapterCount: Int? = null,
+    metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
 ) {
     Column(
         modifier = modifier
@@ -306,8 +308,44 @@ fun MigrationListItem(
                 maxLines = 1,
                 style = MaterialTheme.typography.bodyMedium,
             )
+            MetadataVerdictLine(metadataVerdict)
         }
     }
+}
+
+/**
+ * One-line summary of why the candidate was accepted, under the chapter info: the matching
+ * metadata signals ("Matches: Author, Status") or the "no data to validate" mark when the
+ * title-only fallback let it through. Rejected candidates never reach the list.
+ */
+@Composable
+private fun MetadataVerdictLine(metadataVerdict: MetadataMatcher.MetadataVerdict?) {
+    val text = when (metadataVerdict) {
+        is MetadataMatcher.MetadataVerdict.Accepted -> {
+            val signals = metadataVerdict.matchedSignals.map { signal -> metadataSignalLabel(signal) }
+            stringResource(MR.strings.migrationListScreen_metadataMatchLabel, signals.joinToString(", "))
+        }
+        MetadataMatcher.MetadataVerdict.NoData -> stringResource(MR.strings.migrationListScreen_metadataNoDataLabel)
+        else -> null
+    }
+    if (text != null) {
+        Text(
+            text = text,
+            overflow = TextOverflow.Ellipsis,
+            maxLines = 1,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun metadataSignalLabel(signal: MetadataMatcher.MetadataVerdict.Signal): String = when (signal) {
+    MetadataMatcher.MetadataVerdict.Signal.AUTHOR -> stringResource(MR.strings.author)
+    MetadataMatcher.MetadataVerdict.Signal.STATUS -> stringResource(MR.strings.status)
+    MetadataMatcher.MetadataVerdict.Signal.DESCRIPTION ->
+        stringResource(MR.strings.migrationListScreen_signalDescription)
+    MetadataMatcher.MetadataVerdict.Signal.GENRES -> stringResource(MR.strings.migrationListScreen_signalGenres)
 }
 
 @Composable
@@ -391,6 +429,7 @@ fun MigrationListItemResult(
                     isExactTitle = result.isExactTitle,
                     isSingleResult = result.isSingleResult,
                     originalChapterCount = originalChapterCount,
+                    metadataVerdict = result.metadataVerdict,
                 )
             }
         }
