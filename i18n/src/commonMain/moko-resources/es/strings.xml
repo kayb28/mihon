@@ -896,6 +896,7 @@
     <string name="migrationListScreen.singleResultBadge">ÚNICO RESULTADO</string>
     <string name="migrationListScreen.metadataMatchLabel">Coincide: %1$s</string>
     <string name="migrationListScreen.metadataNoDataLabel">Sin datos para validar</string>
+    <string name="migrationListScreen.chaptersBehindLabel">Va %1$d caps atrás</string>
     <string name="migrationListScreen.signalDescription">Descripción</string>
     <string name="migrationListScreen.signalGenres">Géneros</string>
     <string name="migrationListScreen.failedDialog.title">Algunas migraciones fallaron</string>

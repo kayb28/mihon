@@ -61,6 +61,12 @@ class MigratingManga(
              * participate in [isPreselected].
              */
             val metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+            /**
+             * Chapters the candidate trails the library copy by, flagged by the chapter-count
+             * gate (candidate within 50%-100% of the original but more than 5 chapters behind).
+             * Null when there is no gap to flag; purely informational.
+             */
+            val chaptersBehind: Int? = null,
         ) : SearchResult {
             /**
              * Entries the bulk Migrate/Copy action processes unattended: exact-title matches and
