@@ -24,7 +24,17 @@ Desde `ef0ece3` (06/11/2026) cada build se instala encima de la anterior en el t
 ### Verificación antes de entregar una build
 
 - Los logs del job «Build Release APK» deben contener «Keystore secret found. Configuring release signing.»
-- Opcional, para verificar el APK: `keytool -printcert -jarfile <apk>` debe mostrar el mismo certificado que la build anterior (CN=MihonFix).
+- Para verificar el APK (los APKs modernos firman con v2/v3, NO con firma JAR — `keytool -printcert -jarfile` responde «Not a signed jar file»): `python3 scripts/verify_apk_signature.py <apk>` debe responder «ESTABLE». El certificado estable del fork es SHA-256 `DE7889F34D731EF961794F0837B78B86D025387F20E036F357C94742D1296AD0` (CN=MihonFix, válido desde el 06/11/2026).
 - Todo cambio que toque firma, identidad de la app o CI de build se anota en `docs/REGISTRO.md` y se comunica al usuario.
+
+### Si se reporta que una build «no se instala encima»
+
+Descartar la firma con evidencia antes de asumirla. Forense del 16/11: **todas** las builds de la CI del fork desde `ef0ece3` (ramas `main`, `feature/webgpu-clean`, PRs incluidos) comparten el certificado estable — un rechazo con builds recientes casi nunca es de firma. Checklist en orden:
+
+1. **Firma**: descargar el artefacto de CI del run en cuestión y correr `python3 scripts/verify_apk_signature.py <apk>` → debe dar ESTABLE. Comparar también con la build que el usuario tiene instalada si se puede.
+2. **versionCode**: el del APK nuevo debe ser ≥ al instalado (`versionCode` en `app/build.gradle.kts`).
+3. **applicationId**: debe ser `app.mihonfix` sin sufijo (los APKs con sufijo `.dev`/`.foss`/`.debug`/`.benchmark` son apps distintas para Android y exigen desinstalar).
+4. Si firma/id/versionCode coinciden, la causa está en el **archivo o en el teléfono**: (a) archivo equivocado — instalar el `.zip` del artefacto en vez del APK de dentro, ABI incorrecta (el POCO F6 es arm64-v8a) o descarga truncada (verificar el sha256 del APK entregado); (b) **Play Protect** bloqueando → «Más detalles → Instalar de todos modos»; (c) instalador MIUI/HyperOS → activar «Instalación vía USB» / desactivar «Optimización MIUI» en Opciones de desarrollador, o instalar aceptando el aviso de seguridad.
+5. Si al final hay que desinstalar una vez: antes, copia de seguridad de Mihon (Ajustes → Copias de seguridad → Crear y exportar) para restaurar biblioteca, historial y ajustes tras reinstalar. El almacén de errores del reparador NO va en la copia: se reconstruye solo.
 
 El resto de convenciones (registro, CI, ramas, upstream) están en `docs/HISTORIA.md`, «Convenciones vigentes» y «Cómo retomar el trabajo».
