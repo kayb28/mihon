@@ -83,7 +83,9 @@ enum class ReadingMode(
             // Session fallback disables EXPERIMENTAL for the rest of the session and degrades
             // it to the HQ path (same behaviour as the previous independent flags).
             val mode = activity.appGraph.basePreferences.webGpuViewerMode.get()
-            if (!androidxWebGpuFallback && mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL) {
+            if (!androidxWebGpuFallback &&
+                mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL
+            ) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity)
                     RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity)
