@@ -37,7 +37,7 @@ android {
     defaultConfig {
         applicationId = "app.mihonfix"
 
-        versionCode = 39
+        versionCode = 40
         versionName = "0.21.3"
 
         resValue("string", "app_name", "Mihon Fix")

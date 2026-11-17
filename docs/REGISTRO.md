@@ -11,7 +11,313 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 
 ---
 
+## Índice cronológico de builds (todas las runs de la CI «Build APK»)
+
+> Reconstruido el 2026-11-17 a partir del historial completo de GitHub Actions (171 runs, 29/10–17/11). Cada fila: fecha UTC de la run, rama, commit, resultado y contenido. «instalable» = run exitosa que produce el APK arm64 `MihonFix-0.21.3-build-<sha>-arm64.apk` (firma estable desde `ef0ece3`, 06/11; antes de esa fecha cada build firmaba distinto y exigía desinstalar). Las runs canceladas y fallidas se listan porque también son historia — de cada fallida salió la corrección de la fila siguiente.
+
+
 ## 2026-11-17
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 04:38 | `fix/viewer-y-migracion` | `518b77b2a` | ✅ success | docs: registro de la rama fix/viewer-y-migracion (cherry-picks + PROBLEMAS.md) |
+
+_2026-11-17: 1 runs, 1 exitosas._
+
+
+### 2026-11-16
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 00:04 | `fix/webgpu-viewer-modes` | `af2f67d04` | ⏹ cancelled | style(webgpu): formato spotless de SettingsAdvancedScreen |
+| 00:04 | `fix/webgpu-viewer-modes` | `a67578753` | ⏹ cancelled | style(webgpu): formato spotless de AndroidxWebGpuViewer |
+| 00:04 | `fix/webgpu-viewer-modes` | `69a522c70` | ✅ success | style(webgpu): formato spotless de ReadingMode |
+| 01:43 | `fix/webgpu-migration-metadata` | `e28d733ec` | ❌ failure | docs: registro de la validacion de metadatos en migracion (rama fix/webgpu-migration-me... |
+| 01:51 | `fix/webgpu-migration-metadata` | `d8e6efe94` | ✅ success | fix(migration): ruta correcta de Signal en la etiqueta de la lista |
+| 02:05 | `fix/webgpu-migration-metadata` | `b80e3352b` | ✅ success | docs: CI verde y PR #4 de la validacion de metadatos en el registro |
+| 03:12 | `fix/update-without-uninstall-docs` | `039eca714` | ✅ success | docs: instruccion permanente - la app se actualiza sin desinstalar (AGENTS.md nuevo y r... |
+| 03:30 | `fix/update-without-uninstall-docs` | `b4e7f4578` | ✅ success | docs: registro de la verificacion de firma estable (certificado identico a 519c7b43) |
+| 04:55 | `fix/update-without-uninstall-docs` | `1135c6831` | ⏹ cancelled | docs: checklist de diagnostico para builds que no se instalan encima y verificador de f... |
+| 04:55 | `fix/update-without-uninstall-docs` | `13b42ad7a` | ✅ success | chore: restaurar modo 644 en docs (la umask del worktree los marco ejecutables) |
+| 15:40 | `fix/migration-guards` | `0d4fa02a4` | ⏹ cancelled | style(migration): formato ktlint en MigrationListViewModel |
+| 15:42 | `fix/migration-guards` | `fa79d5b76` | ✅ success | docs: registro de los guards de migracion (PR #6) |
+| 15:57 | `fix/migration-guards` | `da8ba290c` | ✅ success | docs: CI verde del PR #6 en el registro |
+| 17:28 | `fix/migration-guards` | `a29e72c68` | ✅ success | docs: registro de la fase 2 de migracion (PR #6) |
+| 17:39 | `fix/migration-guards` | `d0f2f3756` | ✅ success | docs: CI verde de la fase 2 del PR #6 en el registro |
+| 18:47 | `fix/migration-guards` | `056ba9681` | ✅ success | docs: registro de la fase 3 de correccion de falsos positivos (PR #6) |
+| 19:00 | `fix/migration-guards` | `c932f8b51` | ✅ success | docs: CI verde de la fase 3 del PR #6 en el registro |
+| 20:50 | `fix/migration-guards` | `e50f42e5a` | ✅ success | docs: registro del resultado 12/12 en dispositivo (fase 3, PR #6) |
+
+_2026-11-16: 18 runs, 13 exitosas._
+
+
+### 2026-11-15
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 02:44 | `main` | `3ea881954` | ⏹ cancelled | fix(migration): auditoria externa de 8 modelos - fallos visibles y no falsos exitos |
+| 02:44 | `main` | `3ea881954` | ⏹ cancelled | fix(migration): auditoria externa de 8 modelos - fallos visibles y no falsos exitos |
+| 02:46 | `main` | `39b1b5881` | ✅ success | docs: registro y changelog de la build 3ea8819 - auditoria externa de 8 modelos |
+| 03:22 | `main` | `110c8f76e` | ✅ success | docs: registro del diagnóstico de conflicto de paquete (firma estable verificada) |
+| 22:06 | `fix/webview-fetch-pr1` | `b24f4e29f` | ❌ failure | fix(network): endurecer protocolo de sesion y ciclo del WebView del fallback |
+| 22:57 | `docs/agents-md` | `045dc8acd` | ✅ success | docs: guia AGENTS.md para agentes (proyecto, build, ramas y reglas) |
+| 23:08 | `docs/agents-md` | `33f00d0a7` | ✅ success | docs(agents): regla 3 — la entrada de REGISTRO.md va en commit propio |
+| 23:17 | `docs/agents-md` | `d7554d4f5` | ⏹ cancelled | docs(registro): entrada de la guía AGENTS.md (PR #2) |
+| 23:19 | `docs/agents-md` | `dcee28802` | ✅ success | docs(registro): estado de la entrada AGENTS.md a — |
+| 23:26 | `fix/webgpu-viewer-modes` | `4f4b79c46` | ✅ success | docs: changelog y registro de la build 519c7b43 - opt-in de no exactas en migracion masiva |
+| 23:31 | `fix/webgpu-viewer-modes` | `4ab60ad8d` | ⏹ cancelled | fix(webgpu): selector único de visor STOCK/HQ/EXPERIMENTAL |
+| 23:32 | `fix/webgpu-viewer-modes` | `63fc0cea3` | ⏹ cancelled | fix(webgpu): UI del selector único de visor + cadenas base/es |
+| 23:33 | `fix/webgpu-viewer-modes` | `916e667af` | ⏹ cancelled | fix(webgpu): deslizar para pasar página en AndroidxWebGpuViewer |
+| 23:33 | `fix/webgpu-viewer-modes` | `ce9b8192b` | ⏹ cancelled | fix(webgpu): destroy de textura no bloqueante |
+| 23:33 | `fix/webgpu-viewer-modes` | `a1e37032e` | ❌ failure | docs: registro del selector único de visor y mejoras experimental |
+| 23:44 | `fix/webgpu-viewer-modes` | `5edb057eb` | ✅ success | fix(webgpu): destroy en coroutine (renderScope.launch) |
+
+_2026-11-15: 16 runs, 7 exitosas._
+
+
+### 2026-11-12
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 00:17 | `feature/webgpu-clean` | `d650a1ad3` | ✅ success | fix(repair): sincronizar el reparador con errores de biblioteca |
+| 00:32 | `feature/webgpu-clean` | `7a0a557c7` | ⏹ cancelled | docs: registro 12/11 - fixes de la sesion paralela, incidente del reciclaje y divergenc... |
+| 00:36 | `feature/webgpu-clean` | `0ecb90ffa` | ✅ success | docs: registro 12/11 - encargo heredado: build verde d650a1ad3, PR preparado (token sin... |
+| 02:48 | `feature/webgpu-clean` | `d324ddbf6` | ✅ success | docs: registro 12/11 - tercer intento de publicacion bloqueado (token de nuevo sin Cont... |
+| 02:55 | `main` | `d324ddbf6` | ⏹ cancelled | docs: registro 12/11 - tercer intento de publicacion bloqueado (token de nuevo sin Cont... |
+| 03:00 | `feature/webgpu-clean` | `62981c0e2` | ⏹ cancelled | docs: changelog de la build d324ddbf y registro de la publicacion (CI verde, main en FF) |
+| 03:03 | `feature/webgpu-clean` | `f6eb34c89` | ✅ success | style: formato ktlint en WebViewFetchFallbackInterceptor |
+| 03:03 | `main` | `f6eb34c89` | ✅ success | style: formato ktlint en WebViewFetchFallbackInterceptor |
+| 03:17 | `feature/webgpu-clean` | `986aa6ee4` | ✅ success | docs: registro del cierre de ciclo (build f6eb34c8, ambas CI verdes) y changelog retitu... |
+| 03:17 | `main` | `986aa6ee4` | ✅ success | docs: registro del cierre de ciclo (build f6eb34c8, ambas CI verdes) y changelog retitu... |
+| 04:26 | `main` | `e0613ab59` | ✅ success | docs: consolidacion del fork - HISTORIA.md, manifiestos a docs/, banner en README y reg... |
+| 04:27 | `feature/webgpu-clean` | `e0613ab59` | ✅ success | docs: consolidacion del fork - HISTORIA.md, manifiestos a docs/, banner en README y reg... |
+| 04:59 | `feature/webgpu-clean` | `519c7b433` | ✅ success | feat(migration): incluir coincidencias no exactas en la migracion masiva (opt-in) |
+| 04:59 | `main` | `519c7b433` | ✅ success | feat(migration): incluir coincidencias no exactas en la migracion masiva (opt-in) |
+| 05:14 | `main` | `4f4b79c46` | ✅ success | docs: changelog y registro de la build 519c7b43 - opt-in de no exactas en migracion masiva |
+| 05:14 | `feature/webgpu-clean` | `4f4b79c46` | ✅ success | docs: changelog y registro de la build 519c7b43 - opt-in de no exactas en migracion masiva |
+
+_2026-11-12: 16 runs, 13 exitosas._
+
+
+### 2026-11-11
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 14:35 | `feature/webgpu-clean` | `a9bbaa7ad` | ✅ success | fix(library): la lista de errores de actualizacion se acumulaba entre corridas |
+| 14:36 | `feature/webgpu-clean` | `d2e55a78f` | ⏹ cancelled | docs: ciclo 09/11 - fix de la acumulacion de errores de actualizacion |
+| 15:02 | `feature/webgpu-clean` | `70e30ab90` | ✅ success | docs: cierre 09/11 - CI 43040012633 verde, build a9bbaa7 entregada |
+| 18:41 | `feature/webgpu-clean` | `e3ef56c95` | ✅ success | feat(repair): resolvedor secundario - busqueda del titulo en otras fuentes instaladas |
+| 18:52 | `feature/webgpu-clean` | `d00e2a0e5` | ✅ success | docs: ciclo 11/11 - resolvedor secundario del reparador (e3ef56c, CI 43080168520 verde) |
+| 19:41 | `feature/webgpu-clean` | `489668b8c` | ❌ failure | feat(network): fallback de motor web - reintento via WebView Chromium cuando una fuente... |
+| 19:46 | `feature/webgpu-clean` | `85ffc0d0a` | ✅ success | fix(network): import faltante de toWebViewHeaders en el fallback de motor web |
+| 20:05 | `feature/webgpu-clean` | `f0977d725` | ✅ success | docs: ciclo 11/11 - motor web de respaldo (85ffc0d0, CI 43090297988 verde) |
+| 20:25 | `feature/webgpu-clean` | `31e7edf23` | ⏳ queued | docs: registro operativo de cambios (fecha/hora, motivo, build y confirmacion) |
+| 23:22 | `fix/review-2026-11-12` | `5d95ba550` | ✅ success | ci: acotar build_apk.yml (triggers, secretos por step, actions pineadas) |
+| 23:32 | `main` | `5d95ba550` | ✅ success | ci: acotar build_apk.yml (triggers, secretos por step, actions pineadas) |
+
+_2026-11-11: 11 runs, 8 exitosas._
+
+
+### 2026-11-10
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 11:32 | `feature/webgpu-clean` | `85b1900b8` | ⏹ cancelled | docs: revision del upstream 09/11 - sin release nueva, features portables a demanda |
+| 11:36 | `feature/webgpu-clean` | `14ec98072` | ✅ success | docs: revision de issues upstream 09/11 - #4240 e-ink ripple no aplica al fork |
+
+_2026-11-10: 2 runs, 1 exitosas._
+
+
+### 2026-11-06
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 06:31 | `feature/webgpu-clean` | `b9818fae1` | ❌ failure | docs: ciclo del 06/11 - intervalo de 6h y firma estable en CI |
+| 06:41 | `feature/webgpu-clean` | `b9818fae1` | ✅ success | docs: ciclo del 06/11 - intervalo de 6h y firma estable en CI |
+| 07:05 | `feature/webgpu-clean` | `d1d8a4b82` | ✅ success | docs: resultado del ciclo 06/11 - CI verde, firma verificada, APKs entregados |
+| 17:52 | `feature/webgpu-clean` | `9f904c718` | ✅ success | docs: feedback del 07/11 - visor experimental verificado en el POCO F6 (barras, calor, ... |
+| 18:32 | `feature/webgpu-clean` | `a5237598b` | ✅ success | fix(reader): experimental continuous viewer did not reopen at the saved page |
+| 18:33 | `feature/webgpu-clean` | `b0c01b3b1` | ⏹ cancelled | docs: ciclo del 07/11 - bump visor HQ 54->58 + reanudacion del experimental |
+| 18:56 | `feature/webgpu-clean` | `2354dfc61` | ✅ success | docs: cierre del ciclo 07/11 tarde - CI 42271630287 verde, build a523759 entregada |
+| 21:30 | `feature/webgpu-clean` | `92a71bd0e` | ✅ success | fix(reader): el gap del modo tira vertical es la causa de las barras negras |
+| 21:43 | `feature/webgpu-clean` | `b0119da5e` | ✅ success | docs: ciclo 07/11 noche - barras negras eran el Gap del modo tira vertical (fix 92a71bd) |
+| 22:21 | `feature/webgpu-clean` | `c0fe90f25` | ✅ success | docs: confirmacion del usuario 07/11 noche - barras negras resueltas con 92a71bd |
+
+_2026-11-06: 10 runs, 8 exitosas._
+
+
+### 2026-11-05
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 17:03 | `feature/webgpu-clean` | `508f0c469` | ✅ success | perf(reader): frame pacing en el visor androidx.webgpu (calor) |
+| 17:18 | `feature/webgpu-clean` | `8ffcbb968` | ✅ success | ci: detectar cambios de extension via la API de compare |
+| 17:31 | `feature/webgpu-clean` | `978c710c9` | ✅ success | docs: ciclo del 05/11 - barras negras, frame pacing y CI solo-app |
+
+_2026-11-05: 3 runs, 3 exitosas._
+
+
+### 2026-11-04
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 00:27 | `feature/webgpu-clean` | `51d158c7e` | ✅ success | docs: feedback del 04/11 noche (POCO F6, datos de migracion, propuestas pendientes) |
+| 00:56 | `feature/webgpu-clean` | `b9e7c1829` | ❌ failure | docs: regla de compilar solo en GitHub y ciclo del informe de fuentes |
+| 03:36 | `feature/webgpu-clean` | `d37ffb3de` | ✅ success | docs: traspaso del ciclo autonomo (Propuesta 1 reconstruida) |
+| 04:02 | `feature/webgpu-clean` | `58416b863` | ✅ success | docs: cierre del ciclo - CI verde y APK d37ffb3 entregado |
+| 08:38 | `feature/webgpu-clean` | `1a39b744d` | ✅ success | feat(migration): bulk migrate preselects exact matches only |
+| 08:56 | `feature/webgpu-clean` | `9ac6043f4` | ✅ success | docs: propuestas 2 y 3 implementadas, CI verde y APK 1a39b74 |
+| 09:50 | `feature/webgpu-clean` | `b681b70fe` | ✅ success | fix(reader): keep the strip glued across a chapter swap |
+| 10:15 | `feature/webgpu-clean` | `350a7dc44` | ✅ success | feat(sources): bulk enable/disable the listed sources |
+| 10:26 | `feature/webgpu-clean` | `1284d6b9e` | ✅ success | docs: fix del lector y fuentes en lote entregados (b681b70, 350a7dc) |
+| 13:07 | `feature/webgpu-clean` | `dd8d4d830` | ✅ success | perf(reader): paint the visible page first, trickle the preloads |
+| 13:24 | `feature/webgpu-clean` | `275bd50f0` | ✅ success | docs: visor optimizado, incidente del reciclado y APKs repuestos |
+
+_2026-11-04: 11 runs, 10 exitosas._
+
+
+### 2026-11-03
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 01:52 | `feature/webgpu-clean` | `1ce0d9c4a` | ⏹ cancelled | fix: el toque en tira avanza 3/4 de pantalla como el stock |
+| 01:54 | `feature/webgpu-clean` | `fffacf1e8` | ✅ success | fix: exponer settingsViewModel como protected para la subclase de tira |
+| 03:01 | `feature/webgpu-clean` | `be845174e` | ✅ success | fix: invertir direccion de arrastre en tira androidx (reverseDirection = true) |
+| 13:27 | `feature/webgpu-clean` | `65a8c653c` | ✅ success | fix: mandar coincidencias aproximadas del reparador a revision manual |
+| 14:12 | `feature/webgpu-clean` | `d1a776d44` | ✅ success | docs: traspaso de estado |
+| 20:52 | `feature/webgpu-clean` | `5f82393d4` | ✅ success | fix: hacer suspend los helpers nuevos que consultan el SourceManager |
+| 21:16 | `feature/webgpu-clean` | `41a3c74de` | ✅ success | docs: traspaso de estado tras la actualizacion general (5f82393) |
+| 23:08 | `feature/webgpu-clean` | `69769b1ec` | ✅ success | docs: registrar 9758ddc en el ciclo del 04/11 |
+| 23:54 | `feature/webgpu-clean` | `4a0079241` | ✅ success | docs: notas de la sesion del 04/11 tarde (APK entregado, explicaciones de actualizacion... |
+
+_2026-11-03: 9 runs, 8 exitosas._
+
+
+### 2026-11-02
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 01:14 | `feature/webgpu-clean` | `ec7988892` | ✅ success | Fix WebGPU reader review findings: fallback, chapter state, gestures |
+| 02:02 | `feature/webgpu-clean` | `729d6253d` | ✅ success | Fix double-normalized tap offset in ca.mpreg viewers + tap diagnostic probes |
+| 02:35 | `feature/webgpu-clean` | `f8420806e` | ✅ success | Rescale WebGPU tap position from surface-buffer to screen space + richer probes |
+| 03:27 | `feature/webgpu-clean` | `bd84e7e02` | ✅ success | Normalize WebGPU tap zones to the real viewport, with strip-aware Y |
+| 17:06 | `feature/webgpu-clean` | `aa86a4390` | ✅ success | Decouple tap zones from the strip: zones are pure viewport fractions |
+| 17:43 | `feature/webgpu-clean` | `efb98f1cd` | ✅ success | Document the 2026-11-03 fork build in CHANGELOG.md |
+| 19:30 | `main` | `d7ee28876` | ❌ failure | fix: corregir bugs del reparador de enlaces |
+| 19:34 | `main` | `750b7e231` | ❌ failure | ci: desactivar telemetría en build_apk.yml (-Pinclude-telemetry=false) |
+| 19:49 | `main` | `2434eea4e` | ⏹ cancelled | fix: restaurar piezas faltantes que rompían la compilación de main |
+| 19:54 | `main` | `af8a41dbe` | ✅ success | fix: corregir errores restantes del reparador de enlaces |
+| 20:05 | `main` | `b4a26187f` | ✅ success | ci: desactivar telemetría también en build.yml (-Pinclude-telemetry=false) |
+| 21:20 | `feature/webgpu-clean` | `1d0893c9a` | ❌ failure | merge: traer a feature/webgpu-clean las correcciones del reparador de enlaces (main) |
+| 21:26 | `feature/webgpu-clean` | `bba3a3c5d` | ✅ success | fix: eliminar parámetro duplicado onClickTrustAll tras el merge (ExtensionsTab) |
+| 22:01 | `feature/webgpu-clean` | `051bb53ed` | ✅ success | fix: el visor WebGPU de tira lee las zonas de toque de webtoon, como el stock |
+| 22:59 | `feature/webgpu-clean` | `436811ae9` | ✅ success | chore: sondas ① y ② solo en logcat, menos toasts por toque |
+| 23:38 | `feature/webgpu-clean` | `7d1f6750b` | ❌ failure | fix: el visor androidx deja de medir la tira completa y oculta el menú como el stock |
+| 23:44 | `feature/webgpu-clean` | `33f5b2c41` | ✅ success | fix: forzar Float en la viewport de maxScrollPx (la cadena ?: mezclaba Int y Float) |
+
+_2026-11-02: 17 runs, 12 exitosas._
+
+
+### 2026-11-01
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 00:06 | `feature/webgpu-clean` | `411e5e3a1` | ❌ failure | Fix RTL tap paging and start routing page bitmaps through GpuImageBackend |
+| 00:15 | `feature/webgpu-clean` | `d52ffe84e` | ✅ success | Fix page bitmap source: decode the page model stream into the GPU pipeline |
+| 00:39 | `feature/webgpu-clean` | `037ac3164` | ❌ failure | Route ImageDecoder frames into GpuImageBackend |
+| 00:49 | `feature/webgpu-clean` | `ebb4d07a5` | ✅ success | Fix createFromImage: decoder frames carry a pixel ByteBuffer |
+| 02:50 | `feature/webgpu-clean` | `bdc6e3764` | ❌ failure | Render pages on a WebGPU surface in AndroidxWebGpuViewer |
+| 03:53 | `feature/webgpu-clean` | `4a0d2fbba` | ✅ success | Fix WebGPU viewer compile errors and spotless violations |
+| 04:14 | `feature/webgpu-clean` | `8d28faf6e` | ✅ success | Fall back to the HQ/stock viewer when androidx.webgpu cannot draw |
+| 04:33 | `feature/webgpu-clean` | `ae27612fe` | ✅ success | Show page progress and errors, with retry, in the WebGPU viewer |
+| 04:55 | `feature/webgpu-clean` | `8d424a495` | ✅ success | Cap the WebGPU viewer's page cache at a preload window |
+| 05:20 | `feature/webgpu-clean` | `a8b5feb62` | ✅ success | Add pinch zoom, pan and double tap to the WebGPU paged viewer |
+| 05:38 | `feature/webgpu-clean` | `cac5014ff` | ✅ success | Add the continuous mode to the androidx.webgpu viewers |
+| 05:57 | `feature/webgpu-clean` | `4fc1233be` | ✅ success | Draw the continuous viewer's placed pages, and stop reallocating upload scratch |
+| 06:18 | `feature/webgpu-clean` | `7ae2f8f70` | ✅ success | Expose the androidx.webgpu preference, and test its page cache policy |
+| 06:27 | `feature/webgpu-clean` | `e561462a6` | ✅ success | Record the androidx.webgpu migration session notes |
+| 07:22 | `feature/webgpu-clean` | `8b00e5b08` | ✅ success | Load Dawn before probing androidx.webgpu, and catch Errors in the probe |
+| 07:57 | `feature/webgpu-clean` | `87ee0d303` | ✅ success | Confine queue writes to their real size, and stride padded texture rows |
+| 09:33 | `feature/webgpu-clean` | `bd0f4b426` | ✅ success | Request maxTextureDimension2D=16384 so tall webtoon pages clear createTexture |
+| 14:39 | `feature/webgpu-clean` | `74a2db0ad` | ✅ success | Wire 'Trust all pending' button and derive default source classification from ContentWa... |
+| 15:54 | `feature/webgpu-clean` | `4c119f582` | ✅ success | Group repair-links screen by source, matching UpdateErrors |
+| 16:23 | `feature/webgpu-clean` | `8c8f1466c` | ✅ success | Hybrid exact-match migration, adjustable similarity threshold, loud migration failures |
+| 16:53 | `feature/webgpu-clean` | `8433ad386` | ❌ failure | Show match confidence and a From→To header, with fuzzy repair fallback |
+| 16:58 | `feature/webgpu-clean` | `2f0c11b36` | ✅ success | Import dp in MigrateMangaDialog (CI compile fix) |
+| 17:49 | `feature/webgpu-clean` | `8fc4f4182` | ❌ failure | Add MHScans extension as a repo module (extension-mhscans) |
+| 17:51 | `feature/webgpu-clean` | `2add4ef73` | ❌ failure | Fix cross-project file access in extension module (Gradle 9 forbids rootProject.file at... |
+| 17:54 | `feature/webgpu-clean` | `6bdbfa7de` | ✅ success | Use okhttp.core alias (libs.okhttp is a bundle, not a dependency notation) |
+| 18:08 | `feature/webgpu-clean` | `37a8e6b30` | ✅ success | Sign extension release with debug config (same scheme as the app) so CI emits an instal... |
+| 19:50 | `feature/webgpu-clean` | `218491305` | ❌ failure | Add Emperor Scan extension module (:extension-emperorscan, v1.6.75) |
+| 19:56 | `feature/webgpu-clean` | `e755bde32` | ✅ success | Fix :extension-emperorscan compile errors (CI run 41343770815) |
+| 20:24 | `feature/webgpu-clean` | `41c052031` | ✅ success | Fix Emperor Scan listing parser (DTO wire field names, v1.6.76) |
+| 21:11 | `feature/webgpu-clean` | `f9462aa1f` | ✅ success | Fix extension NoClassDefFoundError + WebGPU reader MonotonicFrameClock crash |
+| 22:15 | `feature/webgpu-clean` | `297a905f3` | ✅ success | Restore reader overlay access from the WebGPU viewers |
+| 23:08 | `feature/webgpu-clean` | `399a3fc85` | ✅ success | Restore reader overlay access from the ca.mpreg WebGPU viewers |
+
+_2026-11-01: 32 runs, 25 exitosas._
+
+
+### 2026-10-31
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 16:01 | `main` | `62f394157` | ⏹ cancelled | ci: restore Build APK workflow on main |
+| 16:02 | `main` | `62f394157` | ❌ failure | ci: restore Build APK workflow on main |
+| 16:04 | `main` | `f0b2a69bb` | ⏹ cancelled | fix: add missing diskLruCache catalog entries |
+| 16:04 | `main` | `f0b2a69bb` | ❌ failure | fix: add missing diskLruCache catalog entries |
+| 16:25 | `main` | `e7aab2158` | ⏹ cancelled | fix: enable app custom resource values |
+| 16:25 | `main` | `81a8bb23c` | ⏹ cancelled | style: fix code formatting issues |
+| 16:25 | `main` | `81a8bb23c` | ❌ failure | style: fix code formatting issues |
+| 18:16 | `fix/build-green` | `81a8bb23c` | ❌ failure | style: fix code formatting issues |
+| 18:22 | `fix/build-green` | `f7ef6e336` | ✅ success | Port link repairer to Mihon v0.21.3 |
+| 22:08 | `feature/webgpu-androidx` | `5b6e69c14` | ❌ failure | Add androidx.webgpu runtime and AndroidxWebGpuProbe (migration phase 1) |
+| 22:19 | `feature/webgpu-androidx` | `288556041` | ❌ failure | Resolve libwebgpu_c_bundled.so clash between webgpuviewer and androidx.webgpu |
+| 22:26 | `feature/webgpu-androidx` | `7cd88da57` | ✅ success | Use compileOnly for androidx.webgpu (webgpuviewer embeds the same runtime) |
+| 22:38 | `feature/webgpu-androidx` | `f1bdc6123` | ✅ success | Add GpuImageBackend interface with ca.mpreg bridge (migration phase 2) |
+| 23:13 | `feature/webgpu-androidx` | `8bbf65e34` | ✅ success | Route WebGpuViewer image lifecycle through GpuImageBackend (migration phase 3a) |
+| 23:32 | `feature/webgpu-androidx` | `fff4710e5` | ✅ success | Add AndroidxWebGpuViewer paged stub behind a default-OFF preference (phase B) |
+
+_2026-10-31: 15 runs, 5 exitosas._
+
+
+### 2026-10-30
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 02:36 | `feature/source-management` | `61b24dc20` | ✅ success | Add library grouping by source (SY-style) |
+| 02:54 | `fix/repair-links-main` | `b1d69aeb6` | ✅ success | Disable telemetry in CI: no Firebase client for app.mihonfix |
+| 03:12 | `feature/source-management` | `b48144849` | ✅ success | Fix library sort when grouped by source |
+| 16:36 | `integration` | `f2c2529f5` | ❌ failure |  |
+| 16:48 | `integration` | `5567a8026` | ✅ success | Integrate source management on top of the rebuilt link fixer |
+| 16:58 | `integration` | `3470c9c5e` | ✅ success | Add CAMBIOS_FORK.md: fork change manifest vs base |
+| 17:24 | `integration` | `7fb14b591` | ✅ success | Port library group-by-source onto integration |
+
+_2026-10-30: 7 runs, 6 exitosas._
+
+
+### 2026-10-29
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 02:14 | `fix-0.21.3` | `60e1288c1` | ✅ success | Port link repairer to Mihon v0.21.3 |
+| 21:57 | `feature/source-management` | `66274d7df` | ✅ success | Fix source preference set updates |
+| 22:20 | `feature/source-management` | `4151d80ef` | ✅ success | Use extension warnings as source classifications |
+
+_2026-10-29: 3 runs, 3 exitosas._
+
+---
+
+## 2026-11-17
+
+- **17:10 UTC — consolidación: versión final consolidada de MihonFix (`consolidation/v4` → `main`).** Motivo: encargo del usuario — «demasiadas manos trabajaron en el repo y no hay una versión final consolidada»: revisar las builds en orden desde la primera, actualizar el registro con todo lo hecho y crear la versión final consolidada. Hecho, en cuatro bloques:
+  - **(1) Fix de compilación del PR #1** (`2222d6ca0`, rama `fix/webview-fetch-pr1`): la CI del PR llevaba desde el 15/11 roja por `UNSAFE_CALL` — `FetchSession.body()` devuelve `ByteArray?` y `WebViewFetchFallbackInterceptor.kt:342` lo usaba sin null-safety; corregido como fallo controlado (`?: return null` → respuesta original + cooldown del host), que es más honesto que un `!!` que tumbaría el interceptor. Era el único error de compilación de todo el run (log del job 132975507791 verificado).
+  - **(2) Integración completa de las 7 ramas**: merges de `docs/agents-md` (PR #2), `fix/update-without-uninstall-docs` (PR #5), `fix/webview-fetch-pr1` (PR #1 + fix), y `fix/viewer-y-migracion` (PR #7 — selector único de visor STOCK/HQ/EXPERIMENTAL + guards de migración fases 1–3, validado 12/12 en dispositivo el 16/11). Los PRs #3, #4 y #6 quedan contenidos en PR #7 (verificado con `git cherry`: solo 3 commits de docs redundaban y sus entradas ya estaban). `AGENTS.md` fusionado en un único documento (guía general de 6 secciones + regla crítica de actualización sin desinstalar como sección 7). Conflictos de `docs/REGISTRO.md` resueltos conservando todas las secciones cronológicas; **cero conflictos de código**.
+  - **(3) Índice cronológico de builds**: reconstruidas **todas** las 171 runs de la CI «Build APK» desde la primera (29/10, `60e1288c1` en `fix-0.21.3`) hasta la última (17/11, `518b77b2a` en `fix/viewer-y-migracion`): 123 exitosas, 24 fallidas, 23 canceladas, 15 días. El índice completo (por día, hora UTC, rama, commit, resultado y contenido) queda insertado arriba en este documento. Del conteo: la primera build instalable con firma estable fue `d1d8a4b82` (06/11); las exitosas de `main` más recientes con APK son `39b1b5881` y `110c8f76e` (15/11).
+  - **(4) Versión final**: `versionCode` 39 → **40** (regla del repo: nunca baja; la build se instala encima de la `3ea8819` — misma firma estable `CN=MihonFix`, mismo `applicationId app.mihonfix`). Docs de cierre: Fase 6 en `docs/HISTORIA.md`, sección nueva en `CHANGELOG.md` («Mihon Fix 0.21.3 — versión final consolidada»), banner del README actualizado, ramas fusionadas archivadas como `archive/consolidacion-v4`.
+  - Estado tras publicación: **pendiente CI verde** (Build APK + Build & Test sobre la punta de `main`) → la build resultante `MihonFix-0.21.3-build-<sha>-arm64.apk` es **la versión final consolidada recomendada** para instalar.
+
+
 - **04:38 — chore: rama `fix/viewer-y-migracion` — cherry-pick de viewer-modes y migration-guards sobre `feature/webgpu-clean` (`4f4b79c46`).** Motivo: encargo del usuario — reunir en una sola rama los commits de `fix/webgpu-viewer-modes` (9: selector único de visor STOCK/HQ/EXPERIMENTAL con migración de claves, swipe en el experimental solo con zoom=1, destroy de texturas no bloqueante en coroutine, formato spotless de 3 archivos) y los de `fix/migration-guards` (22: validación de metadatos 2-de-4, criterio de capítulos, veto por autor, respaldo por título desactivado por defecto, romanizador hangul/kana, identidad vs viabilidad con una petición por candidato, anclas distintivas y viabilidad dura — fase 3 confirmada 12/12 en dispositivo), ninguno de los dos bloques presente en la base `4f4b79c`. Ejecución: `git cherry-pick` en orden topológico de cada rama; 30 de 31 aplicaron limpios y 1 conflicto (`docs/REGISTRO.md`, commit `e28d733ec`) se resolvió archivo por archivo conservando ambas secciones cronológicas (la `2026-11-16` de la entrada entrante arriba, la `2026-11-15` del bloque viewer debajo). Docs propios de la rama: creado `docs/PROBLEMAS.md` con la fila «calor del visor — cerrado — confirmado por el usuario: sin calor en versiones recientes». PR abierto hacia `feature/webgpu-clean`; sin fusionar, sin borrar ramas, sin force push. `sin build` (los commits portados no producen APK hasta que CI corra sobre el PR) · Estado: **pendiente CI del PR**.
 
 ## 2026-11-16

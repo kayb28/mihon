@@ -1,6 +1,6 @@
 # Historia consolidada — MihonFix (fork kayb28)
 
-> Última actualización: **2026-11-12 04:20 UTC** · Compilada a partir del histórico de git (151 commits propios), `docs/REGISTRO.md`, `docs/TRASPASO.md`, `CHANGELOG.md` y los manifiestos de trabajo.
+> Última actualización: **2026-11-17 17:10 UTC** · Compilada a partir del histórico de git (151 commits propios + consolidación v4), `docs/REGISTRO.md`, `docs/TRASPASO.md`, `CHANGELOG.md` y los manifiestos de trabajo.
 >
 > Este documento responde a tres preguntas: **qué es este fork, cómo llegó hasta aquí y dónde vive cada cosa.** El detalle operativo día a día sigue en [`docs/REGISTRO.md`](REGISTRO.md) (el diario oficial: todo cambio nuevo se anota ahí), el traspaso técnico extenso en [`docs/TRASPASO.md`](TRASPASO.md) y el changelog formal por build en [`CHANGELOG.md`](../CHANGELOG.md).
 
@@ -85,6 +85,12 @@ Git conserva 5 identidades distintas; varias son identidad de sandbox de agentes
 - Saga de publicación (detallada en REGISTRO 00:50–02:48): PR imposible con token fine-grained sin permisos (403 ×3); merge de reconciliación `main` → feature resolviendo 5 conflictos conservando la línea probada (`eae7fe6a2`); incidente de reciclaje del sandbox sin pérdida real; el token clásico `repo`+`workflow` del usuario desbloquea el push (02:48) → lote publicado (`d324ddbf6`), **`main` vuelve a fast-forward** y ambas ramas quedan idénticas.
 - Mecanismos nuevos: **pasada en calma anti-errores de ráfaga** en actualización masiva (reintento transitorio, pacing, corte de cola, presupuesto por fuente; solo lo que falla en ambas pasadas queda en el log; `0cfd8b194`), propagación de cancelación (`13d6ba998`) y **títulos migrados dejan de aparecer** en reparador/errores (`3ba9da5cc`, verificado forensemente como primero de su caso, `e71adc7e2`).
 - Cierre (03:16): la CI upstream «Build & Test» destapó violaciones de formato → `f6eb34c89` (ktlint puro) → **doble CI verde** sobre `f6eb34c8`, `main` FF a `986aa6ee4`, CHANGELOG retitulado. Build final entregada y **pendiente de confirmación del usuario**.
+
+### Fase 6 — Divergencia de ramas y consolidación final (13–17 nov)
+
+- 13–15/11 (main): auditoría de 8 modelos externos sobre la migración masiva (`3ea88195`) — fallos visibles y no falsos éxitos — y diagnóstico forense del «conflicto de paquete» reportado por el usuario: certificado idéntico, causa = ejemplar previo a la firma estable. La punta de `main` queda en `110c8f76e` (15/11).
+- 15–16/11: florecen cinco ramas de trabajo en paralelo — `fix/webview-fetch-pr1` (PR #1: fallback WebView en mundo de página + POST binario + protocolo de sesión; CI roja por un `UNSAFE_CALL`), `docs/agents-md` (PR #2: guía de agentes), `fix/webgpu-viewer-modes` (PR #3: selector único de visor), `fix/webgpu-migration-metadata` (PR #4: validación de metadatos 2-de-4), `fix/update-without-uninstall-docs` (PR #5: regla de actualización sin desinstalar + forense de firmas). El trabajo más pesado: `fix/migration-guards` (PR #6, 22 commits: criterio de capítulos, veto por autor, romanizador hangul/kana, identidad vs viabilidad, anclas distintivas — **fase 3 confirmada 12/12 en dispositivo, 0 falsos positivos**, 16/11 20:43 UTC).
+- 17/11: `fix/viewer-y-migracion` (PR #7) reúne por cherry-pick los bloques de viewer-modes + migration-guards sobre `feature/webgpu-clean` (30 de 31 limpios). **Consolidación final** (encargo del usuario «una versión final consolidada»): fix de compilación del PR #1 (`2222d6ca0`), merges de las 7 ramas a una sola línea (PR #7 trae el código de #3/#4/#6; #2 y #5 fusionados con conflicto de `AGENTS.md` resuelto como un único documento), índice cronológico completo de las 171 runs de CI reconstruido e insertado en `docs/REGISTRO.md`, `versionCode` 39→40, ramas fusionadas archivadas (`archive/consolidacion-v4`), docs de cierre (esta fase, CHANGELOG, README). La punta de `main` pasa a ser **la versión final consolidada**: todo el trabajo verificado del fork en una sola línea con doble CI.
 
 ## Mapa de documentos
 

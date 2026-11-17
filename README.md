@@ -1,6 +1,6 @@
-> ### MihonFix — fork personal de Mihon
+> ### MihonFix — fork personal de Mihon · **versión final consolidada (17/11/2026)**
 >
-> Este fork (`kayb28/mihon`) extiende [mihonapp/mihon](https://github.com/mihonapp/mihon) (base v0.21.3) con: **reparador de enlaces** robusto, **gestión de fuentes** con clasificación propia y biblioteca agrupada por fuente, **visor experimental `androidx.webgpu`** y extensiones embebidas (MHScans, Emperor Scan). `applicationId` **`app.mihonfix`** — puede convivir instalada junto a la app oficial; sin Firebase ni telemetría.
+> Este fork (`kayb28/mihon`) extiende [mihonapp/mihon](https://github.com/mihonapp/mihon) (base v0.21.3) con: **reparador de enlaces** robusto (resolvedor secundario, motor web de respaldo vía WebView, pasada en calma anti-ráfaga), **migración asistida con guards** (validación de metadatos 2-de-4, criterio de capítulos, veto por autor — validada 12/12 en dispositivo), **gestión de fuentes** con clasificación propia y biblioteca agrupada por fuente, **selector único de visor** STOCK/HQ/EXPERIMENTAL y extensiones embebidas (MHScans, Emperor Scan). `applicationId` **`app.mihonfix`** — puede convivir instalada junto a la app oficial; sin Firebase ni telemetría. Desde el **17/11/2026** todo el trabajo del fork vive consolidado en `main` (versionCode 40); el índice cronológico completo de las 171 builds de CI está en [`docs/REGISTRO.md`](docs/REGISTRO.md).
 >
 > | Documento | Contenido |
 > |---|---|
@@ -9,7 +9,7 @@
 > | [`CHANGELOG.md`](CHANGELOG.md) | Cambios por build (secciones «Mihon Fix») |
 > | [`docs/TRASPASO.md`](docs/TRASPASO.md) | Traspaso técnico detallado |
 >
-> **Builds**: artefactos de la CI «Build APK» — `MihonFix-0.21.3-build-<sha>-arm64.apk`, firma estable desde `ef0ece3` (se instalan encima sin desinstalar).
+> **Builds**: artefactos de la CI «Build APK» — `MihonFix-0.21.3-build-<sha>-arm64.apk`, firma estable desde `ef0ece3` (se instalan encima sin desinstalar). La **versión final consolidada** (versionCode 40) es la build de la punta de `main` desde el 17/11.
 >
 > El texto a continuación es el README de upstream, conservado como referencia.
 

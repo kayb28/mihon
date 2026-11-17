@@ -10,6 +10,24 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix 0.21.3 — versión final consolidada, versionCode 40] - 2026-11-17
+
+> **Consolidación de las 7 ramas de trabajo en una sola línea `main`.** Encargo del usuario: revisar las builds en orden desde la primera, actualizar el registro y crear la versión final consolidada. versionCode 39 → **40** (se instala encima de la `3ea8819`: misma firma estable, mismo `app.mihonfix`). Todo el trabajo verificado del fork vive ahora en `main`; el detalle de la reconstrucción completa (171 runs de CI, índice cronológico por día) está en `docs/REGISTRO.md`.
+
+### Added
+- **Selector único de visor** STOCK/HQ/EXPERIMENTAL (antes dos flags independientes): una sola preferencia en Ajustes → Avanzado, con migración automática desde las claves antiguas; swipe para pasar página en el experimental solo con zoom=1; destroy de texturas no bloqueante en coroutine (PR #7 / viewer-modes).
+- **Guards de migración (fases 1–3, validados 12/12 en dispositivo, 0 falsos positivos)**: validación de metadatos 2-de-4 (autor/estado/descripción/géneros, veredicto visible «Coincide: Autor, Estado»), criterio de capítulos (ratio ≥ 0.5; retrasos grandes marcados o rechazados como destino), veto por autor, romanizador hangul/kana para títulos y autores, identidad vs viabilidad con una sola petición por candidato, anclas distintivas y viabilidad dura (PR #6/#7).
+- **Validación de metadatos en búsqueda de migración** (`MetadataMatcher`, 21 tests JVM): el título solo ya no decide — portadas de otra obra con título idéntico quedan fuera (PR #4).
+- **Fallback WebView endurecido** (PR #1): puente en mundo de página, POST binario, protocolo de sesión con clave única anti-inyección, tope de respuesta en Kotlin (AtomicLong) y secuencia estricta de mensajes; fix de compilación `UNSAFE_CALL` (2222d6ca0).
+- **Guía `AGENTS.md`** para agentes del repo + regla crítica de actualización sin desinstalar (firma estable, applicationId fijo, versionCode nunca baja) y verificador `scripts/verify_apk_signature.py` (PR #2/#5).
+
+### Fixed
+- Compilación del PR #1: `FetchSession.body()` (nullable) tratado como fallo controlado en el interceptor — respuesta original + cooldown en vez de crash (2222d6ca0, run rojo desde el 15/11).
+
+### Other
+- **Índice cronológico completo de builds** en `docs/REGISTRO.md`: las 171 runs de la CI «Build APK» desde la primera (29/10) — 123 exitosas, 24 fallidas, 23 canceladas, 15 días de desarrollo.
+- Fase 6 en `docs/HISTORIA.md`; banner del README actualizado a la versión consolidada; ramas fusionadas archivadas como `archive/consolidacion-v4`.
+
 ## [Mihon Fix 0.21.3 — fork kayb28, build `3ea8819`] - 2026-11-15
 
 > versionCode 39 (sin cambios) · commit de código: `3ea881954`. Se instala encima de la build `519c7b43` sin desinstalar (misma firma estable). CI: Build APK 43669204603.
