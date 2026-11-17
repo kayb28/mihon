@@ -57,6 +57,11 @@ dependencies {
 
     testImplementation(libs.bundles.test)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Real org.json for JVM unit tests: the Android SDK ships only a stub whose methods
+    // throw RuntimeException("Stub!"), so FetchSessionProtocolTest (which exercises
+    // JSONObject/optString/optInt/optJSONObject via the WebView fallback protocol) needs
+    // a concrete implementation on the test classpath.
+    testImplementation("org.json:json:20240303")
     testRuntimeOnly(libs.junit.platform.launcher)
 
     implementation(libs.metro.runtime)
