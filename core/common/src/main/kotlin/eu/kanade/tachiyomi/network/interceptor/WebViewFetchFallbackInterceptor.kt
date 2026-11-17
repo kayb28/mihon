@@ -343,7 +343,12 @@ class WebViewFetchFallbackInterceptor(
             .build()
     }
 
-    private fun buildFetchScript(request: Request, headersJson: JSONObject, bodyJson: JSONObject, sessionKey: String): String {
+    private fun buildFetchScript(
+        request: Request,
+        headersJson: JSONObject,
+        bodyJson: JSONObject,
+        sessionKey: String,
+    ): String {
         val params = JSONObject()
         params.put("url", request.url.toString())
         params.put("method", request.method)
