@@ -23,7 +23,9 @@ class FetchSessionProtocolTest {
     private fun session() = FetchSession(maxBytes = 1024, keyGenerator = { "test-key" })
 
     private fun head(status: Int = 200, headers: Map<String, String> = emptyMap(), key: String = "test-key") =
-        """{"t":"head","k":"$key","s":$status,"m":"OK","h":${headers.entries.joinToString(",", "{", "}") { """"${it.key}":"${it.value}"""" }}}"""
+        """{"t":"head","k":"$key","s":$status,"m":"OK","h":${headers.entries.joinToString(",", "{", "}") {
+            """"${it.key}":"${it.value}""""
+        }}}"""
 
     private fun data(bytes: ByteArray, key: String = "test-key") =
         """{"t":"data","k":"$key","b":"${Base64.getEncoder().encodeToString(bytes)}"}"""
