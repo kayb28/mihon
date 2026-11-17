@@ -10,6 +10,8 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import eu.kanade.domain.manga.model.copyFrom
+import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
@@ -38,6 +40,7 @@ import mihon.feature.migration.list.models.MigratingManga
 import mihon.feature.migration.list.models.MigratingManga.SearchResult
 import mihon.feature.migration.list.search.ScoredManga
 import mihon.feature.migration.list.search.SmartSourceSearchEngine
+import mihon.feature.migration.repair.MetadataMatcher
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChapterSummaryByMangaId
 import tachiyomi.domain.manga.interactor.GetManga
@@ -119,6 +122,8 @@ class MigrationListViewModel(
         similarity: Double? = null,
         isExactTitle: Boolean = false,
         isSingleResult: Boolean = false,
+        metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+        chaptersBehind: Int? = null,
     ): SearchResult.Success {
         val chapterInfo = getChapterInfo(id)
         val source = sourceManager.getOrStub(source).getNameForMangaInfo()
@@ -130,6 +135,8 @@ class MigrationListViewModel(
             similarity = similarity,
             isExactTitle = isExactTitle,
             isSingleResult = isSingleResult,
+            metadataVerdict = metadataVerdict,
+            chaptersBehind = chaptersBehind,
         )
     }
 
@@ -244,7 +251,13 @@ class MigrationListViewModel(
         manga.searchResult.value = when {
             result != null -> {
                 val (scored, _) = result
-                scored.manga.toSuccessSearchResult(scored.similarity, scored.isExactTitle, scored.isSingleResult)
+                scored.manga.toSuccessSearchResult(
+                    scored.similarity,
+                    scored.isExactTitle,
+                    scored.isSingleResult,
+                    scored.metadataVerdict,
+                    scored.chaptersBehind,
+                )
             }
             searchHadError -> SearchResult.Error
             else -> SearchResult.NotFound
@@ -300,7 +313,101 @@ class MigrationListViewModel(
         }
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
-        val localManga = networkToLocalManga(searchResult.manga)
+        // ONE getMangaUpdate per pick: details AND the chapter list in a single request
+        // (the pre-phase-2 flow fired two). Fetched only for the candidate this source's
+        // query actually returned — never across all sources. Deep-search mode stays
+        // untouched: it still fires its multi-query pass and only its final pick reaches
+        // this fetch and the gates below. A failure downgrades to "no chapters known, no
+        // details" — the viability gate skips and the identity gate lands on NoData.
+        val candidateUpdate = try {
+            source.getMangaUpdate(
+                manga = searchResult.manga.toSManga(),
+                chapters = emptyList(),
+                fetchDetails = true,
+                fetchChapters = true,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "Source ${source.id} update fetch failed for manga ${manga.id}" }
+            null
+        }
+        val candidateChapterCount = candidateUpdate?.chapters?.size ?: 0
+        val detailedManga = if (candidateUpdate != null) {
+            searchResult.manga.copyFrom(candidateUpdate.manga)
+        } else {
+            searchResult.manga
+        }
+
+        // ---- GATE A: identity of the work ---------------------------------------------
+        // Does this candidate represent the SAME work as the library copy? Title levels
+        // (EXACT / ROMANIZED / FUZZY via MetadataMatcher.titleLevel) weigh how much metadata
+        // agreement is needed (isSameWork, pure and unit-tested); the metadata gate itself
+        // stays the 2-of-4 signal count with author as a signal (not a veto — phase 2).
+        // Chapter counts play NO role here: a stale mirror of the right work is the right work.
+        val titleLevel = MetadataMatcher.titleLevel(manga.title, detailedManga.title)
+        val metadataVerdict = MetadataMatcher.validate(
+            currentAuthor = manga.author,
+            currentStatus = manga.status.toInt(),
+            currentDescription = manga.description,
+            currentGenres = manga.genre,
+            candidateAuthor = detailedManga.author,
+            candidateStatus = detailedManga.status.toInt(),
+            candidateDescription = detailedManga.description,
+            candidateGenres = detailedManga.genre,
+            descriptionThreshold = preferences.migrationMetadataDescriptionThreshold.get() / 100.0,
+        )
+        val identified = MetadataMatcher.isSameWork(
+            metadataVerdict,
+            titleLevel,
+            fallbackToTitle = preferences.migrationMetadataFallbackToTitle.get(),
+        )
+        if (!identified) {
+            logcat(LogPriority.INFO) {
+                "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                    "identity title=$titleLevel verdict=$metadataVerdict"
+            }
+            return null
+        }
+
+        // ---- GATE B: viability for migration ------------------------------------------
+        // Same work identified — is this source actually USEFUL to keep reading? Chapter
+        // coverage is the criterion: under half the library's chapters is not worth
+        // migrating to (stale mirror or abandoned translation); ratio-passing candidates
+        // with a very large absolute delay (25+ chapters for full series, half the original
+        // for short ones) are NOT offered as destinations (NotViable — the work is the same,
+        // the mirror is months stale); within [0.5, 1.0] but more than 5 behind, the
+        // candidate is accepted AND flagged («Va N caps atrás»). A source that reports no
+        // chapters is not judged here (its viability is unknown, not rejected — the parser
+        // may simply fail to list them).
+        val originalChapterCount = getChapterInfo(manga.id).chapterCount
+        val chapterVerdict = MetadataMatcher.validateChapters(
+            currentChapterCount = originalChapterCount,
+            candidateChapterCount = candidateChapterCount,
+        )
+        val chaptersBehind = when (chapterVerdict) {
+            is MetadataMatcher.ChapterVerdict.Rejected -> {
+                logcat(LogPriority.INFO) {
+                    "Migration candidate from source ${source.id} rejected for manga ${manga.id}: " +
+                        "chapter count $candidateChapterCount vs $originalChapterCount in library"
+                }
+                return null
+            }
+            MetadataMatcher.ChapterVerdict.NotViable -> {
+                // Same work, useless source (phase 3): passing the ratio floor is not enough
+                // when the absolute delay is months of serialisation. Logged as viability, not
+                // identity — the source may be fine for other titles.
+                logcat(LogPriority.INFO) {
+                    "Migration candidate from source ${source.id} not viable for manga ${manga.id}: " +
+                        "chapter count $candidateChapterCount vs $originalChapterCount in library"
+                }
+                return null
+            }
+            is MetadataMatcher.ChapterVerdict.Accepted -> chapterVerdict.chaptersBehind
+            MetadataMatcher.ChapterVerdict.Skip -> 0
+        }
+
+        val localManga = networkToLocalManga(detailedManga)
         try {
             updateMangaFromRemote(localManga, fetchChapters = true).getOrThrow()
         } catch (e: Exception) {
@@ -316,6 +423,8 @@ class MigrationListViewModel(
             searchResult.similarity,
             searchResult.isExactTitle,
             isSingleResult = searchResult.isSingleResult,
+            metadataVerdict = metadataVerdict,
+            chaptersBehind = chaptersBehind.takeIf { it > 0 },
         )
         return scored to getChapterInfo(localManga.id)
     }

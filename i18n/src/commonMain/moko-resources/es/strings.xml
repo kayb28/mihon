@@ -894,6 +894,11 @@
     <string name="migrationListScreen.matchWithoutChapterToast">No se ha encontrado ningún capítulo, por lo que no se puede utilizar para migrar</string>
     <string name="migrationListScreen.exactMatchBadge">EXACTO</string>
     <string name="migrationListScreen.singleResultBadge">ÚNICO RESULTADO</string>
+    <string name="migrationListScreen.metadataMatchLabel">Coincide: %1$s</string>
+    <string name="migrationListScreen.metadataNoDataLabel">Sin datos para validar</string>
+    <string name="migrationListScreen.chaptersBehindLabel">Va %1$d caps atrás</string>
+    <string name="migrationListScreen.signalDescription">Descripción</string>
+    <string name="migrationListScreen.signalGenres">Géneros</string>
     <string name="migrationListScreen.failedDialog.title">Algunas migraciones fallaron</string>
     <string name="migrationListScreen.failedDialog.message">%1$d de %2$d entradas no se pudieron migrar. Revisa la lista y vuelve a intentarlo con el botón Migrar.</string>
     <string name="migrationListScreen.migrateDialog.migrateLabel">Migrar</string>
@@ -985,4 +990,9 @@
     <string name="action_group">Grupo</string>
     <string name="pref_continuous_minwidth">Ancho mínimo</string>
     <string name="pref_continuous_gap">Separación entre páginas</string>
+    <string name="pref_webgpu_viewer_mode">Renderizador del lector</string>
+    <string name="pref_webgpu_viewer_mode_summary">Elige el visor usado para las páginas. Experimental usa androidx.webgpu y vuelve atrás en dispositivos no compatibles.</string>
+    <string name="pref_webgpu_viewer_mode_stock">Stock</string>
+    <string name="pref_webgpu_viewer_mode_hq">Alta calidad (WebGPU)</string>
+    <string name="pref_webgpu_viewer_mode_experimental">Experimental (androidx.webgpu)</string>
 </resources>

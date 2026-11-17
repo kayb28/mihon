@@ -475,6 +475,11 @@
     <string name="pref_high_quality_renderer">Use high quality renderer</string>
     <string name="pref_androidx_webgpu_viewer">Use androidx.webgpu viewer (experimental)</string>
     <string name="pref_androidx_webgpu_viewer_summary">Render the reader with the androidx.webgpu backend; the reader falls back to the usual viewer on devices that cannot run it</string>
+    <string name="pref_webgpu_viewer_mode">Reader renderer</string>
+    <string name="pref_webgpu_viewer_mode_summary">Choose the viewer used for pages. Experimental uses androidx.webgpu and falls back on unsupported devices.</string>
+    <string name="pref_webgpu_viewer_mode_stock">Stock</string>
+    <string name="pref_webgpu_viewer_mode_hq">High quality (WebGPU)</string>
+    <string name="pref_webgpu_viewer_mode_experimental">Experimental (androidx.webgpu)</string>
     <string name="webgpu_surface_page">Page %1$d</string>
     <string name="webgpu_surface_page_loading">Page %1$d, loading</string>
     <string name="webgpu_surface_page_failed">Page %1$d, failed to load</string>
@@ -1140,6 +1145,11 @@
     <string name="migrationListScreen.matchWithoutChapterToast">No chapters found, this entry cannot be used for migration</string>
     <string name="migrationListScreen.exactMatchBadge">EXACT</string>
     <string name="migrationListScreen.singleResultBadge">ONLY RESULT</string>
+    <string name="migrationListScreen.metadataMatchLabel">Matches: %1$s</string>
+    <string name="migrationListScreen.metadataNoDataLabel">No data to validate</string>
+    <string name="migrationListScreen.chaptersBehindLabel">%1$d chapters behind</string>
+    <string name="migrationListScreen.signalDescription">Description</string>
+    <string name="migrationListScreen.signalGenres">Genres</string>
     <string name="migrationListScreen.failedDialog.title">Some migrations failed</string>
     <string name="migrationListScreen.failedDialog.message">%1$d of %2$d entries could not be migrated. Check the list and try again with the Migrate button.</string>
 

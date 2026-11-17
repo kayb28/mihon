@@ -79,11 +79,13 @@ enum class ReadingMode(
         }
 
         fun toViewer(preference: Int?, activity: ReaderActivity, androidxWebGpuFallback: Boolean = false): Viewer {
-            // Migration experiment: every mode can use an androidx.webgpu viewer when its
-            // preference is on, unless the reader disabled it for this session because that
-            // viewer reported its runtime unusable (probe or surface bring-up failure). Default
-            // off: every mode keeps its current viewer below.
-            if (!androidxWebGpuFallback && activity.appGraph.basePreferences.androidxWebGpuViewer.get()) {
+            // Single preference: STOCK / HQ / EXPERIMENTAL.
+            // Session fallback disables EXPERIMENTAL for the rest of the session and degrades
+            // it to the HQ path (same behaviour as the previous independent flags).
+            val mode = activity.appGraph.basePreferences.webGpuViewerMode.get()
+            if (!androidxWebGpuFallback &&
+                mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL
+            ) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity)
                     RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity)
@@ -93,7 +95,9 @@ enum class ReadingMode(
                     DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
                 }
             }
-            if (activity.appGraph.basePreferences.highQualityRenderer.get()) {
+            if (mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ ||
+                mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL
+            ) {
                 return when (fromPreference(preference)) {
                     LEFT_TO_RIGHT -> WebGpuViewer(activity, isReversed = false, isVertical = false)
                     RIGHT_TO_LEFT -> WebGpuViewer(activity, isReversed = true, isVertical = false)

@@ -59,6 +59,9 @@ class AndroidxWebGpuViewer(
     private var panX = 0f
     private var panY = 0f
 
+    /** Accumulated drag while fitted (zoom == 1); used to turn pages by swipe. */
+    private var swipeAccum = 0f
+
     @Composable
     override fun Content(modifier: Modifier) {
         Box(
@@ -212,6 +215,37 @@ class AndroidxWebGpuViewer(
             panX = cx - (cx - panX) * carry
             panY = cy - (cy - panY) * carry
             zoom = newZoom
+            swipeAccum = 0f
+        }
+        // Page turn by swipe only while fitted (zoom == 1). Pinch and pan when zoomed stay as before.
+        if (zoom <= 1f && kotlin.math.abs(gestureZoom - 1f) < 0.02f) {
+            val mode = eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.fromPreference(
+                activity.viewModel.getMangaReadingMode(),
+            )
+            val vertical = mode.direction is eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.Direction.Vertical
+            val delta = if (vertical) pan.y else pan.x
+            // RTL: finger moving right should go backward (previous page in reading order).
+            val readingDelta = if (mode ==
+                eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.RIGHT_TO_LEFT
+            ) {
+                -delta
+            } else {
+                delta
+            }
+            swipeAccum += readingDelta
+            val threshold = (if (vertical) container.height else container.width) * 0.18f
+            if (kotlin.math.abs(swipeAccum) >= threshold) {
+                val step = if (swipeAccum > 0) 1 else -1
+                // Positive readingDelta = next page in reading order (LTR forward, RTL forward, vertical down).
+                moveBy(step)
+                swipeAccum = 0f
+            }
+            zoom = 1f
+            panX = 0f
+            panY = 0f
+            imageBackend.setTransform(zoom, panX, panY)
+            imageBackend.requestRender()
+            return
         }
         panX += pan.x
         panY += pan.y
@@ -219,6 +253,7 @@ class AndroidxWebGpuViewer(
             zoom = 1f
             panX = 0f
             panY = 0f
+            swipeAccum = 0f
         }
         imageBackend.setTransform(zoom, panX, panY)
         imageBackend.requestRender()
@@ -248,6 +283,7 @@ class AndroidxWebGpuViewer(
         zoom = 1f
         panX = 0f
         panY = 0f
+        swipeAccum = 0f
         imageBackend.setTransform(zoom, panX, panY)
     }
 

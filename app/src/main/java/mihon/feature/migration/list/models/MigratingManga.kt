@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import mihon.feature.migration.repair.MetadataMatcher
 import tachiyomi.domain.manga.model.Manga
 import kotlin.coroutines.CoroutineContext
 
@@ -55,6 +56,20 @@ class MigratingManga(
              * [isExactTitle] (titles actually compared equal) and from a manual override (null).
              */
             val isSingleResult: Boolean = false,
+            /**
+             * Metadata validation verdict (author/status/description/genres agreement), or null
+             * when the entry was not validated — manual picks and results from before this gate
+             * existed. Accepted carries the matching signals for the list badge; NoData marks a
+             * candidate accepted via the title-only fallback. Purely informational: it does not
+             * participate in [isPreselected].
+             */
+            val metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+            /**
+             * Chapters the candidate trails the library copy by, flagged by the chapter-count
+             * gate (candidate within 50%-100% of the original but more than 5 chapters behind).
+             * Null when there is no gap to flag; purely informational.
+             */
+            val chaptersBehind: Int? = null,
         ) : SearchResult {
             /**
              * Entries the bulk Migrate/Copy action processes unattended: exact-title matches and

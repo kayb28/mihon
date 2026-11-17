@@ -47,6 +47,7 @@ import eu.kanade.presentation.util.formatChapterNumber
 import eu.kanade.presentation.util.rememberResourceBitmapPainter
 import eu.kanade.tachiyomi.R
 import mihon.feature.migration.list.models.MigratingManga
+import mihon.feature.migration.repair.MetadataMatcher
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowForward
 import mihon.icons.materialsymbols.rounded.Check
@@ -201,6 +202,8 @@ fun MigrationListItem(
     isExactTitle: Boolean = false,
     isSingleResult: Boolean = false,
     originalChapterCount: Int? = null,
+    metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
+    chaptersBehind: Int? = null,
 ) {
     Column(
         modifier = modifier
@@ -306,8 +309,58 @@ fun MigrationListItem(
                 maxLines = 1,
                 style = MaterialTheme.typography.bodyMedium,
             )
+            MetadataVerdictLine(metadataVerdict, chaptersBehind)
         }
     }
+}
+
+/**
+ * One-line summary of why the candidate was accepted, under the chapter info: the matching
+ * metadata signals ("Matches: Author, Status") or the "no data to validate" mark when the
+ * title-only fallback let it through, plus the "N chapters behind" warning when the
+ * chapter-count gate accepted a candidate short of the library copy's chapters. Rejected
+ * candidates never reach the list.
+ */
+@Composable
+private fun MetadataVerdictLine(
+    metadataVerdict: MetadataMatcher.MetadataVerdict?,
+    chaptersBehind: Int? = null,
+) {
+    val text = when (metadataVerdict) {
+        is MetadataMatcher.MetadataVerdict.Accepted -> {
+            val signals = metadataVerdict.matchedSignals.map { signal -> metadataSignalLabel(signal) }
+            stringResource(MR.strings.migrationListScreen_metadataMatchLabel, signals.joinToString(", "))
+        }
+        MetadataMatcher.MetadataVerdict.NoData -> stringResource(MR.strings.migrationListScreen_metadataNoDataLabel)
+        else -> null
+    }
+    if (text != null) {
+        Text(
+            text = text,
+            overflow = TextOverflow.Ellipsis,
+            maxLines = 1,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (chaptersBehind != null) {
+        Text(
+            text = stringResource(MR.strings.migrationListScreen_chaptersBehindLabel, chaptersBehind),
+            overflow = TextOverflow.Ellipsis,
+            maxLines = 1,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun metadataSignalLabel(signal: MetadataMatcher.Signal): String = when (signal) {
+    MetadataMatcher.Signal.AUTHOR -> stringResource(MR.strings.author)
+    MetadataMatcher.Signal.STATUS -> stringResource(MR.strings.status)
+    MetadataMatcher.Signal.DESCRIPTION ->
+        stringResource(MR.strings.migrationListScreen_signalDescription)
+    MetadataMatcher.Signal.GENRES -> stringResource(MR.strings.migrationListScreen_signalGenres)
 }
 
 @Composable
@@ -391,6 +444,8 @@ fun MigrationListItemResult(
                     isExactTitle = result.isExactTitle,
                     isSingleResult = result.isSingleResult,
                     originalChapterCount = originalChapterCount,
+                    metadataVerdict = result.metadataVerdict,
+                    chaptersBehind = result.chaptersBehind,
                 )
             }
         }
