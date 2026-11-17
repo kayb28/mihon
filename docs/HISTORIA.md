@@ -119,6 +119,7 @@ Al consolidar quedaron **solo `main` y `feature/webgpu-clean`** (idénticas, `98
 4. **Compilar solo en GitHub** (no builds locales; `b9e7c1829`).
 5. **No rebasar contra upstream hasta v0.21.4** (refactor del lector #4191–4193 en vuelo). PR #4226 portable a demanda.
 6. Para publicar se necesita token con **Contents: write + Workflows: write** (clásico: `repo`+`workflow`). El fine-grained de solo lectura falló 3 veces — historial en REGISTRO 00:50–02:48.
+7. **La app se actualiza sin desinstalar** (firma estable desde `ef0ece3`): no tocar el paso «Setup Signing Keystore» de la CI ni el `signingConfig` del release, no cambiar el `applicationId` (`app.mihonfix`) y no bajar `versionCode`. Instrucción completa y obligatoria: **`AGENTS.md`** en la raíz.
 
 ## Pendientes abiertos al cierre de esta consolidación
 
