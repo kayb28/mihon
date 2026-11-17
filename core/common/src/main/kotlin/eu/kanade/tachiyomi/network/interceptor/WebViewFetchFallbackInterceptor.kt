@@ -324,7 +324,7 @@ class WebViewFetchFallbackInterceptor(
         val contentType = session.headers["content-type"]
             ?.takeIf { it.isNotBlank() }
             ?.let { runCatching { it.toMediaTypeOrNull() }.getOrNull() }
-        val bytes = session.body()
+        val bytes = session.body() ?: return null
 
         val headers = Headers.Builder()
         for ((name, value) in session.headers) {
