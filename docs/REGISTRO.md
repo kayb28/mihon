@@ -408,6 +408,10 @@ _2026-10-29: 3 runs, 3 exitosas._
 
 ---
 
+## 2026-11-19
+
+- **03:15 — publicación: primera GitHub Release del fork (`v0.21.3-fork.1`).** Motivo: petición del usuario de resolver todo lo pendiente — la versión final consolidada existía como commits + CI verde + artefacto de Actions, pero nunca se había publicado como Release pública y permanente (los artefactos caducan a 30 días y requieren login). Hecho: Release «MihonFix v0.21.3-fork.1 — versión final consolidada» sobre `736fa6baa` (main), con notas de release que resumen las 7 ramas consolidadas y las instrucciones de instalación, y el APK arm64 adjunto (`MihonFix-0.21.3-fork.1-arm64.apk`, 35.208.646 bytes, sha256 `d12c9c4c13ea7231a7107290623eb5c6d2636d44073349bfb07de89f9df5c531`). Verificación: firma del APK descargado = cert estable `CN=MihonFix` (`DE:78:89:F3:4D:73:1E:F9:61:79:4F:08:37:B7:8B:86:D0:25:38:7F:20:E0:36:F3:57:C9:47:42:D1:29:6A:D0`, scheme v3.1) con el verificador propio del repo (`scripts/verify_apk_signature.py`); sha256 del asset descargado idéntico al subido. **sin build** (la build es la ya verde `736fa6baa`; el tag apunta al mismo commit) · Estado: **publicada y verificada**.
+
 ## Pendientes abiertos
 
 - **Confirmaciones pendientes** (antigüedad primero): reanudación del visor continuo (`a523759`, 06/11) · acumulador de errores de actualización (`a9bbaa7`, 11/11) · resolvedor secundario (`e3ef56c`, 11/11) · motor web de respaldo (`85ffc0d0`, 11/11) · reintentos/enlaces rotos y reparador sincronizado (`d650a1ad3`, 12/11) · pasada en calma + migrados limpios (`d324ddbf`, 12/11) · migración masiva opt-in de no exactas (`519c7b43`, 12/11).

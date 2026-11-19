@@ -12,6 +12,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Mihon Fix 0.21.3 — versión final consolidada, versionCode 40] - 2026-11-17
 
+> **Publicado como GitHub Release `v0.21.3-fork.1` (2026-11-19)** — APK arm64 adjunto con firma estable verificada: github.com/kayb28/mihon/releases/tag/v0.21.3-fork.1
+
 > **Consolidación de las 7 ramas de trabajo en una sola línea `main`.** Encargo del usuario: revisar las builds en orden desde la primera, actualizar el registro y crear la versión final consolidada. versionCode 39 → **40** (se instala encima de la `3ea8819`: misma firma estable, mismo `app.mihonfix`). Todo el trabajo verificado del fork vive ahora en `main`; el detalle de la reconstrucción completa (171 runs de CI, índice cronológico por día) está en `docs/REGISTRO.md`.
 
 ### Added
