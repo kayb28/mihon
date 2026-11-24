@@ -80,7 +80,6 @@ class BasePreferences(
         )
     }
 
-
     val installationId: Preference<String> = preferenceStore.getString(Preference.appStateKey("installation_id"), "")
 
     val donationCampaignShown: Preference<Boolean> = preferenceStore.getBoolean(

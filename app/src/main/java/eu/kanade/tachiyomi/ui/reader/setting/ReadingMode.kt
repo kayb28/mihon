@@ -2,8 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.setting
 
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.icerock.moko.resources.StringResource
-import logcat.LogPriority
-import logcat.logcat
+import eu.kanade.domain.base.BasePreferences
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.L2RPagerViewer
@@ -14,6 +13,8 @@ import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerContinuous
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
+import logcat.LogPriority
+import logcat.logcat
 import mihon.app.di.appGraph
 import mihon.icons.custommaterialsymbols.CustomMaterialSymbols
 import mihon.icons.custommaterialsymbols.rounded.ReaderLeftToRight
@@ -92,7 +93,9 @@ enum class ReadingMode(
             // is reported to logcat so the value can be diagnosed (fix D1).
             val flag = ReadingModePolicy.resolveFlag(preference)
             if (flag == null) {
-                logcat(LogPriority.WARN, tag = TAG) { "Corrupt or unresolved reading mode flag $preference; degrading to stock left-to-right pager" }
+                logcat(LogPriority.WARN, tag = TAG) {
+                    "Corrupt or unresolved reading mode flag $preference; degrading to stock left-to-right pager"
+                }
                 return L2RPagerViewer(activity)
             }
             val navigation = fromPreference(flag)
@@ -102,9 +105,9 @@ enum class ReadingMode(
             val mode = ReadingModePolicy.selectBackend(
                 preference = activity.appGraph.basePreferences.webGpuViewerMode.get().let {
                     when (it) {
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
+                        BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
+                        BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
+                        BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
                     }
                 },
                 navigationFlag = flag,

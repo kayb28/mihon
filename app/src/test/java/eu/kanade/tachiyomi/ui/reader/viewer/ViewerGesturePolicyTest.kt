@@ -43,10 +43,30 @@ class ViewerGesturePolicyTest {
         val swipe = ViewerGesturePolicy.SwipeAccumulator()
         val w = 1000f
         // Below threshold: nothing.
-        assertEquals(0, swipe.onDrag(100f, 0f, isVertical = false, isRightToLeft = false, viewportWidth = w, viewportHeight = 1000f))
+        assertEquals(
+            0,
+            swipe.onDrag(
+                100f,
+                0f,
+                isVertical = false,
+                isRightToLeft = false,
+                viewportWidth = w,
+                viewportHeight = 1000f,
+            ),
+        )
         assertEquals(100f, swipe.accumulated)
         // Crossing the 18% threshold forwards one page and resets.
-        assertEquals(1, swipe.onDrag(100f, 0f, isVertical = false, isRightToLeft = false, viewportWidth = w, viewportHeight = 1000f))
+        assertEquals(
+            1,
+            swipe.onDrag(
+                100f,
+                0f,
+                isVertical = false,
+                isRightToLeft = false,
+                viewportWidth = w,
+                viewportHeight = 1000f,
+            ),
+        )
         assertEquals(0f, swipe.accumulated)
     }
 
@@ -54,10 +74,30 @@ class ViewerGesturePolicyTest {
     fun `swipe accumulator inverts RTL and handles vertical`() {
         val swipe = ViewerGesturePolicy.SwipeAccumulator()
         // RTL: finger moving right (positive X) is backward.
-        assertEquals(-1, swipe.onDrag(200f, 0f, isVertical = false, isRightToLeft = true, viewportWidth = 1000f, viewportHeight = 1000f))
+        assertEquals(
+            -1,
+            swipe.onDrag(
+                200f,
+                0f,
+                isVertical = false,
+                isRightToLeft = true,
+                viewportWidth = 1000f,
+                viewportHeight = 1000f,
+            ),
+        )
         swipe.reset()
         // Vertical: Y axis governs, positive Y is forward (down).
-        assertEquals(1, swipe.onDrag(0f, 200f, isVertical = true, isRightToLeft = false, viewportWidth = 1000f, viewportHeight = 1000f))
+        assertEquals(
+            1,
+            swipe.onDrag(
+                0f,
+                200f,
+                isVertical = true,
+                isRightToLeft = false,
+                viewportWidth = 1000f,
+                viewportHeight = 1000f,
+            ),
+        )
     }
 
     @Test

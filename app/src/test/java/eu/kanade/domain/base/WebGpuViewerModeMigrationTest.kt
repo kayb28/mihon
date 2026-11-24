@@ -12,7 +12,8 @@ import tachiyomi.core.common.preference.PreferenceStore
  */
 class WebGpuViewerModeMigrationTest {
 
-    private val newPref: (PreferenceStore) -> tachiyomi.core.common.preference.Preference<BasePreferences.WebGpuViewerMode> =
+    private val newPref:
+        (PreferenceStore) -> tachiyomi.core.common.preference.Preference<BasePreferences.WebGpuViewerMode> =
         { store -> store.getEnum(WebGpuViewerModeMigration.NEW_KEY, BasePreferences.WebGpuViewerMode.STOCK) }
 
     @Test
@@ -69,7 +70,11 @@ class WebGpuViewerModeMigrationTest {
         )
         val pref2 = newPref(store2)
         WebGpuViewerModeMigration.migrateOnce(pref2, legacyExperimental = true, legacyHq = false)
-        assertEquals(BasePreferences.WebGpuViewerMode.HQ, pref2.get(), "legacy keys must not govern after one-shot migration")
+        assertEquals(
+            BasePreferences.WebGpuViewerMode.HQ,
+            pref2.get(),
+            "legacy keys must not govern after one-shot migration",
+        )
         assertFalse(pref2.get() == BasePreferences.WebGpuViewerMode.EXPERIMENTAL)
     }
 
@@ -90,7 +95,9 @@ class WebGpuViewerModeMigrationTest {
             override fun defaultValue(): BasePreferences.WebGpuViewerMode = BasePreferences.WebGpuViewerMode.STOCK
             override fun changes(): kotlinx.coroutines.flow.Flow<BasePreferences.WebGpuViewerMode> =
                 kotlinx.coroutines.flow.flowOf(get())
-            override fun stateIn(scope: kotlinx.coroutines.CoroutineScope): kotlinx.coroutines.flow.StateFlow<BasePreferences.WebGpuViewerMode> =
+            override fun stateIn(
+                scope: kotlinx.coroutines.CoroutineScope,
+            ): kotlinx.coroutines.flow.StateFlow<BasePreferences.WebGpuViewerMode> =
                 kotlinx.coroutines.flow.MutableStateFlow(get())
         }
         WebGpuViewerModeMigration.migrateOnce(corrupt, legacyExperimental = true, legacyHq = true)
