@@ -81,7 +81,11 @@ enum class ReadingMode(
             return mode.type is ViewerType.Pager
         }
 
-        fun toViewer(preference: Int?, activity: ReaderActivity, androidxWebGpuFallback: Boolean = false): Viewer {
+        fun toViewer(
+            preference: Int?,
+            activity: ReaderActivity,
+            sessionBackendOverride: ReadingModePolicy.Backend? = null,
+        ): Viewer {
             // P2 preconditions: resolve and validate user data BEFORE any action. A corrupt or
             // unresolved flag never throws; it degrades to the safest option (stock viewer) and
             // is reported to logcat so the value can be diagnosed (fix D1).
@@ -91,16 +95,15 @@ enum class ReadingMode(
                 return L2RPagerViewer(activity)
             }
             val navigation = fromPreference(flag)
-            val mode = ReadingModePolicy.backend(
-                activity.appGraph.basePreferences.webGpuViewerMode.get().let {
-                    when (it) {
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
-                    }
-                },
-                androidxWebGpuFallback,
-            )
+            // Backend axis: a session-scoped override (T5 degradation ladder) wins over the
+            // preference; otherwise the stored preference decides. Neither writes preferences.
+            val mode = sessionBackendOverride ?: activity.appGraph.basePreferences.webGpuViewerMode.get().let {
+                when (it) {
+                    eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
+                    eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
+                    eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
+                }
+            }
             // DEFAULT is unreachable once the flag is validated; each arm degrades to stock
             // instead of throwing, so no preference value can crash the reader.
             // D4: the horizontal (L2R/R2L) and vertical pager branches are identical per

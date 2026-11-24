@@ -21,14 +21,4 @@ object ReadingModePolicy {
 
     /** Render backend axis, mirroring [eu.kanade.domain.base.BasePreferences.WebGpuViewerMode]. */
     enum class Backend { STOCK, HQ, EXPERIMENTAL }
-
-    /**
-     * Applies the degradation policy to the backend axis (P3):
-     * a session-scoped experimental fallback downgrades EXPERIMENTAL to HQ. STOCK is never
-     * changed, and nothing here writes preferences.
-     */
-    fun backend(mode: Backend, sessionFallback: Boolean): Backend = when {
-        mode == Backend.EXPERIMENTAL && sessionFallback -> Backend.HQ
-        else -> mode
-    }
 }

@@ -64,48 +64,4 @@ class ReadingModePolicyTest {
             assertTrue(resolved == null || resolved in ReadingModePolicy.VALID_FLAGS)
         }
     }
-
-    // --- backend: degradation policy (P3) ---
-
-    @Test
-    fun `session fallback degrades EXPERIMENTAL to HQ`() {
-        assertEquals(
-            ReadingModePolicy.Backend.HQ,
-            ReadingModePolicy.backend(ReadingModePolicy.Backend.EXPERIMENTAL, sessionFallback = true),
-        )
-    }
-
-    @Test
-    fun `no fallback keeps EXPERIMENTAL`() {
-        assertEquals(
-            ReadingModePolicy.Backend.EXPERIMENTAL,
-            ReadingModePolicy.backend(ReadingModePolicy.Backend.EXPERIMENTAL, sessionFallback = false),
-        )
-    }
-
-    @Test
-    fun `STOCK and HQ are unaffected by fallback`() {
-        assertEquals(
-            ReadingModePolicy.Backend.STOCK,
-            ReadingModePolicy.backend(ReadingModePolicy.Backend.STOCK, sessionFallback = true),
-        )
-        assertEquals(
-            ReadingModePolicy.Backend.HQ,
-            ReadingModePolicy.backend(ReadingModePolicy.Backend.HQ, sessionFallback = true),
-        )
-    }
-
-    @Test
-    fun `fuzz fallback combinations never throw`() {
-        val rng = Random(0xF00D)
-        val backends = ReadingModePolicy.Backend.entries
-        repeat(1_000) {
-            val backend = backends[rng.nextInt(backends.size)]
-            val fallback = rng.nextBoolean()
-            val resolved = ReadingModePolicy.backend(backend, fallback)
-            assertTrue(
-                resolved != ReadingModePolicy.Backend.EXPERIMENTAL || (!fallback && backend == ReadingModePolicy.Backend.EXPERIMENTAL),
-            )
-        }
-    }
 }
