@@ -112,8 +112,6 @@ class TitleMatcherTest {
         assertTrue(result is NeedsReview)
         assertEquals(NeedsReview.Reason.NO_MATCH, (result as NeedsReview).reason)
     }
-}
-
     // ------------------------------------------------------------------
     // M1: the exact-title pass must not decide with vacuous evidence.
     // When author AND genres are absent on BOTH sides, the exact match is
@@ -198,3 +196,4 @@ class TitleMatcherTest {
         )
         assertTrue(result is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence)
     }
+}

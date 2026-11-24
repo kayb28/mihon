@@ -134,8 +134,8 @@ class SmartSourceSearchEngine(
                 return ScoredManga(exact.candidate.toDomainManga(sourceId), 1.0, isExactTitle = true)
             }
             if (exact is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence) {
-                return ScoredManga(exact.candidate.toDomainManga(
-                    sourceId),
+                return ScoredManga(
+                    exact.candidate.toDomainManga(sourceId),
                     1.0,
                     isExactTitle = true,
                     exactUnverified = true,
