@@ -131,8 +131,10 @@ class TitleMatcherTest {
         // Remake with the same title and a source that extracted no metadata at all:
         // the match is offered (the candidate is in the result) but marked unverified.
         val candidate = smangaWithAuthor("Solo Leveling", "u-other", null)
-        val result = TitleMatcher.findMatchWithEvidence("Solo Leveling", "u-mine", listOf(
-            candidate),
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
             null,
             null,
         )
@@ -164,8 +166,10 @@ class TitleMatcherTest {
     @Test
     fun `exact match with matching author still auto-accepts`() {
         val candidate = smangaWithAuthor("Solo Leveling", "u-other", "Chugong")
-        val result = TitleMatcher.findMatchWithEvidence("Solo Leveling", "u-mine", listOf(
-            candidate),
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
             "Chugong",
             null,
         )
@@ -177,8 +181,10 @@ class TitleMatcherTest {
         // G7 regression guard: the sentinel URL keeps the exact pass alive cross-source,
         // and a verified author keeps it a full auto-accept.
         val candidate = smangaWithAuthor("One Piece", "u-other-source", "Eiichiro Oda")
-        val result = TitleMatcher.findMatchWithEvidence("One Piece", "", listOf(
-            candidate),
+        val result = TitleMatcher.findMatchWithEvidence(
+            "One Piece",
+            "",
+            listOf(candidate),
             "Eiichiro Oda",
             null,
         )
@@ -189,8 +195,10 @@ class TitleMatcherTest {
     fun `unverified exact cross-source match is still offered`() {
         // Same, but with no metadata anywhere: offered unverified, never dropped.
         val candidate = smangaWithAuthor("One Piece", "u-other-source", null)
-        val result = TitleMatcher.findMatchWithEvidence("One Piece", "", listOf(
-            candidate),
+        val result = TitleMatcher.findMatchWithEvidence(
+            "One Piece",
+            "",
+            listOf(candidate),
             null,
             null,
         )
