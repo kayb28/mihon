@@ -25,6 +25,38 @@ permissions:
   contents: read
 
 jobs:
+  checks:
+    name: Spotless & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Spotless check
+        run: ./gradlew spotlessCheck
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Upload test report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihon-unit-test-report-${{ github.sha }}
+          path: app/build/reports/tests/testDebugUnitTest
+          retention-days: 7
+
   build_release:
     name: Build Release APK
     runs-on: ubuntu-latest
