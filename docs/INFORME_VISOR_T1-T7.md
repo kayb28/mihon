@@ -19,7 +19,9 @@ La orden de trabajo pedía separar las tres decisiones que estaban mezcladas en 
 
 **Verificación local:** el sandbox no tiene Android SDK ni Gradle (limitación documentada en `AGENTS.md` del repo), así que las políticas puras se verificaron con un harness JVM (kotlinc 2.0.21 + runner propio, fuera del repo): **17.017 aserciones, 0 fallos**. Los mismos tests están en formato JUnit en `app/src/test/` para la CI.
 
-**CI:** la punta de la rama (`2df1dd9`) está **verde** en «Build APK» (run 2026-11-24 18:49 UTC). Nota honesta: los commits intermedios T5–T7 no compilaron por un import faltante (`appGraph`) que la CI detectó y se corrigió en `2df1dd9`; reescribir el historial habría exigido rebase/force-push, prohibidos por las reglas del repo. La regla «cada commit compila» se cumple desde el fix en adelante; los commits intermedios quedan como quedaron, sin reescritura.
+**CI (C5, evidencia):**
+- **Run verde: «Build APK» + «Build & Test» — commit `e4dcc2e` (main), 2026-11-24 19:29–19:31 UTC, ambas conclusiones `success`.** Ese commit contiene íntegro el squash `c8d2f52` del refactor T1–T7 más las correcciones post-auditoría C1–C5. Verificable en `https://github.com/kayb28/mihon/actions` (rama `main`, sha `e4dcc2e`).
+- Camino hasta el verde (honesto): el squash `c8d2f52` y los commits `b5ab3bb`/`697add9` fallaron en «Build & Test» por formato spotless (ktlint) y por nombres de test con `:` (ilegales en la JVM) más dos imports faltantes; corregido en `b5ab3bb`, `697add9` y `e4dcc2e` sin tocar lógica. La rama original `fix/viewer-refactor-t1-t7` quedó intacta, sin borrar ni reescribir.
 
 **Lo que NO cambió:** nada del comportamiento para usuarios STOCK/HQ; la semántica de fallback (EXPERIMENTAL degrada a HQ por sesión) se conserva; ninguna preferencia del usuario se escribe desde la degradación; no se tocó applicationId, firma ni versionCode; no hubo force push ni rebase.
 
@@ -47,3 +49,15 @@ La orden de trabajo pedía separar las tres decisiones que estaban mezcladas en 
 **¿Por qué?** Porque un lector de manga se usa una hora seguida y el peor escenario es que se cierre solo a mitad del capítulo 12 de 40. Con esto, ni un ajuste dañado ni un servidor caprichoso te sacan de la lectura: lo peor que puede pasar es que leas con el visor clásico hasta la próxima sesión.
 
 **¿Qué hay que hacer?** Instalar la build nueva cuando la CI la entregue (se instala encima de la actual, sin desinstalar) y leer con normalidad: modos stock y HQ se ven exactamente igual que antes. Si usás el visor experimental y notás que «bajó solo» a HQ, avisá — es el mecanismo nuevo cumpliendo su función, pero conviene confirmarlo.
+
+---
+
+## Correcciones post-auditoría (C1–C5, 2026-11-24)
+
+1. **C1 (fusión):** `fix/viewer-refactor-t1-t7` fusionada a `main` como UN commit squashed `c8d2f52` — `refactor(reader): viewer architecture T1-T7 (squashed)` con cuerpo en español citando los 8 SHAs originales para trazabilidad. Rama original intacta (sin borrar, sin rebase, sin force-push).
+2. **C2 (estilo):** `77533da` — `android.util.Log` sustituido por `logcat(LogPriority.WARN, tag = TAG)` del repo; un solo sitio loguea la degradación.
+3. **C3 (docs/identidad):** `581f671` — anotación bajo la tabla «Identidades en el histórico» de `docs/HISTORIA.md`: los commits del 24/11 firmados `kayb28` son sesión de agente (GLM).
+4. **C4 (cierre honesto de T6):** `eda3174` — T6 marcada «pieza lista, cableado pendiente de validación en dispositivo» en REGISTRO e informe; el punto «en criollo» ya no sobreventa el cableado. Cero cambio de comportamiento.
+5. **C5 (CI):** doble CI verde en `e4dcc2e` (Build APK + Build & Test, 2026-11-24 19:31 UTC), commit que contiene el squash; los dos fallos intermedios fueron solo formato (ktlint) y nombres de test ilegales, corregidos sin tocar lógica.
+
+**Qué cambió para el usuario: nada visible.** C2 y C4 son internos/docs; C1 reorganiza la historia de git; el comportamiento del lector es idéntico (STOCK/HQ sin cambios). **Pendiente:** cableado de T6 con validación en dispositivo.
