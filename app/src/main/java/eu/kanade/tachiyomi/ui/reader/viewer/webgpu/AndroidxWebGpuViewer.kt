@@ -30,9 +30,11 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
  * [AndroidxWebGpuBaseViewer] for the surface lifecycle, the windowed page presentation and the
  * page cache; what it adds is drawing the current page full-screen and the paged interactions.
  *
- * Work in progress behind [eu.kanade.domain.base.BasePreferences.androidxWebGpuViewer]
- * (default OFF): when the flag is off, [eu.kanade.tachiyomi.ui.reader.setting.ReadingMode]
- * keeps building the ca.mpreg HQ viewers exactly as before.
+ * Selected by the unified viewer preference
+ * [eu.kanade.domain.base.BasePreferences.webGpuViewerMode] set to EXPERIMENTAL
+ * ([eu.kanade.tachiyomi.ui.reader.setting.ReadingMode] builds this viewer in that mode; STOCK
+ * and HQ keep the stock and ca.mpreg HQ viewers). When the androidx.webgpu runtime cannot
+ * draw on the device, the reader degrades to the HQ viewer for the rest of the session.
  *
  * The drawn page is a plain tap-and-zoom surface: taps are forwarded to
  * [ReaderActivity.onViewerTap] at a normalized position so the configured navigation
@@ -47,8 +49,8 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
  *
  * If this viewer cannot draw — the androidx.webgpu probe fails, or the surface bring-up throws —
  * the shared base hands the reader back through [ReaderActivity.requestAndroidxWebGpuFallback],
- * which rebuilds the reader on the viewer it would use with the preference off (HQ or stock),
- * instead of stranding the user on a black surface.
+ * which rebuilds the reader on the HQ (or, as a last resort, stock) viewer for the rest of the
+ * session, instead of stranding the user on a black surface.
  */
 class AndroidxWebGpuViewer(
     activity: ReaderActivity,

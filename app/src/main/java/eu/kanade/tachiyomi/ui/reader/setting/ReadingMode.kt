@@ -103,11 +103,11 @@ enum class ReadingMode(
             )
             // DEFAULT is unreachable once the flag is validated; each arm degrades to stock
             // instead of throwing, so no preference value can crash the reader.
+            // D4: the horizontal (L2R/R2L) and vertical pager branches are identical per
+            // backend — collapsed into shared arms; the backend is the only difference.
             return when (mode) {
                 ReadingModePolicy.Backend.EXPERIMENTAL -> when (navigation) {
-                    LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity)
-                    RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity)
-                    VERTICAL -> AndroidxWebGpuViewer(activity)
+                    LEFT_TO_RIGHT, RIGHT_TO_LEFT, VERTICAL -> AndroidxWebGpuViewer(activity)
                     WEBTOON -> AndroidxWebGpuContinuousViewer(activity, useGap = false)
                     CONTINUOUS_VERTICAL -> AndroidxWebGpuContinuousViewer(activity, useGap = true)
                     DEFAULT -> L2RPagerViewer(activity)
