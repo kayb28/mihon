@@ -16,23 +16,24 @@ import eu.kanade.presentation.reader.ReaderError
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerGesturePolicy
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import tachiyomi.presentation.core.components.CombinedCircularProgressIndicator
 
-/** Zoom cap for pinch and double tap; 1 shows the page aspect-fitted. */
-private const val MAX_ZOOM = 4f
-
-/** Zoom a double tap toggles to (and back from). */
-private const val DOUBLE_TAP_ZOOM = 2.5f
+// Zoom caps and gestures come from the shared gesture policy so every viewer answers
+// identically (T4: one gesture manual for all viewers).
+private const val DOUBLE_TAP_ZOOM = ViewerGesturePolicy.DOUBLE_TAP_ZOOM
 
 /**
  * Paged viewer on androidx.webgpu (WebGPU migration, phase 7: pinch zoom and pan). Extends
  * [AndroidxWebGpuBaseViewer] for the surface lifecycle, the windowed page presentation and the
  * page cache; what it adds is drawing the current page full-screen and the paged interactions.
  *
- * Work in progress behind [eu.kanade.domain.base.BasePreferences.androidxWebGpuViewer]
- * (default OFF): when the flag is off, [eu.kanade.tachiyomi.ui.reader.setting.ReadingMode]
- * keeps building the ca.mpreg HQ viewers exactly as before.
+ * Selected by the unified viewer preference
+ * [eu.kanade.domain.base.BasePreferences.webGpuViewerMode] set to EXPERIMENTAL
+ * ([eu.kanade.tachiyomi.ui.reader.setting.ReadingMode] builds this viewer in that mode; STOCK
+ * and HQ keep the stock and ca.mpreg HQ viewers). When the androidx.webgpu runtime cannot
+ * draw on the device, the reader degrades to the HQ viewer for the rest of the session.
  *
  * The drawn page is a plain tap-and-zoom surface: taps are forwarded to
  * [ReaderActivity.onViewerTap] at a normalized position so the configured navigation
@@ -47,8 +48,8 @@ private const val DOUBLE_TAP_ZOOM = 2.5f
  *
  * If this viewer cannot draw — the androidx.webgpu probe fails, or the surface bring-up throws —
  * the shared base hands the reader back through [ReaderActivity.requestAndroidxWebGpuFallback],
- * which rebuilds the reader on the viewer it would use with the preference off (HQ or stock),
- * instead of stranding the user on a black surface.
+ * which rebuilds the reader on the HQ (or, as a last resort, stock) viewer for the rest of the
+ * session, instead of stranding the user on a black surface.
  */
 class AndroidxWebGpuViewer(
     activity: ReaderActivity,
@@ -59,8 +60,8 @@ class AndroidxWebGpuViewer(
     private var panX = 0f
     private var panY = 0f
 
-    /** Accumulated drag while fitted (zoom == 1); used to turn pages by swipe. */
-    private var swipeAccum = 0f
+    /** Shared swipe-to-turn accumulator (ViewerGesturePolicy, T4). */
+    private val swipe = ViewerGesturePolicy.SwipeAccumulator()
 
     @Composable
     override fun Content(modifier: Modifier) {
@@ -79,10 +80,13 @@ class AndroidxWebGpuViewer(
                         onTap = { offset -> onTap(offset, size) },
                         onDoubleTap = { offset -> onDoubleTap(offset, size) },
                         onLongPress = {
-                            // Same gate as the stock viewers and the HQ viewer: the long-tap
-                            // dialog is opt-in unless the menu is already open.
-                            if (activity.viewModel.state.value.menuVisible ||
-                                activity.settingsViewModel.general.value.longTapEnabled
+                            // Shared long-press gate (ViewerGesturePolicy): the long-tap dialog
+                            // is opt-in unless the menu is already open. Same for stock, HQ
+                            // and experimental viewers.
+                            if (ViewerGesturePolicy.longPressOpensPageDialog(
+                                    activity.viewModel.state.value.menuVisible,
+                                    activity.settingsViewModel.general.value.longTapEnabled,
+                                )
                             ) {
                                 current?.let(activity::onPageLongTap)
                             }
@@ -207,39 +211,38 @@ class AndroidxWebGpuViewer(
     private fun onTransform(centroid: Offset, pan: Offset, gestureZoom: Float, container: IntSize) {
         if (current == null) return
         val oldZoom = zoom
-        val newZoom = (zoom * gestureZoom).coerceIn(1f, MAX_ZOOM)
+        val newZoom = ViewerGesturePolicy.clampZoom(zoom * gestureZoom)
         if (newZoom != oldZoom) {
-            val carry = newZoom / oldZoom
-            val cx = centroid.x - container.width / 2f
-            val cy = centroid.y - container.height / 2f
-            panX = cx - (cx - panX) * carry
-            panY = cy - (cy - panY) * carry
+            // Anchor pan from the shared policy (center-relative coordinates).
+            val (ax, ay) = ViewerGesturePolicy.anchoredPan(
+                panX,
+                panY,
+                newZoom / oldZoom,
+                centroid.x - container.width / 2f,
+                centroid.y - container.height / 2f,
+            )
+            panX = ax
+            panY = ay
             zoom = newZoom
-            swipeAccum = 0f
+            swipe.reset()
         }
-        // Page turn by swipe only while fitted (zoom == 1). Pinch and pan when zoomed stay as before.
+        // Page turn by swipe only while fitted (zoom == 1). Pinch and pan when zoomed stay as
+        // before. The axis/RTL decision lives in the shared SwipeAccumulator (T4).
         if (zoom <= 1f && kotlin.math.abs(gestureZoom - 1f) < 0.02f) {
             val mode = eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.fromPreference(
                 activity.viewModel.getMangaReadingMode(),
             )
             val vertical = mode.direction is eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.Direction.Vertical
-            val delta = if (vertical) pan.y else pan.x
-            // RTL: finger moving right should go backward (previous page in reading order).
-            val readingDelta = if (mode ==
-                eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.RIGHT_TO_LEFT
-            ) {
-                -delta
-            } else {
-                delta
-            }
-            swipeAccum += readingDelta
-            val threshold = (if (vertical) container.height else container.width) * 0.18f
-            if (kotlin.math.abs(swipeAccum) >= threshold) {
-                val step = if (swipeAccum > 0) 1 else -1
-                // Positive readingDelta = next page in reading order (LTR forward, RTL forward, vertical down).
-                moveBy(step)
-                swipeAccum = 0f
-            }
+            val step = swipe.onDrag(
+                panX = pan.x,
+                panY = pan.y,
+                isVertical = vertical,
+                isRightToLeft = mode == eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.RIGHT_TO_LEFT,
+                viewportWidth = container.width.toFloat(),
+                viewportHeight = container.height.toFloat(),
+            )
+            // Positive readingDelta = next page in reading order (LTR forward, RTL forward, vertical down).
+            if (step != 0) moveBy(step)
             zoom = 1f
             panX = 0f
             panY = 0f
@@ -253,26 +256,29 @@ class AndroidxWebGpuViewer(
             zoom = 1f
             panX = 0f
             panY = 0f
-            swipeAccum = 0f
+            swipe.reset()
         }
         imageBackend.setTransform(zoom, panX, panY)
         imageBackend.requestRender()
     }
 
-    /** Toggles between fit and [DOUBLE_TAP_ZOOM], zooming into the tapped point. */
+    /** Toggles between fit and [DOUBLE_TAP_ZOOM], zooming into the tapped point (shared policy). */
     private fun onDoubleTap(centroid: Offset, container: IntSize) {
         val oldZoom = zoom
-        if (oldZoom > 1f) {
-            zoom = 1f
+        zoom = ViewerGesturePolicy.doubleTapTargetZoom(oldZoom)
+        if (zoom > 1f) {
+            val (ax, ay) = ViewerGesturePolicy.anchoredPan(
+                panX,
+                panY,
+                zoom / oldZoom,
+                centroid.x - container.width / 2f,
+                centroid.y - container.height / 2f,
+            )
+            panX = ax
+            panY = ay
+        } else {
             panX = 0f
             panY = 0f
-        } else {
-            zoom = DOUBLE_TAP_ZOOM
-            val carry = zoom / oldZoom
-            val cx = centroid.x - container.width / 2f
-            val cy = centroid.y - container.height / 2f
-            panX = cx - (cx - panX) * carry
-            panY = cy - (cy - panY) * carry
         }
         imageBackend.setTransform(zoom, panX, panY)
         imageBackend.requestRender()
@@ -283,7 +289,7 @@ class AndroidxWebGpuViewer(
         zoom = 1f
         panX = 0f
         panY = 0f
-        swipeAccum = 0f
+        swipe.reset()
         imageBackend.setTransform(zoom, panX, panY)
     }
 

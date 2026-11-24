@@ -92,11 +92,12 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.setting.ReadingModePolicy
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerBackendPolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Action
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
-import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.AndroidxWebGpuBaseViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
@@ -114,6 +115,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.app.di.AppGraph
+import mihon.app.di.appGraph
 import mihon.core.metro.metroGraph
 import tachiyomi.core.common.Constants
 import tachiyomi.core.common.i18n.stringResource
@@ -162,13 +164,15 @@ class ReaderActivity : BaseActivity() {
     private val viewer: Viewer? inline get() = viewerFlow.value
 
     /**
-     * Sticky per-session kill switch for the androidx.webgpu viewer: set once that viewer reports
-     * its runtime unusable, so [updateViewer] rebuilds the reader on the viewer the flag-less
-     * path would have picked. Resets when the activity is recreated (the runtime may work by
-     * then, e.g. after a driver update).
+     * Session-scoped backend degradation (T5): null means "no override, follow the user's
+     * preference"; otherwise it pins the backend for the rest of the session, one step down
+     * the ladder EXPERIMENTAL→HQ→STOCK per fallback report (bring-up failure or circuit
+     * breaker of consecutive page failures). It NEVER writes the user preference — next
+     * session re-probes by starting from the stored value again. Resets when the activity is
+     * recreated.
      */
     @Volatile
-    private var androidxWebGpuFallback = false
+    private var sessionBackend: ReadingModePolicy.Backend? = null
 
     var isScrollingThroughPages = false
         private set
@@ -649,7 +653,7 @@ class ReaderActivity : BaseActivity() {
         val prevViewer = viewer
         val readingMode = viewModel.getMangaReadingMode()
         settingsViewModel.setViewerReadingMode(ReadingMode.fromPreference(readingMode))
-        val newViewer = ReadingMode.toViewer(readingMode, this, androidxWebGpuFallback)
+        val newViewer = ReadingMode.toViewer(readingMode, this, sessionBackend)
 
         setOrientation(viewModel.getMangaOrientation())
 
@@ -665,19 +669,33 @@ class ReaderActivity : BaseActivity() {
     }
 
     /**
-     * Replaces the androidx.webgpu viewer with the viewer the reader would use with its
-     * preference off, after that viewer decided it cannot draw (its androidx.webgpu probe failed
-     * or the surface bring-up threw). Sticky for the rest of the session; safe from any thread
-     * (hops to the main thread); a no-op when the current viewer is not the androidx.webgpu one,
-     * e.g. when a stale report races a manual mode change.
+     * Degrades the render backend one step (EXPERIMENTAL→HQ→STOCK) for the rest of the session,
+     * after the current viewer decided it cannot draw (its androidx.webgpu probe failed, the
+     * surface bring-up threw, or the circuit breaker counted the failure-threshold of
+     * consecutive page failures). Safe from any thread (hops to the main thread); a no-op once
+     * the stock viewer is live — STOCK cannot degrade further — e.g. when a stale report races
+     * a manual mode change. Never writes the user preference (T5).
      */
     fun requestAndroidxWebGpuFallback() {
         runOnUiThread {
-            if (viewer !is AndroidxWebGpuBaseViewer || androidxWebGpuFallback || isFinishing) return@runOnUiThread
+            if (isFinishing) return@runOnUiThread
+            // Degrade one step (EXPERIMENTAL→HQ→STOCK); STOCK cannot degrade further, so a
+            // report arriving after the stock viewer is live is a no-op (also covers stale
+            // reports racing a manual mode change).
+            val current = sessionBackend
+                ?: appGraph.basePreferences.webGpuViewerMode.get().let {
+                    when (it) {
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
+                    }
+                }
+            val degraded = ViewerBackendPolicy.degrade(current)
+            if (degraded == null || degraded == current) return@runOnUiThread
             logcat(LogPriority.WARN) {
-                "androidx.webgpu viewer gave the reader back; rebuilding on the HQ/stock viewer"
+                "viewer backend degraded for this session: $current -> $degraded"
             }
-            androidxWebGpuFallback = true
+            sessionBackend = degraded
             updateViewer()
             // updateViewer() alone leaves the rebuilt viewer chapter-less: the viewerChapters
             // flow only re-emits on new ViewerChapters instances (distinctUntilChanged above),

@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerBackendPolicy
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -126,6 +127,13 @@ abstract class AndroidxWebGpuBaseViewer(
     /** Set once this viewer gave the reader back; [requestFallback] fires only once. */
     @Volatile
     private var fallbackRequested = false
+
+    /**
+     * Circuit breaker over consecutive page failures (T5): N failed pages in a row trip the
+     * breaker and hand the reader back (session degradation EXPERIMENTAL→HQ→STOCK). A page
+     * that draws resets the count, so isolated failures never degrade the reader.
+     */
+    private val pageFailureBreaker = ViewerBackendPolicy.CircuitBreaker()
 
     private var surfaceJob: Job? = null
 
@@ -530,6 +538,7 @@ abstract class AndroidxWebGpuBaseViewer(
 
                                 is Page.State.Error -> {
                                     presentation[page] = PagePresentation.Failed(status.error)
+                                    if (pageFailureBreaker.onPageFailure()) requestFallback()
                                     false
                                 }
                             }
@@ -590,6 +599,7 @@ abstract class AndroidxWebGpuBaseViewer(
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e) { "uploadPage: page ${page.number}: ${e.message}" }
                     presentation[page] = PagePresentation.Failed(e)
+                    if (pageFailureBreaker.onPageFailure()) requestFallback()
                 } finally {
                     synchronized(gpuImages) {
                         if (uploadJobs[page] === coroutineContext[Job]) uploadJobs.remove(page)
@@ -669,6 +679,7 @@ abstract class AndroidxWebGpuBaseViewer(
                             else -> {
                                 gpuImages[page] = image
                                 presentation[page] = PagePresentation.Drawn
+                                pageFailureBreaker.onPageSuccess()
                                 true
                             }
                         }

@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.setting
 
+import android.util.Log
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
@@ -69,6 +70,8 @@ enum class ReadingMode(
     ;
 
     companion object {
+        private const val TAG = "ReadingMode"
+
         const val MASK = 0x00000007
 
         fun fromPreference(preference: Int?): ReadingMode = entries.find { it.flagValue == preference } ?: DEFAULT
@@ -78,42 +81,61 @@ enum class ReadingMode(
             return mode.type is ViewerType.Pager
         }
 
-        fun toViewer(preference: Int?, activity: ReaderActivity, androidxWebGpuFallback: Boolean = false): Viewer {
-            // Single preference: STOCK / HQ / EXPERIMENTAL.
-            // Session fallback disables EXPERIMENTAL for the rest of the session and degrades
-            // it to the HQ path (same behaviour as the previous independent flags).
-            val mode = activity.appGraph.basePreferences.webGpuViewerMode.get()
-            if (!androidxWebGpuFallback &&
-                mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL
-            ) {
-                return when (fromPreference(preference)) {
-                    LEFT_TO_RIGHT -> AndroidxWebGpuViewer(activity)
-                    RIGHT_TO_LEFT -> AndroidxWebGpuViewer(activity)
-                    VERTICAL -> AndroidxWebGpuViewer(activity)
+        fun toViewer(
+            preference: Int?,
+            activity: ReaderActivity,
+            sessionBackendOverride: ReadingModePolicy.Backend? = null,
+        ): Viewer {
+            // P2 preconditions: resolve and validate user data BEFORE any action. A corrupt or
+            // unresolved flag never throws; it degrades to the safest option (stock viewer) and
+            // is reported to logcat so the value can be diagnosed (fix D1).
+            val flag = ReadingModePolicy.resolveFlag(preference)
+            if (flag == null) {
+                Log.w(TAG, "Corrupt or unresolved reading mode flag $preference; degrading to stock left-to-right pager")
+                return L2RPagerViewer(activity)
+            }
+            val navigation = fromPreference(flag)
+            // Backend axis: the single pure decision (T7 truth table) — a session-scoped
+            // override (T5 degradation ladder) wins over the preference; a corrupt flag
+            // already degraded to the stock path above. Neither writes preferences.
+            val mode = ReadingModePolicy.selectBackend(
+                preference = activity.appGraph.basePreferences.webGpuViewerMode.get().let {
+                    when (it) {
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
+                    }
+                },
+                navigationFlag = flag,
+                sessionOverride = sessionBackendOverride,
+            )
+            // DEFAULT is unreachable once the flag is validated; each arm degrades to stock
+            // instead of throwing, so no preference value can crash the reader.
+            // D4: the horizontal (L2R/R2L) and vertical pager branches are identical per
+            // backend — collapsed into shared arms; the backend is the only difference.
+            return when (mode) {
+                ReadingModePolicy.Backend.EXPERIMENTAL -> when (navigation) {
+                    LEFT_TO_RIGHT, RIGHT_TO_LEFT, VERTICAL -> AndroidxWebGpuViewer(activity)
                     WEBTOON -> AndroidxWebGpuContinuousViewer(activity, useGap = false)
                     CONTINUOUS_VERTICAL -> AndroidxWebGpuContinuousViewer(activity, useGap = true)
-                    DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
+                    DEFAULT -> L2RPagerViewer(activity)
                 }
-            }
-            if (mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ ||
-                mode == eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL
-            ) {
-                return when (fromPreference(preference)) {
+                ReadingModePolicy.Backend.HQ -> when (navigation) {
                     LEFT_TO_RIGHT -> WebGpuViewer(activity, isReversed = false, isVertical = false)
                     RIGHT_TO_LEFT -> WebGpuViewer(activity, isReversed = true, isVertical = false)
                     VERTICAL -> WebGpuViewer(activity, isReversed = false, isVertical = true)
                     WEBTOON -> WebGpuViewerContinuous(activity, useGap = false)
                     CONTINUOUS_VERTICAL -> WebGpuViewerContinuous(activity, useGap = true)
-                    DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
+                    DEFAULT -> L2RPagerViewer(activity)
                 }
-            }
-            return when (fromPreference(preference)) {
-                LEFT_TO_RIGHT -> L2RPagerViewer(activity)
-                RIGHT_TO_LEFT -> R2LPagerViewer(activity)
-                VERTICAL -> VerticalPagerViewer(activity)
-                WEBTOON -> WebtoonViewer(activity)
-                CONTINUOUS_VERTICAL -> WebtoonViewer(activity, isContinuous = false)
-                DEFAULT -> throw IllegalStateException("Preference value must be resolved: $preference")
+                ReadingModePolicy.Backend.STOCK -> when (navigation) {
+                    LEFT_TO_RIGHT -> L2RPagerViewer(activity)
+                    RIGHT_TO_LEFT -> R2LPagerViewer(activity)
+                    VERTICAL -> VerticalPagerViewer(activity)
+                    WEBTOON -> WebtoonViewer(activity)
+                    CONTINUOUS_VERTICAL -> WebtoonViewer(activity, isContinuous = false)
+                    DEFAULT -> L2RPagerViewer(activity)
+                }
             }
         }
     }
