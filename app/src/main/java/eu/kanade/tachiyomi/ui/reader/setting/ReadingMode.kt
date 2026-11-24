@@ -1,8 +1,9 @@
 package eu.kanade.tachiyomi.ui.reader.setting
 
-import android.util.Log
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.icerock.moko.resources.StringResource
+import logcat.LogPriority
+import logcat.logcat
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.L2RPagerViewer
@@ -91,7 +92,7 @@ enum class ReadingMode(
             // is reported to logcat so the value can be diagnosed (fix D1).
             val flag = ReadingModePolicy.resolveFlag(preference)
             if (flag == null) {
-                Log.w(TAG, "Corrupt or unresolved reading mode flag $preference; degrading to stock left-to-right pager")
+                logcat(LogPriority.WARN, tag = TAG) { "Corrupt or unresolved reading mode flag $preference; degrading to stock left-to-right pager" }
                 return L2RPagerViewer(activity)
             }
             val navigation = fromPreference(flag)
