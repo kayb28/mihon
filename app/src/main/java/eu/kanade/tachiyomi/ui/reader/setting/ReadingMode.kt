@@ -154,3 +154,5 @@ enum class ReadingMode(
         data object Webtoon : ViewerType
     }
 }
+
+// temp: spotless violation trailing whitespace   
