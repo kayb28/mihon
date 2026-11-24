@@ -38,33 +38,9 @@ class BasePreferences(
         PRIVATE(MR.strings.ext_installer_private, false),
     }
 
-    /**
-     * Unified viewer mode for the reader.
-     * STOCK = stock pager/webtoon viewers.
-     * HQ = ca.mpreg WebGPU high-quality viewer.
-     * EXPERIMENTAL = androidx.webgpu viewer (falls back on device failure).
-     *
-     * Migrates from the previous independent flags on first read of the new key.
-     * Old keys are left in place and still readable.
-     */
-    enum class WebGpuViewerMode {
-        STOCK,
-        HQ,
-        EXPERIMENTAL,
-    }
-
-    val webGpuViewerMode: Preference<WebGpuViewerMode> = preferenceStore.getEnum(
-        "pref_webgpu_viewer_mode_key",
-        when {
-            preferenceStore.getBoolean("pref_androidx_webgpu_viewer_key", false).get() ->
-                WebGpuViewerMode.EXPERIMENTAL
-            preferenceStore.getBoolean("pref_high_quality_renderer_key", false).get() ->
-                WebGpuViewerMode.HQ
-            else -> WebGpuViewerMode.STOCK
-        },
-    )
-
-    // Kept for migration and any remaining direct reads; do not remove in this change.
+    // Legacy viewer flags, kept read-only for the one-shot migration (fix D2).
+    // TODO(mihonfix): future commit may retire these keys entirely once no
+    //  installed build older than the one-shot migration is in circulation.
     val highQualityRenderer: Preference<Boolean> = preferenceStore.getBoolean("pref_high_quality_renderer_key", false)
 
     /**
@@ -74,6 +50,36 @@ class BasePreferences(
      * the viewer below for the rest of the session. Remove once the migration owns the paged reader.
      */
     val androidxWebGpuViewer: Preference<Boolean> = preferenceStore.getBoolean("pref_androidx_webgpu_viewer_key", false)
+
+    enum class WebGpuViewerMode {
+        STOCK,
+        HQ,
+        EXPERIMENTAL,
+    }
+
+    /**
+     * Unified viewer mode for the reader.
+     * STOCK = stock pager/webtoon viewers.
+     * HQ = ca.mpreg WebGPU high-quality viewer.
+     * EXPERIMENTAL = androidx.webgpu viewer (falls back on device failure).
+     *
+     * Fix D2: one-shot migration — the legacy flags are read exactly once, on the first launch
+     * after this build installs (key absent), and the result is WRITTEN to the unified key.
+     * From then on the unified key is the only source of truth: the legacy keys no longer
+     * govern behaviour on later launches (they stay readable for backup tools only).
+     * A corrupt stored value degrades to STOCK (enum deserializer default), never throws.
+     */
+    val webGpuViewerMode: Preference<WebGpuViewerMode> = preferenceStore.getEnum(
+        WebGpuViewerModeMigration.NEW_KEY,
+        WebGpuViewerMode.STOCK,
+    ).also {
+        WebGpuViewerModeMigration.migrateOnce(
+            it,
+            legacyExperimental = androidxWebGpuViewer.get(),
+            legacyHq = highQualityRenderer.get(),
+        )
+    }
+
 
     val installationId: Preference<String> = preferenceStore.getString(Preference.appStateKey("installation_id"), "")
 
