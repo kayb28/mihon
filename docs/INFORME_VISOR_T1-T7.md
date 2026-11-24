@@ -61,3 +61,14 @@ La orden de trabajo pedía separar las tres decisiones que estaban mezcladas en 
 5. **C5 (CI):** doble CI verde en `e4dcc2e` (Build APK + Build & Test, 2026-11-24 19:31 UTC), commit que contiene el squash; los dos fallos intermedios fueron solo formato (ktlint) y nombres de test ilegales, corregidos sin tocar lógica.
 
 **Qué cambió para el usuario: nada visible.** C2 y C4 son internos/docs; C1 reorganiza la historia de git; el comportamiento del lector es idéntico (STOCK/HQ sin cambios). **Pendiente:** cableado de T6 con validación en dispositivo.
+
+## Cierre CI (C6/C7, 2026-11-24 tarde)
+
+**Causa raíz** de los defectos que llegaron a `main` con el squash C1 (spotless roto, nombres de test con `:` ilegales en la JVM, imports faltantes): la CI «Build APK» de ramas solo compilaba el APK — no ejecutaba `spotlessCheck` ni compilaba tests — y «Build & Test» corría únicamente en `main`, es decir, demasiado tarde. **Cierre (C6):** el workflow «Build APK» ahora tiene un job «Spotless & Unit Tests» que corre `spotlessCheck` + `testDebugUnitTest` en cada push a cualquier rama; rojo en cualquiera de los dos deja la CI en rojo. Sin cambios de código Kotlin.
+
+**Evidencia (URLs de runs con hora UTC):**
+- Positiva: run [45496314551](https://github.com/kayb28/mihon/actions/runs/45496314551) (21:58 UTC, rama `ci/branch-checks`, commit `4c4bda3`) — job [Spotless & Unit Tests](https://github.com/kayb28/mihon/actions/runs/45496314551/job/138807651906) `success`, con los 4 tests JVM nuevos (ReadingModePolicy, WebGpuViewerModeMigration, ViewerPageStateMachine, truth table) compilando y pasando en CI real, no en harness local.
+- Negativa: run [45497174356](https://github.com/kayb28/mihon/actions/runs/45497174356) (22:03 UTC, commit `1f0925e` temporal con formato roto) — job [Spotless & Unit Tests](https://github.com/kayb28/mihon/actions/runs/45497174356/job/138810634130) `failure`; la red de seguridad detecta lo que antes se colaba. Commit temporal descartado vía revert `a6ba615` (sin force push) y verificado verde de nuevo.
+- Fusión a `main`: merge `ca86c55` (22:12 UTC aprox.).
+
+**En criollo:** antes, un error de formato o un test roto llegaba a `main` y lo descubríamos tarde, cuando ya estaba todo fusionado. Ahora, cualquier push a cualquier rama se auto-revisa: si el formato está roto o los tests no compilan o fallan, la CI se pone roja al instante. Para vos no cambia nada en la app — es solo la alarma de incendios que ahora suena antes.
