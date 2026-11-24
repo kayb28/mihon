@@ -95,15 +95,20 @@ enum class ReadingMode(
                 return L2RPagerViewer(activity)
             }
             val navigation = fromPreference(flag)
-            // Backend axis: a session-scoped override (T5 degradation ladder) wins over the
-            // preference; otherwise the stored preference decides. Neither writes preferences.
-            val mode = sessionBackendOverride ?: activity.appGraph.basePreferences.webGpuViewerMode.get().let {
-                when (it) {
-                    eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
-                    eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
-                    eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
-                }
-            }
+            // Backend axis: the single pure decision (T7 truth table) — a session-scoped
+            // override (T5 degradation ladder) wins over the preference; a corrupt flag
+            // already degraded to the stock path above. Neither writes preferences.
+            val mode = ReadingModePolicy.selectBackend(
+                preference = activity.appGraph.basePreferences.webGpuViewerMode.get().let {
+                    when (it) {
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
+                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
+                    }
+                },
+                navigationFlag = flag,
+                sessionOverride = sessionBackendOverride,
+            )
             // DEFAULT is unreachable once the flag is validated; each arm degrades to stock
             // instead of throwing, so no preference value can crash the reader.
             // D4: the horizontal (L2R/R2L) and vertical pager branches are identical per

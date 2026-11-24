@@ -21,4 +21,19 @@ object ReadingModePolicy {
 
     /** Render backend axis, mirroring [eu.kanade.domain.base.BasePreferences.WebGpuViewerMode]. */
     enum class Backend { STOCK, HQ, EXPERIMENTAL }
+
+    /**
+     * The single backend decision (P1: one decision per layer), exhaustively testable as a
+     * truth table (T7): a corrupt/unresolved navigation flag degrades to STOCK regardless of
+     * anything else; a session override (degradation ladder) wins over the preference; the
+     * stored preference decides otherwise.
+     */
+    fun selectBackend(
+        preference: Backend,
+        navigationFlag: Int?,
+        sessionOverride: Backend?,
+    ): Backend = when {
+        resolveFlag(navigationFlag) == null -> Backend.STOCK
+        else -> sessionOverride ?: preference
+    }
 }
