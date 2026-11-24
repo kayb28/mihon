@@ -51,6 +51,13 @@ class MigratingManga(
              */
             val isExactTitle: Boolean = false,
             /**
+             * True when the exact-title match was decided with NO author/genre evidence on
+             * either side (M1). The title match is real, but the candidate must stay on the
+             * list for review instead of joining the bulk run: a remake sharing the exact
+             * title would otherwise migrate silently.
+             */
+            val exactUnverified: Boolean = false,
+            /**
              * True when the match was auto-accepted because the source returned a single result:
              * the 1.0 score means "only result found", not a verified title match. Distinct from
              * [isExactTitle] (titles actually compared equal) and from a manual override (null).
@@ -79,7 +86,7 @@ class MigratingManga(
              * run by ticking «Include non-exact matches» in the confirmation dialog.
              */
             val isPreselected: Boolean
-                get() = isExactTitle || similarity == null
+                get() = (isExactTitle && !exactUnverified) || similarity == null
         }
     }
 }
