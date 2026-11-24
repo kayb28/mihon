@@ -37,6 +37,8 @@ Git conserva 5 identidades distintas; varias son identidad de sandbox de agentes
 | `Patch-bot` | 3 | Aplicación de parches del 31 oct (reparador, recursos custom, formato) | 31 oct |
 | `s9r727asb0ev4G137vo1P` | 3 | La «sesión paralela» del 11–12 nov (rama `fix/review-2026-11-12` → `main`: reintentos, señales secundarias, CI acotada) | 11–12 nov |
 
+> **Anotación (2026-11-24, C3):** los commits del **24 nov** firmados `kayb28` (`Z User <kayb28@users.noreply.github.com>`) — rama `fix/viewer-refactor-t1-t7` y el squash `c8d2f52` en `main` (refactor del visor T1–T7, correcciones post-auditoría) — son **sesión de agente (GLM)**, no pushes manuales del usuario. La identidad `kayb28` de esta fecha es de agente, igual que `Z User` arriba.
+
 ## Cronología en seis fases
 
 ### Fase 0 — Arranque: fork, unzip.yml y reparador reconstruido (28–30 oct)
