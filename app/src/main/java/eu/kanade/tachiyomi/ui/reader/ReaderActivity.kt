@@ -93,9 +93,9 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingModePolicy
-import eu.kanade.tachiyomi.ui.reader.viewer.ViewerBackendPolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.LocalPageColorFilter
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerBackendPolicy
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Action
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -685,9 +685,9 @@ class ReaderActivity : BaseActivity() {
             val current = sessionBackend
                 ?: appGraph.basePreferences.webGpuViewerMode.get().let {
                     when (it) {
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
-                        eu.kanade.domain.base.BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
+                        BasePreferences.WebGpuViewerMode.STOCK -> ReadingModePolicy.Backend.STOCK
+                        BasePreferences.WebGpuViewerMode.HQ -> ReadingModePolicy.Backend.HQ
+                        BasePreferences.WebGpuViewerMode.EXPERIMENTAL -> ReadingModePolicy.Backend.EXPERIMENTAL
                     }
                 }
             val degraded = ViewerBackendPolicy.degrade(current)
