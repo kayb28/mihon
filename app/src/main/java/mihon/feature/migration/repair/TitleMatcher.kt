@@ -113,7 +113,14 @@ object TitleMatcher {
         candidates: List<SManga>,
         currentAuthor: String? = null,
         currentGenres: List<String>? = null,
-    ): MatchResult = matchCore(currentTitle, currentUrl, candidates, currentAuthor, currentGenres, evidenceSupplied = false)
+    ): MatchResult = matchCore(
+        currentTitle,
+        currentUrl,
+        candidates,
+        currentAuthor,
+        currentGenres,
+        evidenceSupplied = false,
+    )
 
     /**
      * The exact pass with metadata evidence explicitly supplied by the caller (M1): when
@@ -127,7 +134,14 @@ object TitleMatcher {
         candidates: List<SManga>,
         currentAuthor: String?,
         currentGenres: List<String>?,
-    ): MatchResult = matchCore(currentTitle, currentUrl, candidates, currentAuthor, currentGenres, evidenceSupplied = true)
+    ): MatchResult = matchCore(
+        currentTitle,
+        currentUrl,
+        candidates,
+        currentAuthor,
+        currentGenres,
+        evidenceSupplied = true,
+    )
 
     private fun matchCore(
         currentTitle: String,

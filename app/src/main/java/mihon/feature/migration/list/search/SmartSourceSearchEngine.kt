@@ -123,12 +123,23 @@ class SmartSourceSearchEngine(
             // Evidence-aware exact pass (M1): author/genres of the library manga come in
             // explicitly, so a match decided with no evidence on either side is marked
             // exactUnverified instead of silently auto-preselecting.
-            val exact = TitleMatcher.findMatchWithEvidence(title, currentUrl, candidates, currentAuthor, currentGenres)
+            val exact = TitleMatcher.findMatchWithEvidence(
+                title,
+                currentUrl,
+                candidates,
+                currentAuthor,
+                currentGenres,
+            )
             if (exact is TitleMatcher.MatchResult.AutoAccept) {
                 return ScoredManga(exact.candidate.toDomainManga(sourceId), 1.0, isExactTitle = true)
             }
             if (exact is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence) {
-                return ScoredManga(exact.candidate.toDomainManga(sourceId), 1.0, isExactTitle = true, exactUnverified = true)
+                return ScoredManga(exact.candidate.toDomainManga(
+                    sourceId),
+                    1.0,
+                    isExactTitle = true,
+                    exactUnverified = true,
+                )
             }
         }
         val best = entries.maxByOrNull { it.distance } ?: return null
