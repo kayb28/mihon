@@ -1,7 +1,7 @@
 # Informe final — refactor del visor del lector (T1–T7)
 
-**Rama:** `fix/viewer-refactor-t1-t7` (7 commits, uno por tarea, sobre `main`)
-**Fecha:** 2026-11-24 · **Autor:** sesión del agente · **Estado:** pendiente CI verde + confirmación del usuario
+**Rama:** `fix/viewer-refactor-t1-t7` (7 commits de tareas + docs + 1 fix de CI, sobre `main`)
+**Fecha:** 2026-11-24 · **Autor:** sesión del agente · **Estado:** CI «Build APK» verde en la punta (`2df1dd9`); pendiente confirmación del usuario
 
 ## Resumen técnico
 
@@ -17,7 +17,9 @@ La orden de trabajo pedía separar las tres decisiones que estaban mezcladas en 
 | T6 | `9fb38d0` | Máquina de estados de página `ViewerPageStateMachine`: Queued→Loading→Ready→Failed(reason) con clasificador de fallo (HTTP/NETWORK/DECODE/STORAGE/CANCELLED/UNKNOWN) y reintento por tipo (transitorios → loader, máx. 2 intentos; decode/storage → re-upload; cancel → sin reintento automático). Sin rutas de crash. |
 | T7 | `e417756` | Matriz de verdad de 36 casos (3 modos × 6 lecturas × 2 estados de fallback) sobre `selectBackend`, más tests de semántica de flags y de migración. |
 
-**Verificación local:** el sandbox no tiene Android SDK ni Gradle (limitación documentada en `AGENTS.md` del repo), así que las políticas puras se verificaron con un harness JVM (kotlinc 2.0.21 + runner propio, fuera del repo): **17.017 aserciones, 0 fallos**. Los mismos tests están en formato JUnit en `app/src/test/` para la CI. La CI de GitHub («Build APK» + «Build & Test») es la que valida compilación, spotless y el conjunto completo sobre cada commit.
+**Verificación local:** el sandbox no tiene Android SDK ni Gradle (limitación documentada en `AGENTS.md` del repo), así que las políticas puras se verificaron con un harness JVM (kotlinc 2.0.21 + runner propio, fuera del repo): **17.017 aserciones, 0 fallos**. Los mismos tests están en formato JUnit en `app/src/test/` para la CI.
+
+**CI:** la punta de la rama (`2df1dd9`) está **verde** en «Build APK» (run 2026-11-24 18:49 UTC). Nota honesta: los commits intermedios T5–T7 no compilaron por un import faltante (`appGraph`) que la CI detectó y se corrigió en `2df1dd9`; reescribir el historial habría exigido rebase/force-push, prohibidos por las reglas del repo. La regla «cada commit compila» se cumple desde el fix en adelante; los commits intermedios quedan como quedaron, sin reescritura.
 
 **Lo que NO cambió:** nada del comportamiento para usuarios STOCK/HQ; la semántica de fallback (EXPERIMENTAL degrada a HQ por sesión) se conserva; ninguna preferencia del usuario se escribe desde la degradación; no se tocó applicationId, firma ni versionCode; no hubo force push ni rebase.
 
