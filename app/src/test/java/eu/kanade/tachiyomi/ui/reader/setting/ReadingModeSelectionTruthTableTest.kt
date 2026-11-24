@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.setting
 
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingModePolicy.Backend
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -24,7 +25,7 @@ class ReadingModeSelectionTruthTableTest {
     }
 
     @Test
-    fun `truth table: corrupt reading mode always degrades to STOCK`() {
+    fun `truth table - corrupt reading mode always degrades to STOCK`() {
         for (mode in modes) {
             for (override in overrides) {
                 assertEquals(
@@ -37,7 +38,7 @@ class ReadingModeSelectionTruthTableTest {
     }
 
     @Test
-    fun `truth table: session override wins over preference for valid flags`() {
+    fun `truth table - session override wins over preference for valid flags`() {
         for (mode in modes) {
             for (flag in 1..5) {
                 assertEquals(
@@ -50,7 +51,7 @@ class ReadingModeSelectionTruthTableTest {
     }
 
     @Test
-    fun `truth table: without override the preference decides for valid flags`() {
+    fun `truth table - without override the preference decides for valid flags`() {
         for (mode in modes) {
             for (flag in 1..5) {
                 assertEquals(
@@ -63,7 +64,7 @@ class ReadingModeSelectionTruthTableTest {
     }
 
     @Test
-    fun `truth table: every flag resolves to its navigation entry (semantics intact)`() {
+    fun `truth table - every flag resolves to its navigation entry (semantics intact)`() {
         // Flag → ReadingMode mapping the viewers build on; fallback semantics untouched.
         assertEquals(ReadingMode.LEFT_TO_RIGHT, ReadingMode.fromPreference(1))
         assertEquals(ReadingMode.RIGHT_TO_LEFT, ReadingMode.fromPreference(2))
@@ -76,7 +77,7 @@ class ReadingModeSelectionTruthTableTest {
     }
 
     @Test
-    fun `truth table: paged vs continuous classification unchanged`() {
+    fun `truth table - paged vs continuous classification unchanged`() {
         // (a) navigation-model axis: L2R/R2L/VERTICAL are paged, WEBTOON/CONTINUOUS_VERTICAL are continuous.
         assertTrue(ReadingMode.isPagerType(1) && ReadingMode.isPagerType(2) && ReadingMode.isPagerType(3))
         assertTrue(!ReadingMode.isPagerType(4) && !ReadingMode.isPagerType(5))

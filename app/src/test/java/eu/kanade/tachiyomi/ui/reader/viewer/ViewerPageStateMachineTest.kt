@@ -109,7 +109,7 @@ class ViewerPageStateMachineTest {
     }
 
     @Test
-    fun `no crash paths: any transition on any state is safe`() {
+    fun `no crash paths - any transition on any state is safe`() {
         val sm = ViewerPageStateMachine()
         val page = Any()
         sm.progress(page, 120) // progress on QUEUED, out of range

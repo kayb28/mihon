@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.core.common.preference.getEnum
 
 /**
  * JVM tests for the one-shot viewer-mode migration (fix D2).
@@ -50,7 +51,7 @@ class WebGpuViewerModeMigrationTest {
     }
 
     @Test
-    fun `second launch does not recompute: legacy key change is ignored`() {
+    fun `second launch does not recompute - legacy key change is ignored`() {
         // Launch 1: legacy HQ true → HQ written.
         val store1 = InMemoryPreferenceStore()
         val pref1 = newPref(store1)
