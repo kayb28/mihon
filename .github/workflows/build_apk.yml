@@ -28,6 +28,9 @@ jobs:
   checks:
     name: Spotless & Unit Tests
     runs-on: ubuntu-latest
+    # Manual dispatches may skip this job via the skip_tests input; every push always
+    # runs the checks (inputs.* is empty on push, hence the event_name guard).
+    if: github.event_name != 'workflow_dispatch' || inputs.skip_tests != true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
