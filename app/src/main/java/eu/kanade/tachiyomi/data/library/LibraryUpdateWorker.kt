@@ -452,7 +452,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                 }
                                 if (budgetExhausted) {
                                     logcat(LogPriority.WARN) {
-                                        "Calm pass budget (${CALM_PASS_BUDGET_MS}ms) exhausted for " +
+                                        "Calm pass budget (${CalmPassPolicy.CALM_PASS_BUDGET_MS}ms) exhausted for " +
                                             "source $sourceId; remaining titles skipped without error"
                                     }
                                 }
