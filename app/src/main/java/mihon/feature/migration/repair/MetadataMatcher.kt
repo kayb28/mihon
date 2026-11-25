@@ -203,7 +203,11 @@ object MetadataMatcher {
      */
     sealed interface MetadataVerdict {
         /** Title passed and at least [MIN_MATCHED_SIGNALS] signals agree. */
-        data class Accepted(val matchedSignals: Set<Signal>) : MetadataVerdict
+        data class Accepted(
+            val matchedSignals: Set<Signal>,
+            /** Signals that had data on both sides and were weighed (M3 veto reads this). */
+            val evaluatedSignals: Set<Signal> = emptySet(),
+        ) : MetadataVerdict
 
         /** None of the four fields could be compared; the caller decides the fallback. */
         data object NoData : MetadataVerdict
@@ -503,7 +507,8 @@ object MetadataMatcher {
 
         return when {
             evaluated.isEmpty() -> MetadataVerdict.NoData
-            matched.size >= MIN_MATCHED_SIGNALS -> MetadataVerdict.Accepted(matched.toSet())
+            matched.size >= MIN_MATCHED_SIGNALS ->
+                MetadataVerdict.Accepted(matched.toSet(), evaluated.toSet())
             else -> MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
         }
     }
@@ -628,6 +633,14 @@ object MetadataMatcher {
      * evidence together with a second, non-status signal (author or genres).
      */
     fun isSameWork(verdict: MetadataVerdict, titleLevel: TitleLevel, fallbackToTitle: Boolean): Boolean {
+        // M3 veto (high-impact path): when the AUTHOR signal was evaluated — both sides had
+        // author data — and did NOT match, the work is never identified, no matter how the
+        // rest of the metadata agrees or how strong the title is. A remake reusing the exact
+        // title with a different author must not be identified for bulk migration. In manual
+        // review the author remains one signal among four: the user decides.
+        val authorVeto = Signal.AUTHOR in verdict.evaluatedSignals &&
+            Signal.AUTHOR !in verdict.matchedSignals
+        if (authorVeto) return false
         return when (verdict) {
             is MetadataVerdict.Accepted -> {
                 val weakSignalsOnly = Signal.AUTHOR !in verdict.matchedSignals &&
