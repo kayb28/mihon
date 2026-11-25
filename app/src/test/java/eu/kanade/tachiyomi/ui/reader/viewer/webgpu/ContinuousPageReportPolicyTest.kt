@@ -110,3 +110,85 @@ class ContinuousPageReportPolicyTest {
         assertEquals(7, reported)
     }
 }
+    // --- R3 hardening: P1 is parametric in page height; P2 is the only exemption ---
+
+    private fun mixedLayout(heights: List<Float>): ContinuousPageReportPolicy.Layout {
+        val offsets = ArrayList<Float>(heights.size)
+        var y = 0f
+        heights.forEachIndexed { i, h ->
+            offsets.add(y)
+            y += h
+        }
+        return ContinuousPageReportPolicy.Layout(offsets = offsets, heights = heights)
+    }
+
+    @Test
+    fun `P1 — a page taller than the viewport restores onto itself, not one back`() {
+        // 6 pages each twice the viewport height; restore page 2. The end-visible rule
+        // found page 1's end inside the viewport (page 2's end is not yet) and drifted
+        // one page BACK per reopen. P1: report exactly the restored page.
+        val viewport = 1000f
+        val pages = layout(pageCount = 6, pageHeight = 2000f)
+        val reported = ContinuousPageReportPolicy.reportedPageIndex(
+            layout = pages,
+            scrollPos = pages.offsets[2],
+            viewportHeight = viewport,
+        )
+        assertEquals(2, reported)
+    }
+
+    @Test
+    fun `P1 — a quarter-viewport page restores onto itself, not pages forward`() {
+        // 12 pages each a quarter of the viewport; restore page 4. The end-visible rule
+        // reported page 7 (three pages fit fully below the anchor) and drifted forward.
+        val viewport = 2000f
+        val pages = layout(pageCount = 12, pageHeight = 500f)
+        val reported = ContinuousPageReportPolicy.reportedPageIndex(
+            layout = pages,
+            scrollPos = pages.offsets[4],
+            viewportHeight = viewport,
+        )
+        assertEquals(4, reported)
+    }
+
+    @Test
+    fun `P1 — mixed strip heights restore exactly, the real-world layout`() {
+        // The device reality: tall and short pages interleaved. Every restore anchor must
+        // report its own page regardless of which regime its neighbors are in.
+        val viewport = 1000f
+        val pages = mixedLayout(listOf(1500f, 400f, 1600f, 300f, 1400f, 500f))
+        for (s in pages.offsets.indices) {
+            if (pages.offsets[s] + viewport >= 5700f) continue // P2 exemption territory
+            val reported = ContinuousPageReportPolicy.reportedPageIndex(
+                layout = pages,
+                scrollPos = pages.offsets[s],
+                viewportHeight = viewport,
+            )
+            assertEquals(
+                s,
+                reported,
+                "restore of page $s in a mixed strip must report page $s",
+            )
+        }
+    }
+
+    @Test
+    fun `P2 — restoring the penultimate page with the end in view converges to the last`() {
+        // The ONLY exemption: when the chapter's end is already on screen at open time,
+        // the end-of-chapter rule wins — one advance to the last page, then stable for
+        // the remaining cycles (no drift at all after that single step).
+        val viewport = 2000f
+        val pages = mixedLayout(listOf(1200f, 1200f, 1200f, 1200f, 800f))
+        var saved = 3 // penultimate
+        val cycles = mutableListOf<Int>()
+        repeat(5) {
+            val reported = ContinuousPageReportPolicy.reportedPageIndex(
+                layout = pages,
+                scrollPos = pages.offsets[saved],
+                viewportHeight = viewport,
+            )
+            cycles.add(reported)
+            saved = reported
+        }
+        assertEquals(listOf(4, 4, 4, 4, 4), cycles, "one advance to the last page, then stable")
+    }
