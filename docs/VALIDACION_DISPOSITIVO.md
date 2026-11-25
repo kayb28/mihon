@@ -88,10 +88,13 @@
 - [ ] (Informativo, no es fallo nueva) El zoom NO está disponible en este modo del visor experimental — confirmar que el scroll normal funciona bien.
 - Notas: ____________
 
-## 3. Drift: abrir el MISMO capítulo 5 veces seguidas sin moverse
+## 3. Drift: abrir el MISMO capítulo 5 veces seguidas sin moverse — DOS contenidos
 
-- [ ] En EXPERIMENTAL continuo: anota la página de partida (____) → abre en la MISMA página las 5 veces.
-- [ ] En EXPERIMENTAL paginado: ídem (____).
+**Regla:** misma página de partida las 5 veces; ÚNICA excepción — si el final del capítulo ya entra en la pantalla justo al abrir, un avance a la última página y luego estable (no cuenta como fallo; anótalo en notas).
+
+- [ ] **(a) El capítulo que daba el fallo original** (vertical continuo, páginas normales): anota la página (____) → abre en la MISMA página las 5 veces.
+- [ ] **(b) Un webtoon de tiras largas** (páginas MÁS ALTAS que la pantalla): anota la página (____) → abre en la MISMA página las 5 veces.
+- [ ] En EXPERIMENTAL paginado: ídem con cualquiera de los dos (____).
 - Notas: ____________
 
 ## 4. Regresión rápida
