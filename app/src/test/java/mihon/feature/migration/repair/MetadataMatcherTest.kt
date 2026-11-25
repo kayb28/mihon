@@ -1038,14 +1038,32 @@ class MetadataMatcherTest {
             candidateGenres = listOf("Acción", "Fantasía"),
         )
         assertTrue(oneOfThree is MetadataMatcher.MetadataVerdict.Rejected)
-        // Título EXACTO + 1 señal de 3 (>= evaluadas/2) → identifica: obra con traducciones
-        // que discrepan en autor y estado pero coinciden en géneros y título.
-        assertTrue(
+        // CAMBIO DE CONTRATO (M3, no es regresión G7): antes un título EXACTO + 1 señal de 3
+        // identificaba aunque el autor discrepara; ahora el veto por autor (evaluado y sin
+        // coincidencia tras la regla M2) bloquea la identificación en el camino de alto
+        // impacto — una remake con el mismo título y otro autor no migra sola.
+        assertFalse(
             MetadataMatcher.isSameWork(oneOfThree, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
         )
         // Título FUZZY con 1 señal → NO identifica: la cuenta 2-de-4 no se alcanzó.
         assertFalse(
             MetadataMatcher.isSameWork(oneOfThree, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false),
+        )
+        // Sin conflicto de autor (el autor coincide): EXACTO + 2 señales de 3 vuelve a
+        // identificar — la propiedad de «acuerdo parcial identifica» se conserva.
+        val twoOfThree = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.COMPLETED,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(twoOfThree is MetadataMatcher.MetadataVerdict.Rejected)
+        assertTrue(
+            MetadataMatcher.isSameWork(twoOfThree, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
         )
     }
 
