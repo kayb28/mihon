@@ -1430,5 +1430,3 @@ class MetadataMatcherTest {
     }
 
 }
-}
-
