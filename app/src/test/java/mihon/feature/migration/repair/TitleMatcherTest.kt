@@ -204,6 +204,7 @@ class TitleMatcherTest {
         )
         assertTrue(result is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence)
     }
+
     @Test
     fun `conflicting author does not filter the candidate out of manual review`() {
         // M3 contract, manual path: the author conflict sends the match to review, but the
@@ -221,4 +222,5 @@ class TitleMatcherTest {
         assertTrue(review.candidates.isNotEmpty())
     }
 
+}
 }
