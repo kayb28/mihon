@@ -512,19 +512,19 @@ class AndroidxWebGpuContinuousViewer(
      */
     private fun reportedPage(): ReaderPage? {
         if (layoutPages.isEmpty()) return null
-        val viewportBottom = scrollPos + imageBackend.surfaceHeightPx.coerceAtLeast(1)
-        var lo = 0
-        var hi = layoutPages.lastIndex
-        var index = 0
-        while (lo <= hi) {
-            val mid = (lo + hi) / 2
-            if (offsets[mid] < viewportBottom) {
-                index = mid
-                lo = mid + 1
-            } else {
-                hi = mid - 1
-            }
-        }
+        // End-visible rule from the shared policy (device fix R1): the deepest page whose END
+        // is on screen, so a restore reports exactly the restored page instead of the next
+        // one peeking below the viewport (the drift +1 the device round showed).
+        val layout = ContinuousPageReportPolicy.Layout(
+            offsets = offsets,
+            heights = List(layoutPages.size) { pageHeightPx(it) },
+        )
+        val index = ContinuousPageReportPolicy.reportedPageIndex(
+            layout = layout,
+            scrollPos = scrollPos,
+            viewportHeight = imageBackend.surfaceHeightPx.coerceAtLeast(1).toFloat(),
+        )
+        if (index !in layoutPages.indices) return null
         return layoutPages[index]
     }
 

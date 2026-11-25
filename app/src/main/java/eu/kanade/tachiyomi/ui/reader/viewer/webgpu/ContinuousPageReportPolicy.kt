@@ -17,29 +17,46 @@ internal object ContinuousPageReportPolicy {
     )
 
     /**
-     * Index of the page the reader reports as current at [scrollPos].
+     * Index of the page the reader reports as current at [scrollPos]: the deepest page whose
+     * END has entered the viewport.
      *
-     * BUG (device failure B, drift +1): the old rule reported the deepest page whose TOP is
-     * strictly above the viewport bottom — a page merely peeking into the viewport counts as
-     * read. A restore glues the saved page's top to the viewport top, so whenever the saved
-     * page is shorter than the viewport, the next page's top peeks in and gets reported and
-     * saved: every open→close→reopen cycle advances the saved page by one, deterministically.
+     * Device failure B (drift +1) and the fix: the old rule reported the deepest page whose
+     * TOP was above the viewport bottom — a page merely peeking in counted as read. A restore
+     * glues the saved page's top to the viewport top, so a saved page shorter than the
+     * viewport immediately reported the next page peeking below it, saving +1 per open→
+     * close→reopen cycle. Counting pages by their END instead keeps a restore reporting
+     * exactly the restored page (its end is inside the viewport; the next page's end is not
+     * until the reader actually scrolls it in), while the end-of-chapter "read" case still
+     * reports the last page as soon as its end is on screen — matching the HQ continuous
+     * viewer, which selects a page once its bottom has cleared the viewport.
      */
     fun reportedPageIndex(layout: Layout, scrollPos: Float, viewportHeight: Float): Int {
         if (layout.offsets.isEmpty()) return -1
         val viewportBottom = scrollPos + viewportHeight.coerceAtLeast(1f)
         var lo = 0
         var hi = layout.offsets.lastIndex
-        var index = 0
+        var index = -1
+        // First page whose end reaches past the viewport bottom: everything before it has
+        // its end fully on screen, so the deepest end-visible page is the one right before.
         while (lo <= hi) {
             val mid = (lo + hi) / 2
-            if (layout.offsets[mid] < viewportBottom) {
+            val end = layout.offsets[mid] + layout.heights[mid]
+            if (end <= viewportBottom) {
                 index = mid
                 lo = mid + 1
             } else {
                 hi = mid - 1
             }
         }
-        return index
+        if (index >= 0) return index
+        // No page's end is fully on screen yet (a tall page at the very top): report the
+        // page the viewport starts inside — same as the restore target it is anchored to.
+        var start = 0
+        var result = 0
+        while (start < layout.offsets.size && layout.offsets[start] <= scrollPos) {
+            result = start
+            start++
+        }
+        return result
     }
 }
