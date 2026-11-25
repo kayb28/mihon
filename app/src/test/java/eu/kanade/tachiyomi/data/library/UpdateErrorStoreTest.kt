@@ -46,9 +46,20 @@ class UpdateErrorStoreTest {
 
     @BeforeEach
     fun setUp() {
+        store = storeOver(tempDir)
+    }
+
+    /** A store over [dir] with the app's Json configuration (ignoreUnknownKeys, no explicit nulls). */
+    private fun storeOver(dir: File): UpdateErrorStore {
         val context = mockk<Context>()
-        every { context.filesDir } returns tempDir
-        store = UpdateErrorStore(context, Json { ignoreUnknownKeys = true; explicitNulls = false })
+        every { context.filesDir } returns dir
+        return UpdateErrorStore(
+            context,
+            Json {
+                ignoreUnknownKeys = true
+                explicitNulls = false
+            },
+        )
     }
 
     private fun error(
@@ -147,9 +158,7 @@ class UpdateErrorStoreTest {
                 error(2, httpCode = 503),
             ),
         )
-        val context = mockk<Context>()
-        every { context.filesDir } returns tempDir
-        val reloaded = UpdateErrorStore(context, Json { ignoreUnknownKeys = true; explicitNulls = false })
+        val reloaded = storeOver(tempDir)
         reloaded.getErrors() shouldContainExactly store.getErrors()
     }
 
