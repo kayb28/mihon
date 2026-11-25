@@ -662,10 +662,11 @@ abstract class AndroidxWebGpuBaseViewer(
             ViewerPageStateMachine.RetryDecision.RELOAD_FROM_LOADER -> {
                 if (page.status is Page.State.Error) {
                     page.chapter.pageLoader?.retryPage(page)
+                } else {
+                    // Not a loader failure (or the loader never saw it): re-present so the
+                    // watcher or upload path picks the page up again.
+                    presentPage(page)
                 }
-                // Not a loader failure (or the loader never saw it): re-present so the watcher
-                // or upload path picks the page up again.
-                else -> presentPage(page)
             }
 
             // The stream is already in hand: upload from scratch without touching the loader.
