@@ -1,7 +1,7 @@
 # VALIDACIÓN EN DISPOSITIVO — T6 (máquina de estados de página)
 
 **Build:** `MihonFix-0.21.3-build-f520f77-arm64.apk` · sha256 `f5c290fa1801042aa14df6828de06ccffe313b19f42a60be06e3fd417ba5669f` · firma estable verificada (cert SHA-256 `DE7889F3…D1296AD0` — instala ENCIMA, sin desinstalar)
-**Encargo:** T6a cableado de `ViewerPageStateMachine` · **CI verde:** run de 05:10 UTC en `feat/reader-page-state-wiring` (`f520f77`, 197 tests)
+**Encargo:** T6a cableado de `ViewerPageStateMachine` · **CI verde:** run de 05:10 UTC en `feat/t6-page-state-machine-wiring` (`f520f77`, 197 tests)
 **Estado del agente:** **ESPERANDO VALIDACIÓN EN DISPOSITIVO** — el cierre de T6 lo firma el usuario con esta checklist. La CI verde NO sustituye al dispositivo.
 
 > Reglas antes de empezar:
