@@ -1319,3 +1319,66 @@ class MetadataMatcherTest {
         )
     }
 }
+
+    // ------------------------------------------------------------------
+    // M2: strict author semantics. A shared surname token is NOT evidence;
+    // the author signal counts only on full normalized-name equality or
+    // full token-set containment with the shorter side carrying >= 2 tokens.
+    // ------------------------------------------------------------------
+
+    private fun validateAuthors(
+        currentAuthor: String,
+        candidateAuthor: String,
+    ): MetadataMatcher.MetadataVerdict =
+        MetadataMatcher.validate(
+            currentAuthor = currentAuthor,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = null,
+            candidateAuthor = candidateAuthor,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+
+    @Test
+    fun `a shared surname token is not enough for the author signal`() {
+        // Alto 2 of the audit: "Park" contained in "Park Joo" used to count as agreement and,
+        // with status, pushed a fuzzy-titled different work over the 2-of-4 gate.
+        val verdict = validateAuthors("Park Ji-Ho", "Park Joo")
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertFalse(
+            (verdict as MetadataMatcher.MetadataVerdict.Rejected)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `identical normalized author names count as the author signal`() {
+        val verdict = validateAuthors("Park Joo", "Park Joo")
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `author token containment still matches with two or more tokens`() {
+        // Romanization spacing and name-order flips keep matching when the SHORT side is a
+        // full token set of >= 2 tokens; the single-surname hole is what is closed.
+        val verdict = validateAuthors("Kim Jae Hwan", "Jae Hwan Kim")
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `status-only agreement stays below the gate on a fuzzy title`() {
+        val verdict = validateAuthors("", "")
+        // No author data: only status was evaluated and matched -> Rejected (1 of 4).
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        // Fuzzy title + a rejected verdict never identifies (and with an exact title the
+        // strong-title path decides, which the M3 veto will weigh in on).
+        assertFalse(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false))
+    }
