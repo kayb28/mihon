@@ -1322,8 +1322,6 @@ class MetadataMatcherTest {
             MetadataMatcher.narrativeOverlap(ko, en) >= MetadataMatcher.MIN_NARRATIVE_ANCHORS,
         )
     }
-}
-
     // ------------------------------------------------------------------
     // M2: strict author semantics. A shared surname token is NOT evidence;
     // the author signal counts only on full normalized-name equality or
@@ -1386,3 +1384,4 @@ class MetadataMatcherTest {
         // strong-title path decides, which the M3 veto will weigh in on).
         assertFalse(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false))
     }
+}
