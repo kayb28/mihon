@@ -30,12 +30,13 @@ class ContinuousPageReportPolicyTest {
 
     @Test
     fun `restore is stable across five open-close-reopen cycles`() {
-        // Device scenario: 10 short pages (half the viewport), page 4 saved. Each reopen
-        // anchors page 4's top to the viewport top; whatever the policy reports gets saved
-        // as lastPageRead, which the next cycle restores. After 5 cycles the drift must
-        // still be zero — the reader reopens on page 4 every time.
+        // Device scenario: 10 pages shorter than the viewport, page 4 saved, so the next
+        // page partially peeks below it after a restore. Each reopen anchors page 4's top
+        // to the viewport top; whatever the policy reports gets saved as lastPageRead,
+        // which the next cycle restores. After 5 cycles the drift must still be zero —
+        // the reader reopens on page 4 every time.
         val viewport = 2000f
-        val pages = layout(pageCount = 10, pageHeight = 1000f)
+        val pages = layout(pageCount = 10, pageHeight = 1200f)
         var savedIndex = 4
         repeat(5) {
             val scroll = pages.offsets[savedIndex]
@@ -70,16 +71,28 @@ class ContinuousPageReportPolicyTest {
 
     @Test
     fun `a page fully cleared keeps reporting the next one`() {
-        // Progress while actually reading: once page 2's END has cleared the bottom of the
-        // viewport, page 3 is the deepest end-visible page and gets reported.
+        // Progress while actually reading: at scroll 1510 page 1's end (2000) has cleared
+        // the viewport bottom (2510) while page 2's end (3000) has not, so page 1 is the
+        // deepest end-visible page; once page 2's end clears it (scroll 2010), page 2
+        // becomes the reported one.
         val viewport = 1000f
         val pages = layout(pageCount = 10, pageHeight = 1000f)
-        val reported = ContinuousPageReportPolicy.reportedPageIndex(
-            layout = pages,
-            scrollPos = 1500f,
-            viewportHeight = viewport,
+        assertEquals(
+            1,
+            ContinuousPageReportPolicy.reportedPageIndex(
+                layout = pages,
+                scrollPos = 1510f,
+                viewportHeight = viewport,
+            ),
         )
-        assertEquals(2, reported)
+        assertEquals(
+            2,
+            ContinuousPageReportPolicy.reportedPageIndex(
+                layout = pages,
+                scrollPos = 2010f,
+                viewportHeight = viewport,
+            ),
+        )
     }
 
     @Test
