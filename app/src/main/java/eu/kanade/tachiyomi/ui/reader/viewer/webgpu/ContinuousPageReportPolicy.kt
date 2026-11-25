@@ -17,46 +17,41 @@ internal object ContinuousPageReportPolicy {
     )
 
     /**
-     * Index of the page the reader reports as current at [scrollPos]: the deepest page whose
-     * END has entered the viewport.
+     * Index of the page the reader reports as current at [scrollPos]: the page that contains
+     * the TOP of the viewport — exactly the page a restore is anchored to.
      *
-     * Device failure B (drift +1) and the fix: the old rule reported the deepest page whose
-     * TOP was above the viewport bottom — a page merely peeking in counted as read. A restore
-     * glues the saved page's top to the viewport top, so a saved page shorter than the
-     * viewport immediately reported the next page peeking below it, saving +1 per open→
-     * close→reopen cycle. Counting pages by their END instead keeps a restore reporting
-     * exactly the restored page (its end is inside the viewport; the next page's end is not
-     * until the reader actually scrolls it in), while the end-of-chapter "read" case still
-     * reports the last page as soon as its end is on screen — matching the HQ continuous
-     * viewer, which selects a page once its bottom has cleared the viewport.
+     * Why top-of-viewport and not end-visible: the end-visible rule from the first drift fix
+     * only stabilized restores for pages between half and one viewport tall. A page TALLER
+     * than the viewport never has its end inside the viewport at restore, so the page before
+     * it won and every reopen drifted one page BACK; a page SHORTER than half the viewport
+     * let whole later pages fit below the anchor and drifted FORWARD. Reporting the page
+     * under the viewport top is parametric in page height: a restore of page s at
+     * scroll = offsets[s] always reports s, tall, short or mixed.
+     *
+     * The single exemption (P2): when the viewport already reaches the end of the strip
+     * (scroll + viewport >= totalHeight), the end-of-chapter rule wins and the LAST page is
+     * reported — restoring the penultimate page with the final in view converges there in
+     * one step and then holds. Outside that cap, P1 governs.
      */
     fun reportedPageIndex(layout: Layout, scrollPos: Float, viewportHeight: Float): Int {
         if (layout.offsets.isEmpty()) return -1
-        val viewportBottom = scrollPos + viewportHeight.coerceAtLeast(1f)
+        val totalHeight = layout.offsets.last() + layout.heights.last()
+        val viewport = viewportHeight.coerceAtLeast(1f)
+        if (scrollPos + viewport >= totalHeight) return layout.offsets.lastIndex
+        // The page whose span contains the viewport top: the last page starting at or
+        // before scrollPos (a gap between chapters counts into the page above it).
         var lo = 0
         var hi = layout.offsets.lastIndex
-        var index = -1
-        // First page whose end reaches past the viewport bottom: everything before it has
-        // its end fully on screen, so the deepest end-visible page is the one right before.
+        var index = 0
         while (lo <= hi) {
             val mid = (lo + hi) / 2
-            val end = layout.offsets[mid] + layout.heights[mid]
-            if (end <= viewportBottom) {
+            if (layout.offsets[mid] <= scrollPos) {
                 index = mid
                 lo = mid + 1
             } else {
                 hi = mid - 1
             }
         }
-        if (index >= 0) return index
-        // No page's end is fully on screen yet (a tall page at the very top): report the
-        // page the viewport starts inside — same as the restore target it is anchored to.
-        var start = 0
-        var result = 0
-        while (start < layout.offsets.size && layout.offsets[start] <= scrollPos) {
-            result = start
-            start++
-        }
-        return result
+        return index
     }
 }
