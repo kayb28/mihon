@@ -109,7 +109,7 @@ class ContinuousPageReportPolicyTest {
         )
         assertEquals(7, reported)
     }
-}
+
     // --- R3 hardening: P1 is parametric in page height; P2 is the only exemption ---
 
     private fun mixedLayout(heights: List<Float>): ContinuousPageReportPolicy.Layout {
@@ -192,3 +192,4 @@ class ContinuousPageReportPolicyTest {
         }
         assertEquals(listOf(4, 4, 4, 4, 4), cycles, "one advance to the last page, then stable")
     }
+}
