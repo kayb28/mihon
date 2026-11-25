@@ -723,12 +723,32 @@ class MetadataMatcherTest {
 
     @Test
     fun `author signal matches hangul name against its romanization`() {
-        // 김도 vs Kim Doe: tokens "kim"/"doe" vs romanizado "kimdo" — la intersección por
-        // tokens de longitud ≥ 2 falla ("kimdo" no contiene "kim" como palabra), PERO la
-        // rama de contención sí: "kimdo".contains? no; "kim doe" contiene "doe"? No —
-        // romanizamos también el lado hangul: "kimdo" == "kimdo". Covera por romanize en
-        // authorsMatch a través de normalizeAuthors->NO: normalizeAuthors NO romaniza.
-        // Este caso ejercita el hueco conocido y documentado: se reporta, no se silencia.
+        // CAMBIO DE CONTRATO (M4, no es regresión G7): este test documentaba el hueco hangul
+        // («김도» vs «Kim Doe» no casaba porque normalizeAuthors NO romanizaba). M4 lo cierra:
+        // ambos lados pasan por Romanizer en la comparación de autores. De las tablas del
+        // Romanizer: romanize("김도") = "kimdo" (김→"kim" por override de apellido; 도→"d"+"o"
+        // sin final), y la igualdad de-spaced de M2 — aplicada DESPUÉS de romanizar — casa
+        // "kimdo" con el "kim do" normalizado del lado latino.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "김도",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Do",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
+        assertTrue(accepted.matchedSignals.contains(MetadataMatcher.Signal.AUTHOR))
+    }
+
+    @Test
+    fun `hangul author does not match a different latin spelling`() {
+        // Decisión de diseño fijada por M4: «김도» romaniza a "kimdo" y «Kim Doe» a "kimdoe"
+        // — una variante ortográfica de vocal queda FUERA del alcance de la romanización.
+        // La tolerancia de vocales es trabajo futuro anotado, no parte de este encargo.
         val verdict = MetadataMatcher.validate(
             currentAuthor = "김도",
             currentStatus = SManga.ONGOING,
@@ -739,11 +759,29 @@ class MetadataMatcherTest {
             candidateDescription = null,
             candidateGenres = listOf("Acción", "Fantasía"),
         )
-        // Estado+Géneros coinciden → aceptada de todos modos: el autor solo suma, no resta.
         assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
-        // La señal de autor NO coincide en este caso (hoyo documentado; ver limitaciones).
         val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
         assertFalse(accepted.matchedSignals.contains(MetadataMatcher.Signal.AUTHOR))
+    }
+
+    @Test
+    fun `latin author matches are intact after romanizing the comparison`() {
+        // Regresión M4(a): los pares latinos siguen casando igual con la romanización
+        // activa — el Romanizer deja el latín intacto y la regla M2 no se toca.
+        val exact = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción"),
+        )
+        assertTrue(
+            (exact as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
     }
 
     // ------------------------------------------------------------------
