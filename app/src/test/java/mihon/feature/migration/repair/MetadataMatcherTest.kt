@@ -1061,7 +1061,7 @@ class MetadataMatcherTest {
             candidateDescription = null,
             candidateGenres = listOf("Acción", "Fantasía"),
         )
-        assertTrue(twoOfThree is MetadataMatcher.MetadataVerdict.Rejected)
+        assertTrue(twoOfThree is MetadataMatcher.MetadataVerdict.Accepted)
         assertTrue(
             MetadataMatcher.isSameWork(twoOfThree, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
         )
