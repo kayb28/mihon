@@ -16,8 +16,8 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
-import eu.kanade.tachiyomi.ui.reader.viewer.ViewerPageStateMachine
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerPagePresentationController
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerPageStateMachine
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerBackendPolicy
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CancellationException
