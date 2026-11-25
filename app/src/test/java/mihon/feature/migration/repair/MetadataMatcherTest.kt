@@ -700,7 +700,11 @@ class MetadataMatcherTest {
     }
 
     @Test
-    fun `author matches when studio credits are attached to the name`() {
+    fun `studio credit on a single-token name no longer counts as author agreement`() {
+        // M2: "Chugong" is ONE token; attaching "(Redice Studio)" to it used to count as
+        // containment agreement. The strict rule never lets a one-token name be the shorter
+        // side, so the author signal no longer matches here — status+genres still accept the
+        // candidate, but only via the weak-signal (strong-title) path, not the author signal.
         val verdict = MetadataMatcher.validate(
             currentAuthor = "Chugong",
             currentStatus = SManga.ONGOING,
@@ -711,7 +715,7 @@ class MetadataMatcherTest {
             candidateDescription = null,
             candidateGenres = listOf("Acción", "Fantasía"),
         )
-        assertTrue(
+        assertFalse(
             (verdict as MetadataMatcher.MetadataVerdict.Accepted)
                 .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
         )
@@ -719,12 +723,32 @@ class MetadataMatcherTest {
 
     @Test
     fun `author signal matches hangul name against its romanization`() {
-        // 김도 vs Kim Doe: tokens "kim"/"doe" vs romanizado "kimdo" — la intersección por
-        // tokens de longitud ≥ 2 falla ("kimdo" no contiene "kim" como palabra), PERO la
-        // rama de contención sí: "kimdo".contains? no; "kim doe" contiene "doe"? No —
-        // romanizamos también el lado hangul: "kimdo" == "kimdo". Covera por romanize en
-        // authorsMatch a través de normalizeAuthors->NO: normalizeAuthors NO romaniza.
-        // Este caso ejercita el hueco conocido y documentado: se reporta, no se silencia.
+        // CAMBIO DE CONTRATO (M4, no es regresión G7): este test documentaba el hueco hangul
+        // («김도» vs «Kim Doe» no casaba porque normalizeAuthors NO romanizaba). M4 lo cierra:
+        // ambos lados pasan por Romanizer en la comparación de autores. De las tablas del
+        // Romanizer: romanize("김도") = "kimdo" (김→"kim" por override de apellido; 도→"d"+"o"
+        // sin final), y la igualdad de-spaced de M2 — aplicada DESPUÉS de romanizar — casa
+        // "kimdo" con el "kim do" normalizado del lado latino.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "김도",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Do",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
+        assertTrue(accepted.matchedSignals.contains(MetadataMatcher.Signal.AUTHOR))
+    }
+
+    @Test
+    fun `hangul author does not match a different latin spelling`() {
+        // Decisión de diseño fijada por M4: «김도» romaniza a "kimdo" y «Kim Doe» a "kimdoe"
+        // — una variante ortográfica de vocal queda FUERA del alcance de la romanización.
+        // La tolerancia de vocales es trabajo futuro anotado, no parte de este encargo.
         val verdict = MetadataMatcher.validate(
             currentAuthor = "김도",
             currentStatus = SManga.ONGOING,
@@ -735,11 +759,29 @@ class MetadataMatcherTest {
             candidateDescription = null,
             candidateGenres = listOf("Acción", "Fantasía"),
         )
-        // Estado+Géneros coinciden → aceptada de todos modos: el autor solo suma, no resta.
         assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
-        // La señal de autor NO coincide en este caso (hoyo documentado; ver limitaciones).
         val accepted = verdict as MetadataMatcher.MetadataVerdict.Accepted
         assertFalse(accepted.matchedSignals.contains(MetadataMatcher.Signal.AUTHOR))
+    }
+
+    @Test
+    fun `latin author matches are intact after romanizing the comparison`() {
+        // Regresión M4(a): los pares latinos siguen casando igual con la romanización
+        // activa — el Romanizer deja el latín intacto y la regla M2 no se toca.
+        val exact = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción"),
+        )
+        assertTrue(
+            (exact as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
     }
 
     // ------------------------------------------------------------------
@@ -1034,14 +1076,32 @@ class MetadataMatcherTest {
             candidateGenres = listOf("Acción", "Fantasía"),
         )
         assertTrue(oneOfThree is MetadataMatcher.MetadataVerdict.Rejected)
-        // Título EXACTO + 1 señal de 3 (>= evaluadas/2) → identifica: obra con traducciones
-        // que discrepan en autor y estado pero coinciden en géneros y título.
-        assertTrue(
+        // CAMBIO DE CONTRATO (M3, no es regresión G7): antes un título EXACTO + 1 señal de 3
+        // identificaba aunque el autor discrepara; ahora el veto por autor (evaluado y sin
+        // coincidencia tras la regla M2) bloquea la identificación en el camino de alto
+        // impacto — una remake con el mismo título y otro autor no migra sola.
+        assertFalse(
             MetadataMatcher.isSameWork(oneOfThree, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
         )
         // Título FUZZY con 1 señal → NO identifica: la cuenta 2-de-4 no se alcanzó.
         assertFalse(
             MetadataMatcher.isSameWork(oneOfThree, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false),
+        )
+        // Sin conflicto de autor (el autor coincide): EXACTO + 2 señales de 3 vuelve a
+        // identificar — la propiedad de «acuerdo parcial identifica» se conserva.
+        val twoOfThree = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.COMPLETED,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(twoOfThree is MetadataMatcher.MetadataVerdict.Accepted)
+        assertTrue(
+            MetadataMatcher.isSameWork(twoOfThree, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false),
         )
     }
 
@@ -1317,5 +1377,111 @@ class MetadataMatcherTest {
         assertTrue(
             MetadataMatcher.narrativeOverlap(ko, en) >= MetadataMatcher.MIN_NARRATIVE_ANCHORS,
         )
+    }
+    // ------------------------------------------------------------------
+    // M2: strict author semantics. A shared surname token is NOT evidence;
+    // the author signal counts only on full normalized-name equality or
+    // full token-set containment with the shorter side carrying >= 2 tokens.
+    // ------------------------------------------------------------------
+
+    private fun validateAuthors(
+        currentAuthor: String,
+        candidateAuthor: String,
+    ): MetadataMatcher.MetadataVerdict =
+        MetadataMatcher.validate(
+            currentAuthor = currentAuthor,
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = null,
+            candidateAuthor = candidateAuthor,
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = null,
+        )
+
+    @Test
+    fun `a shared surname token is not enough for the author signal`() {
+        // Alto 2 of the audit: "Park" contained in "Park Joo" used to count as agreement and,
+        // with status, pushed a fuzzy-titled different work over the 2-of-4 gate.
+        val verdict = validateAuthors("Park Ji-Ho", "Park Joo")
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        assertFalse(
+            (verdict as MetadataMatcher.MetadataVerdict.Rejected)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `identical normalized author names count as the author signal`() {
+        val verdict = validateAuthors("Park Joo", "Park Joo")
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `author token containment still matches with two or more tokens`() {
+        // Romanization spacing and name-order flips keep matching when the SHORT side is a
+        // full token set of >= 2 tokens; the single-surname hole is what is closed.
+        val verdict = validateAuthors("Kim Jae Hwan", "Jae Hwan Kim")
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+    }
+
+    @Test
+    fun `status-only agreement stays below the gate on a fuzzy title`() {
+        val verdict = validateAuthors("", "")
+        // No author data: only status was evaluated and matched -> Rejected (1 of 4).
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Rejected)
+        // Fuzzy title + a rejected verdict never identifies (and with an exact title the
+        // strong-title path decides, which the M3 veto will weigh in on).
+        assertFalse(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false))
+    }
+    // ------------------------------------------------------------------
+    // M3: author CONFLICT vetoes identification on the high-impact path
+    // (bulk auto-accept / batch preselection). In manual review the author
+    // stays a signal, never a filter (the user decides).
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `author conflict vetoes identification even with an exact title`() {
+        // Same title, but the authors have ZERO overlap after the M2 rule: a remake or a
+        // different work reusing the exact title must not be identified for bulk migration.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Park Joo",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        // Status + genres still agree (that is the old hole: Accepted via weak signals).
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        // The veto: author was evaluated and did NOT match -> never identified.
+        assertFalse(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false))
+    }
+
+    @Test
+    fun `author agreement still identifies with an exact title`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+        assertTrue(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false))
     }
 }

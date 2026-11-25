@@ -27,6 +27,13 @@ data class ScoredManga(
     val similarity: Double,
     val isExactTitle: Boolean,
     /**
+     * True when the exact pass accepted the candidate WITHOUT any author/genre evidence on
+     * either side (M1): the title match is real, but a remake or unrelated work could share
+     * the exact title, so the entry must not auto-preselect for bulk migration — it stays
+     * on the list for review with its "no data to validate" mark.
+     */
+    val exactUnverified: Boolean = false,
+    /**
      * True when the candidate was auto-accepted because the query returned exactly one result —
      * no title comparison happened, so 1.0 here means "only result", not "same title".
      */
@@ -53,14 +60,26 @@ class SmartSourceSearchEngine(
 
     override fun getTitle(result: SManga) = result.title
 
-    suspend fun regularSearch(source: Source, title: String, currentUrl: String? = null): ScoredManga? {
+    suspend fun regularSearch(
+        source: Source,
+        title: String,
+        currentUrl: String? = null,
+        currentAuthor: String? = null,
+        currentGenres: List<String>? = null,
+    ): ScoredManga? {
         val entries = rankedCandidates(makeSearchAction(source), listOf(title)) {
             normalizedLevenshtein.similarity(title, it.title)
         }
-        return pickHybridBest(entries, source.id, title, currentUrl)
+        return pickHybridBest(entries, source.id, title, currentUrl, currentAuthor, currentGenres)
     }
 
-    suspend fun deepSearch(source: Source, title: String, currentUrl: String? = null): ScoredManga? {
+    suspend fun deepSearch(
+        source: Source,
+        title: String,
+        currentUrl: String? = null,
+        currentAuthor: String? = null,
+        currentGenres: List<String>? = null,
+    ): ScoredManga? {
         val cleanedTitle = cleanDeepSearchTitle(title)
 
         // One extra query per source, only when the title carries a romanizable script:
@@ -83,7 +102,7 @@ class SmartSourceSearchEngine(
                 normalizedLevenshtein.similarity(cleanedTitle, romanizedMangaTitle),
             )
         }
-        return pickHybridBest(entries, source.id, title, currentUrl)
+        return pickHybridBest(entries, source.id, title, currentUrl, currentAuthor, currentGenres)
     }
 
     /**
@@ -100,15 +119,34 @@ class SmartSourceSearchEngine(
         sourceId: Long,
         title: String,
         currentUrl: String?,
+        currentAuthor: String?,
+        currentGenres: List<String>?,
     ): ScoredManga? {
         // currentUrl is a String? — callers pass null only in flows where the exact pass makes
         // no sense (deep search over non-migration screens); the sentinel "" a migration caller
         // uses to keep the pass alive cross-source never matches a real candidate URL.
         if (!currentUrl.isNullOrEmpty() && entries.isNotEmpty()) {
             val candidates = entries.map { it.entry }.distinctBy { it.url }
-            val exact = TitleMatcher.findMatch(title, currentUrl, candidates)
+            // Evidence-aware exact pass (M1): author/genres of the library manga come in
+            // explicitly, so a match decided with no evidence on either side is marked
+            // exactUnverified instead of silently auto-preselecting.
+            val exact = TitleMatcher.findMatchWithEvidence(
+                title,
+                currentUrl,
+                candidates,
+                currentAuthor,
+                currentGenres,
+            )
             if (exact is TitleMatcher.MatchResult.AutoAccept) {
                 return ScoredManga(exact.candidate.toDomainManga(sourceId), 1.0, isExactTitle = true)
+            }
+            if (exact is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence) {
+                return ScoredManga(
+                    exact.candidate.toDomainManga(sourceId),
+                    1.0,
+                    isExactTitle = true,
+                    exactUnverified = true,
+                )
             }
         }
         val best = entries.maxByOrNull { it.distance } ?: return null

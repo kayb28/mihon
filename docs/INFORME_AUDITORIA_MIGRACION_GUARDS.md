@@ -29,7 +29,16 @@
 
 ---
 
-## 2. Hallazgos por severidad (no se arreglan en este encargo)
+## 2. Hallazgos por severidad
+
+> **ACTUALIZACIÓN (2026-11-25, encargo correctivo M1–M4, rama `fix/migration-guard-fixes`):** los hallazgos de severidad ALTA y los dos que sustentaban las afirmaciones G3/G4 están RESUELTOS con su commit de verificación:
+>
+> - **Alto 1 (A-H1) → RESUELTO en `b9ea139` (M1):** el remake con mismo título y metadatos vacíos ya no se auto-preselecciona; va a revisión manual.
+> - **Alto 2 (A-H2) → RESUELTO en `e734e1c` (M2):** semántica estricta de autor; «Park»/«Park Joo» cerrado, de-spaced «Kim Jae-Hwan» conservado.
+> - **G3 / A-M3 → RESUELTO en `e106b71` (M3):** ahora hay un veto por autor REAL y acotado — bloquea la identificación en auto-aceptar y pre-selección de lote cuando ambos lados tienen autor y no coinciden; en revisión manual el autor es señal, no veto, y la candidata se ofrece marcada. Los docs (HISTORIA/CHANGELOG) ya lo describen así.
+> - **G4 / A-M1 → RESUELTO en `8cbe04c` (M4):** los autores se romanizan antes de comparar (romanize(«김도») = "kimdo" casa con «Kim Do»); la regla estricta de M2 no se relaja.
+>
+> Los hallazgos de severidad MEDIA y BAJA quedan **EXPLÍCITAMENTE ABIERTOS** (A-M2 géneros baratos, y los de la sección Bajo): no forman parte del encargo correctivo y siguen sin corregir.
 
 ### Alto
 

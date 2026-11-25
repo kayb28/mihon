@@ -112,4 +112,113 @@ class TitleMatcherTest {
         assertTrue(result is NeedsReview)
         assertEquals(NeedsReview.Reason.NO_MATCH, (result as NeedsReview).reason)
     }
+    // ------------------------------------------------------------------
+    // M1: the exact-title pass must not decide with vacuous evidence.
+    // When author AND genres are absent on BOTH sides, the exact match is
+    // still offered (AutoAcceptWithoutEvidence) but the caller must not
+    // auto-preselect it for bulk migration.
+    // ------------------------------------------------------------------
+
+    private fun smangaWithAuthor(title: String, url: String, author: String?): SManga =
+        SManga.create().apply {
+            this.title = title
+            this.url = url
+            this.author = author
+        }
+
+    @Test
+    fun `exact match with no author evidence on either side is offered unverified`() {
+        // Remake with the same title and a source that extracted no metadata at all:
+        // the match is offered (the candidate is in the result) but marked unverified.
+        val candidate = smangaWithAuthor("Solo Leveling", "u-other", null)
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
+            null,
+            null,
+        )
+        assertTrue(result is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence)
+        assertEquals(
+            "Solo Leveling",
+            (result as TitleMatcher.MatchResult.AutoAcceptWithoutEvidence).candidate.title,
+        )
+    }
+
+    @Test
+    fun `exact match with genres on both sides is verified evidence`() {
+        // Genres present on both sides can disambiguate: full auto-accept, as before.
+        val candidate = SManga.create().apply {
+            title = "Solo Leveling"
+            url = "u-other"
+            genre = "Action, Fantasy"
+        }
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
+            null,
+            listOf("Action", "Fantasy"),
+        )
+        assertTrue(result is AutoAccept)
+    }
+
+    @Test
+    fun `exact match with matching author still auto-accepts`() {
+        val candidate = smangaWithAuthor("Solo Leveling", "u-other", "Chugong")
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
+            "Chugong",
+            null,
+        )
+        assertTrue(result is AutoAccept)
+    }
+
+    @Test
+    fun `exact cross-source match with matching author is still offered`() {
+        // G7 regression guard: the sentinel URL keeps the exact pass alive cross-source,
+        // and a verified author keeps it a full auto-accept.
+        val candidate = smangaWithAuthor("One Piece", "u-other-source", "Eiichiro Oda")
+        val result = TitleMatcher.findMatchWithEvidence(
+            "One Piece",
+            "",
+            listOf(candidate),
+            "Eiichiro Oda",
+            null,
+        )
+        assertTrue(result is AutoAccept)
+    }
+
+    @Test
+    fun `unverified exact cross-source match is still offered`() {
+        // Same, but with no metadata anywhere: offered unverified, never dropped.
+        val candidate = smangaWithAuthor("One Piece", "u-other-source", null)
+        val result = TitleMatcher.findMatchWithEvidence(
+            "One Piece",
+            "",
+            listOf(candidate),
+            null,
+            null,
+        )
+        assertTrue(result is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence)
+    }
+
+    @Test
+    fun `conflicting author does not filter the candidate out of manual review`() {
+        // M3 contract, manual path: the author conflict sends the match to review, but the
+        // candidate stays in the result — the user decides, the candidate is not dropped.
+        val candidate = smangaWithAuthor("Solo Leveling", "u-other", "Someone Else")
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
+            "Chugong",
+            null,
+        )
+        val review = result as NeedsReview
+        assertEquals(NeedsReview.Reason.AUTHOR_MISMATCH, review.reason)
+        assertTrue(review.candidates.isNotEmpty())
+    }
 }

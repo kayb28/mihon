@@ -121,6 +121,7 @@ class MigrationListViewModel(
     private suspend fun Manga.toSuccessSearchResult(
         similarity: Double? = null,
         isExactTitle: Boolean = false,
+        exactUnverified: Boolean = false,
         isSingleResult: Boolean = false,
         metadataVerdict: MetadataMatcher.MetadataVerdict? = null,
         chaptersBehind: Int? = null,
@@ -134,6 +135,7 @@ class MigrationListViewModel(
             source = source,
             similarity = similarity,
             isExactTitle = isExactTitle,
+            exactUnverified = exactUnverified,
             isSingleResult = isSingleResult,
             metadataVerdict = metadataVerdict,
             chaptersBehind = chaptersBehind,
@@ -254,6 +256,7 @@ class MigrationListViewModel(
                 scored.manga.toSuccessSearchResult(
                     scored.similarity,
                     scored.isExactTitle,
+                    scored.exactUnverified,
                     scored.isSingleResult,
                     scored.metadataVerdict,
                     scored.chaptersBehind,
@@ -306,10 +309,12 @@ class MigrationListViewModel(
         // exact match worth reporting even cross-site — but the URL can never match there, so we
         // pass a sentinel instead of null, which used to disable the pass entirely.
         val currentUrl = if (source.id == manga.source) manga.url else ""
+        // Author/genres of the library manga feed the evidence-aware exact pass (M1):
+        // without them the pass cannot tell a verified match from a vacuous one.
         val searchResult = if (deepSearchMode) {
-            smartSearchEngine.deepSearch(source, manga.title, currentUrl)
+            smartSearchEngine.deepSearch(source, manga.title, currentUrl, manga.author, manga.genre)
         } else {
-            smartSearchEngine.regularSearch(source, manga.title, currentUrl)
+            smartSearchEngine.regularSearch(source, manga.title, currentUrl, manga.author, manga.genre)
         }
         if (searchResult == null || (searchResult.manga.url == manga.url && source.id == manga.source)) return null
 
@@ -422,6 +427,7 @@ class MigrationListViewModel(
             localManga,
             searchResult.similarity,
             searchResult.isExactTitle,
+            exactUnverified = searchResult.exactUnverified,
             isSingleResult = searchResult.isSingleResult,
             metadataVerdict = metadataVerdict,
             chaptersBehind = chaptersBehind.takeIf { it > 0 },

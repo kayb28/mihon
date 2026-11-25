@@ -132,12 +132,15 @@ object MetadataMatcher {
     /**
      * Splits an author string into normalized author names. Separators: "/", ",", "&",
      * " y " and " and " (the latter two matching TitleMatcher's author handling). Blank or
-     * missing authors yield an empty set.
+     * missing authors yield an empty set. Each name is romanized BEFORE normalizing (M4),
+     * the same treatment titles already get, so «김도» and «Kim Do» compare as "kimdo" on
+     * both sides; the M2 strict rule and its de-spaced equality apply AFTER romanization
+     * and are not relaxed.
      */
     fun normalizeAuthors(author: String?): Set<String> {
         if (author.isNullOrBlank()) return emptySet()
         return AUTHOR_SPLIT_PATTERN.split(author)
-            .map { TitleMatcher.normalize(it) }
+            .map { TitleMatcher.normalize(Romanizer.romanize(it)) }
             .filter { it.isNotBlank() }
             .toSet()
     }
@@ -203,7 +206,11 @@ object MetadataMatcher {
      */
     sealed interface MetadataVerdict {
         /** Title passed and at least [MIN_MATCHED_SIGNALS] signals agree. */
-        data class Accepted(val matchedSignals: Set<Signal>) : MetadataVerdict
+        data class Accepted(
+            val matchedSignals: Set<Signal>,
+            /** Signals that had data on both sides and were weighed (M3 veto reads this). */
+            val evaluatedSignals: Set<Signal> = emptySet(),
+        ) : MetadataVerdict
 
         /** None of the four fields could be compared; the caller decides the fallback. */
         data object NoData : MetadataVerdict
@@ -228,23 +235,40 @@ object MetadataMatcher {
     const val DEFAULT_DESCRIPTION_THRESHOLD = 0.6
 
     /**
-     * Author agreement, tolerant to how scan sources actually write the same name:
+     * Author agreement, STRICT (M2): a shared surname token is not evidence that two names
+     * are the same person — "Park" is contained in "Park Joo" and in "Park Ji-Ho", and with
+     * status that pair used to push a fuzzy-titled different work over the 2-of-4 gate.
+     * Agreement is:
      *
-     * - Full-name intersection ("Kim Doe" on both sides) — the exact case.
-     * - Token overlap ("Kim Jae-Hwan" vs "Jae Hwan Kim"): romanization spacing, punctuation
-     *   and surname/given-name order flip constantly between sources.
-     * - Containment ("Chugong" vs "Chugong (Redice Studio)" or "Gim Do" vs "Do"): studio
-     *   credits and initials-only forms still point at the same person.
+     * - Full normalized-name intersection ("Kim Doe" on both sides) — the exact case.
+     * - Full token-set containment where the SHORTER side carries >= 2 tokens
+     *   ("Kim Jae-Hwan" vs "Jae Hwan Kim": romanization spacing, punctuation and
+     *   surname/given-name order flip constantly between sources; "Kim Doe" vs
+     *   "Kim Doe (Redice Studio)" for two-token names). A one-token name is never the
+     *   shorter side: "Park" alone matches nothing, and a studio credit attached to a
+     *   single-token name ("Chugong" vs "Chugong (Redice Studio)") no longer counts.
      *
      * Anything else is a real mismatch for this pair — but callers treat AUTHOR as ONE signal
-     * among four (no veto): the pair above is a match, "Kim Doe" vs "Park Joo" is not.
+     * among four (no veto in manual review; the M3 veto only guards the high-impact path).
      */
     private fun authorsMatch(current: Set<String>, candidate: Set<String>): Boolean {
         if (current.intersect(candidate).isNotEmpty()) return true
-        val currentTokens = current.flatMap { it.split(" ") }.filter { it.length >= 2 }.toSet()
-        val candidateTokens = candidate.flatMap { it.split(" ") }.filter { it.length >= 2 }.toSet()
-        if (currentTokens.intersect(candidateTokens).isNotEmpty()) return true
-        return current.any { name -> candidate.any { it.contains(name) || name.contains(it) } }
+        val currentTokens = current.map { it.split(" ").filter { t -> t.length >= 2 }.toSet() }
+        val candidateTokens = candidate.map { it.split(" ").filter { t -> t.length >= 2 }.toSet() }
+        // De-spaced full-name equality: normalize folds hyphens OUT ("Kim Jae-Hwan" ->
+        // "kimjaehwan"), so the same name spaced differently on the other side ("Kim Jae Hwan")
+        // is one token there. Equality on the de-spaced form is a FULL-sequence check, not a
+        // containment: "park" vs "park joo" still never matches.
+        val currentDeSpaced = current.map { it.replace(" ", "") }.toSet()
+        val candidateDeSpaced = candidate.map { it.replace(" ", "") }.toSet()
+        if (currentDeSpaced.intersect(candidateDeSpaced).isNotEmpty()) return true
+        val tokenPairs = sequence {
+            currentTokens.forEach { a -> candidateTokens.forEach { b -> yield(a to b) } }
+        }
+        return tokenPairs.any { (a, b) ->
+            (a.size >= 2 && a.size <= b.size && b.containsAll(a)) ||
+                (b.size >= 2 && b.size <= a.size && a.containsAll(b))
+        }
     }
 
     /**
@@ -486,7 +510,8 @@ object MetadataMatcher {
 
         return when {
             evaluated.isEmpty() -> MetadataVerdict.NoData
-            matched.size >= MIN_MATCHED_SIGNALS -> MetadataVerdict.Accepted(matched.toSet())
+            matched.size >= MIN_MATCHED_SIGNALS ->
+                MetadataVerdict.Accepted(matched.toSet(), evaluated.toSet())
             else -> MetadataVerdict.Rejected(matched.toSet(), evaluated.toSet())
         }
     }
@@ -611,6 +636,19 @@ object MetadataMatcher {
      * evidence together with a second, non-status signal (author or genres).
      */
     fun isSameWork(verdict: MetadataVerdict, titleLevel: TitleLevel, fallbackToTitle: Boolean): Boolean {
+        // M3 veto (high-impact path): when the AUTHOR signal was evaluated — both sides had
+        // author data — and did NOT match, the work is never identified, no matter how the
+        // rest of the metadata agrees or how strong the title is. A remake reusing the exact
+        // title with a different author must not be identified for bulk migration. In manual
+        // review the author remains one signal among four: the user decides.
+        val evaluated = (verdict as? MetadataVerdict.Accepted)?.evaluatedSignals
+            ?: (verdict as? MetadataVerdict.Rejected)?.evaluatedSignals
+            ?: emptySet()
+        val matched = (verdict as? MetadataVerdict.Accepted)?.matchedSignals
+            ?: (verdict as? MetadataVerdict.Rejected)?.matchedSignals
+            ?: emptySet()
+        val authorVeto = Signal.AUTHOR in evaluated && Signal.AUTHOR !in matched
+        if (authorVeto) return false
         return when (verdict) {
             is MetadataVerdict.Accepted -> {
                 val weakSignalsOnly = Signal.AUTHOR !in verdict.matchedSignals &&

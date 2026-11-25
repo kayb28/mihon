@@ -77,6 +77,16 @@ object TitleMatcher {
         data class AutoAccept(val candidate: SManga) : MatchResult
 
         /**
+         * Exactly one candidate has an identical normalized title and a different URL, and
+         * NO author/genre evidence exists on either side to back the decision with (M1).
+         * The match is still OFFERED — [candidate] travels in the result — but callers must
+         * not use it for unattended bulk migration: a remake or unrelated work sharing the
+         * exact title would migrate silently. It stays on the list for review, where its
+         * "no data to validate" verdict mark is visible.
+         */
+        data class AutoAcceptWithoutEvidence(val candidate: SManga) : MatchResult
+
+        /**
          * Needs manual review (e.g. 0 matches, multiple identical matches, same URL as current,
          * or a secondary-signal conflict like author/genres).
          */
@@ -103,6 +113,43 @@ object TitleMatcher {
         candidates: List<SManga>,
         currentAuthor: String? = null,
         currentGenres: List<String>? = null,
+    ): MatchResult = matchCore(
+        currentTitle,
+        currentUrl,
+        candidates,
+        currentAuthor,
+        currentGenres,
+        evidenceSupplied = false,
+    )
+
+    /**
+     * The exact pass with metadata evidence explicitly supplied by the caller (M1): when
+     * author AND genres are absent on BOTH sides, the single exact match comes back as
+     * [MatchResult.AutoAcceptWithoutEvidence] instead of [MatchResult.AutoAccept] — the
+     * candidate is offered but must not auto-preselect for bulk migration.
+     */
+    fun findMatchWithEvidence(
+        currentTitle: String,
+        currentUrl: String,
+        candidates: List<SManga>,
+        currentAuthor: String?,
+        currentGenres: List<String>?,
+    ): MatchResult = matchCore(
+        currentTitle,
+        currentUrl,
+        candidates,
+        currentAuthor,
+        currentGenres,
+        evidenceSupplied = true,
+    )
+
+    private fun matchCore(
+        currentTitle: String,
+        currentUrl: String,
+        candidates: List<SManga>,
+        currentAuthor: String?,
+        currentGenres: List<String>?,
+        evidenceSupplied: Boolean,
     ): MatchResult {
         if (candidates.isEmpty()) {
             return MatchResult.NeedsReview(MatchResult.NeedsReview.Reason.NO_MATCH)
@@ -145,6 +192,14 @@ object TitleMatcher {
                         MatchResult.NeedsReview(MatchResult.NeedsReview.Reason.AUTHOR_MISMATCH, pool)
                     !candidateGenreCompatible(candidate) ->
                         MatchResult.NeedsReview(MatchResult.NeedsReview.Reason.GENRE_MISMATCH, pool)
+                    // M1: no comparable evidence on either side (no author on both, no genres
+                    // on both) — offer the exact match but do not let it decide unattended.
+                    evidenceSupplied &&
+                        (
+                            currentAuthors.isEmpty() && normalizeAuthors(candidate.author).isEmpty() &&
+                                currentGenreSet.isEmpty() && normalizeGenres(candidate.getGenres()).isEmpty()
+                            ) ->
+                        MatchResult.AutoAcceptWithoutEvidence(candidate)
                     else -> MatchResult.AutoAccept(candidate)
                 }
             }

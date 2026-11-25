@@ -10,6 +10,29 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix — corrección de guards de migración M1–M4] - 2026-11-25
+
+> Rama `fix/migration-guard-fixes`, merge a `main`. Cada tarea cerró con ciclo red-green por comportamiento en la CI real (rojo: solo tests fallando contra el código viejo; verde: implementación). Hallazgos medios/bajos de la auditoría quedan abiertos.
+
+### Fixed
+- **M1 (`b9ea139`) — remake con título exacto sin metadatos ya no se auto-preselecciona:** un candidato con el mismo título cuya fuente no entrega metadatos va a revisión manual en vez de auto-migrarse en el lote (hallazgo Alto 1 de la auditoría).
+- **M2 (`e734e1c`) — semántica estricta de autor:** la contención por apellido ya no casa («Park» vs «Park Joo» cerrado); la igualdad de nombre completo de-spaced conserva «Kim Jae-Hwan» = «Kim Jae Hwan» (hallazgo Alto 2).
+- **M3 (`e106b71`) — veto por autor en el camino de alto impacto:** si ambos lados tienen autor y no coinciden tras M2, la obra no se identifica para auto-aceptar ni pre-selección de lote, ni con título exacto; en revisión manual el autor sigue siendo señal, no veto, y la candidata se ofrece marcada (G3).
+- **M4 (`8cbe04c`) — autores romanizados:** «김도» y «Kim Do» ahora casan (romanización antes de comparar, igual que los títulos); «Kim Doe» sigue sin casar por diseño (G4 / A-M1).
+
+### Antes / después (decisión del sistema)
+
+| Caso | Antes | Después |
+|---|---|---|
+| Remake con el mismo título exacto, candidata sin metadatos | Auto-migrado en el lote, sin avisar | En lista para revisión manual — no se pre-selecciona (M1) |
+| Remake con el mismo título exacto, autores en conflicto | Identificado vía estado+géneros | Veto: no se identifica en auto-aceptar ni lote; en manual se ofrece marcado (M3) |
+| Autor compartido real (mismo autor ambas fuentes) | Aceptado | Aceptado — intacto (regresión M1/M2) |
+| Autor coreano «김도» vs latino «Kim Do» | Nunca casaban (falso negativo) | Casan tras romanizar ambos lados (M4) |
+| «김도» vs «Kim Doe» (variante ortográfica) | No casaba | Sigue sin casar — fuera de alcance por diseño (M4) |
+| Exacta cross-source con autor verificado | Auto-aceptada | Auto-aceptada — intacta (M1) |
+| Nombres con guion «Kim Jae-Hwan» vs «Kim Jae Hwan» | Casaba | Casa — igualdad de-spaced intacta (M2) |
+| Apellido corto «Park» vs «Park Joo» | Casaba por contención | No casa — secuencia completa exigida (M2) |
+
 ## [Mihon Fix 0.21.3 — versión final consolidada, versionCode 40] - 2026-11-17
 
 > **Publicado como GitHub Release `v0.21.3-fork.1` (2026-11-19)** — APK arm64 adjunto con firma estable verificada: github.com/kayb28/mihon/releases/tag/v0.21.3-fork.1
