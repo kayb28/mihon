@@ -68,3 +68,41 @@
 ---
 
 **Resultado global:** ☐ todo OK · ☐ hay fallos (listar números de punto) · Fecha de la prueba: ______ · Build probada: sha256 terminación `…da2cf43`
+
+---
+
+# RONDA 2 (fijada) — tras el ciclo correctivo R1–R4
+
+**Build de esta ronda:** se indica abajo tras la compilación · **Cambios:** fix del drift +1 (Fallo B) y aclaración del zoom (Fallo A: en modos continuos el visor experimental nunca tuvo zoom — feature de fase futura; en modo paginado sí zoomea).
+**Nota:** el fix del drift toca solo el visor experimental CONTINUO. STOCK y HQ no cambiaron; los puntos de migración no se repiten (respaldados por unit tests, decisión del usuario).
+
+## 1. Zoom en EXPERIMENTAL — MODO PAGINADO (L2R / R2L / vertical)
+
+- [ ] Pellizco: zoomea sobre el punto de los dedos, hasta 4×.
+- [ ] Doble toque: alterna ajustado ↔ 2.5× sobre el punto tocado.
+- [ ] Con página ampliada: arrastrar con un dedo mueve la página (pan).
+- Notas: ____________
+
+## 2. Zoom en EXPERIMENTAL — MODO CONTINUO (webtoon / vertical continuo)
+
+- [ ] (Informativo, no es fallo nueva) El zoom NO está disponible en este modo del visor experimental — confirmar que el scroll normal funciona bien.
+- Notas: ____________
+
+## 3. Drift: abrir el MISMO capítulo 5 veces seguidas sin moverse
+
+- [ ] En EXPERIMENTAL continuo: anota la página de partida (____) → abre en la MISMA página las 5 veces.
+- [ ] En EXPERIMENTAL paginado: ídem (____).
+- Notas: ____________
+
+## 4. Regresión rápida
+
+- [ ] Un capítulo en STOCK y uno en HQ: comportamiento idéntico al de siempre.
+- [ ] Avión a mitad de carga → página falla → quitar avión → Reintentar carga.
+- Notas: ____________
+
+## 5. Notas libres
+
+- [ ] Cualquier otra cosa rara:
+- Notas: ____________
+
+**Resultado global:** ☐ todo OK · ☐ hay fallos (números de punto) · Fecha: ______ · Build probada: sha256 terminación ____________
