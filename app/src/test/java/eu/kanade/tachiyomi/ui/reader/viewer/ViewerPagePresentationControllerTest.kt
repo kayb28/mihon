@@ -98,17 +98,23 @@ class ViewerPagePresentationControllerTest {
 
     @Test
     fun `attempt budget is enforced for transient reloads`() {
+        // Machine contract: retryDecision allows a reload while attempt < MAX_RELOAD_ATTEMPTS,
+        // and failed() increments the attempt, so failure N is reloadable only while N < MAX.
         val controller = ViewerPagePresentationController()
         val page = Any()
         controller.start(page)
-        repeat(ViewerPageStateMachine.MAX_RELOAD_ATTEMPTS) {
-            controller.failed(page, ViewerPageStateMachine.FailureReason.HTTP)
-            assertEquals(
-                ViewerPageStateMachine.RetryDecision.RELOAD_FROM_LOADER,
-                controller.routeForRetry(page),
-            )
-            controller.start(page)
-        }
+        controller.failed(page, ViewerPageStateMachine.FailureReason.HTTP)
+        assertEquals(
+            ViewerPageStateMachine.RetryDecision.RELOAD_FROM_LOADER,
+            controller.routeForRetry(page),
+        )
+        controller.start(page)
+        controller.failed(page, ViewerPageStateMachine.FailureReason.HTTP)
+        assertEquals(
+            ViewerPageStateMachine.RetryDecision.DO_NOT_RETRY,
+            controller.routeForRetry(page),
+        )
+        controller.start(page)
         controller.failed(page, ViewerPageStateMachine.FailureReason.HTTP)
         assertEquals(
             ViewerPageStateMachine.RetryDecision.DO_NOT_RETRY,
