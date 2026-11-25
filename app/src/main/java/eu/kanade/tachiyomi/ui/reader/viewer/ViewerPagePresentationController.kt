@@ -51,15 +51,15 @@ internal class ViewerPagePresentationController(
         }
     }
 
-    /**
-     * A load failed with [error]: the machine classifies it (HTTP/NETWORK/DECODE/STORAGE/
-     * CANCELLED/UNKNOWN), records the attempt, and the overlay shows the failure.
-     */
-    /** Overload taking the classified reason directly (JVM tests, no throwable at hand). */
+    // Overload taking the classified reason directly (JVM tests, no throwable at hand).
     fun failed(page: Any, reason: ViewerPageStateMachine.FailureReason) {
         machine.failed(page, reason)
     }
 
+    /**
+     * A load failed with [error]: the machine classifies it (HTTP/NETWORK/DECODE/STORAGE/
+     * CANCELLED/UNKNOWN), records the attempt, and the overlay shows the failure.
+     */
     fun failed(
         page: Any,
         error: Throwable?,
