@@ -638,8 +638,13 @@ object MetadataMatcher {
         // rest of the metadata agrees or how strong the title is. A remake reusing the exact
         // title with a different author must not be identified for bulk migration. In manual
         // review the author remains one signal among four: the user decides.
-        val authorVeto = Signal.AUTHOR in verdict.evaluatedSignals &&
-            Signal.AUTHOR !in verdict.matchedSignals
+        val evaluated = (verdict as? MetadataVerdict.Accepted)?.evaluatedSignals
+            ?: (verdict as? MetadataVerdict.Rejected)?.evaluatedSignals
+            ?: emptySet()
+        val matched = (verdict as? MetadataVerdict.Accepted)?.matchedSignals
+            ?: (verdict as? MetadataVerdict.Rejected)?.matchedSignals
+            ?: emptySet()
+        val authorVeto = Signal.AUTHOR in evaluated && Signal.AUTHOR !in matched
         if (authorVeto) return false
         return when (verdict) {
             is MetadataVerdict.Accepted -> {
