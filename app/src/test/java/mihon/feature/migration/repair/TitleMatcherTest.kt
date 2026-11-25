@@ -204,4 +204,21 @@ class TitleMatcherTest {
         )
         assertTrue(result is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence)
     }
+    @Test
+    fun `conflicting author does not filter the candidate out of manual review`() {
+        // M3 contract, manual path: the author conflict sends the match to review, but the
+        // candidate stays in the result — the user decides, the candidate is not dropped.
+        val candidate = smangaWithAuthor("Solo Leveling", "u-other", "Someone Else")
+        val result = TitleMatcher.findMatchWithEvidence(
+            "Solo Leveling",
+            "u-mine",
+            listOf(candidate),
+            "Chugong",
+            null,
+        )
+        val review = result as NeedsReview
+        assertEquals(NeedsReview.Reason.AUTHOR_MISMATCH, review.reason)
+        assertTrue(review.candidates.isNotEmpty())
+    }
+
 }

@@ -1384,4 +1384,49 @@ class MetadataMatcherTest {
         // strong-title path decides, which the M3 veto will weigh in on).
         assertFalse(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.FUZZY, fallbackToTitle = false))
     }
+    // ------------------------------------------------------------------
+    // M3: author CONFLICT vetoes identification on the high-impact path
+    // (bulk auto-accept / batch preselection). In manual review the author
+    // stays a signal, never a filter (the user decides).
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `author conflict vetoes identification even with an exact title`() {
+        // Same title, but the authors have ZERO overlap after the M2 rule: a remake or a
+        // different work reusing the exact title must not be identified for bulk migration.
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Park Joo",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        // Status + genres still agree (that is the old hole: Accepted via weak signals).
+        assertTrue(verdict is MetadataMatcher.MetadataVerdict.Accepted)
+        // The veto: author was evaluated and did NOT match -> never identified.
+        assertFalse(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false))
+    }
+
+    @Test
+    fun `author agreement still identifies with an exact title`() {
+        val verdict = MetadataMatcher.validate(
+            currentAuthor = "Kim Doe",
+            currentStatus = SManga.ONGOING,
+            currentDescription = null,
+            currentGenres = listOf("Action", "Fantasy"),
+            candidateAuthor = "Kim Doe",
+            candidateStatus = SManga.ONGOING,
+            candidateDescription = null,
+            candidateGenres = listOf("Acción", "Fantasía"),
+        )
+        assertTrue(
+            (verdict as MetadataMatcher.MetadataVerdict.Accepted)
+                .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
+        )
+        assertTrue(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false))
+    }
+
 }
