@@ -16,6 +16,8 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerPageStateMachine
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerPagePresentationController
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerBackendPolicy
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import kotlinx.coroutines.CancellationException
@@ -134,6 +136,15 @@ abstract class AndroidxWebGpuBaseViewer(
      * that draws resets the count, so isolated failures never degrade the reader.
      */
     private val pageFailureBreaker = ViewerBackendPolicy.CircuitBreaker()
+
+    /**
+     * T6 wiring: the page state machine drives this viewer's page life cycle. Every overlay
+     * transition goes through it, so failures are classified and retried by policy instead of
+     * ad-hoc: transient (HTTP/NETWORK/UNKNOWN) reload from the loader while attempts last,
+     * DECODE/STORAGE re-upload from the held stream, CANCELLED never retries on its own, and
+     * the user's Retry always works.
+     */
+    private val pageMachine = ViewerPagePresentationController()
 
     private var surfaceJob: Job? = null
 
@@ -353,6 +364,7 @@ abstract class AndroidxWebGpuBaseViewer(
             uploadJobs.clear()
         }
         presentation.clear()
+        pageMachine.reset()
         loadedChapters = null
         current = null
     }
@@ -511,23 +523,19 @@ abstract class AndroidxWebGpuBaseViewer(
                     }
                     val progressJob = launch {
                         page.progressFlow.collect { value ->
-                            presentation[page]?.let { state ->
-                                if (state is PagePresentation.Loading) {
-                                    presentation[page] = PagePresentation.Loading(value)
-                                }
-                            }
+                            pageMachine.progress(page, value, presentation)
                         }
                     }
                     try {
                         page.statusFlow.takeWhile { status ->
                             when (status) {
                                 Page.State.Queue, Page.State.LoadPage -> {
-                                    presentation[page] = PagePresentation.Loading(-1)
+                                    pageMachine.start(page, presentation)
                                     true
                                 }
 
                                 Page.State.DownloadImage -> {
-                                    presentation[page] = PagePresentation.Loading(page.progress)
+                                    pageMachine.progress(page, page.progress, presentation)
                                     true
                                 }
 
@@ -537,7 +545,7 @@ abstract class AndroidxWebGpuBaseViewer(
                                 }
 
                                 is Page.State.Error -> {
-                                    presentation[page] = PagePresentation.Failed(status.error)
+                                    pageMachine.failed(page, status.error, presentation)
                                     if (pageFailureBreaker.onPageFailure()) requestFallback()
                                     false
                                 }
@@ -595,10 +603,12 @@ abstract class AndroidxWebGpuBaseViewer(
                     presentation[page] = PagePresentation.Uploading
                     decodePage(page)
                 } catch (e: CancellationException) {
+                    // Chapter switch or viewer rebuild: not an error, never auto-retried.
+                    pageMachine.failed(page, e, presentation)
                     throw e
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR, e) { "uploadPage: page ${page.number}: ${e.message}" }
-                    presentation[page] = PagePresentation.Failed(e)
+                    pageMachine.failed(page, e, presentation)
                     if (pageFailureBreaker.onPageFailure()) requestFallback()
                 } finally {
                     synchronized(gpuImages) {
@@ -634,22 +644,36 @@ abstract class AndroidxWebGpuBaseViewer(
      * that only failed to decode still has its stream and is simply uploaded from scratch.
      */
     fun retryPageLoad(page: ReaderPage) {
-        val retrying = synchronized(gpuImages) {
+        val route = synchronized(gpuImages) {
             when {
-                destroyed -> false
-                presentation[page] is PagePresentation.Failed -> {
-                    presentation.remove(page)
-                    true
-                }
+                destroyed -> null
 
-                else -> false
+                else -> {
+                    // The user's Retry: the machine marks the page loading again whatever the
+                    // failure reason was, and its policy route tells us where to go from there.
+                    pageMachine.manualRetry(page, presentation)
+                    pageMachine.routeForRetry(page)
+                }
             }
         }
-        if (!retrying) return
-        if (page.status is Page.State.Error) {
-            page.chapter.pageLoader?.retryPage(page)
+        when (route) {
+            // The loader failed this page: its retry re-runs the chain and the watcher uploads
+            // the fresh stream as soon as it is Ready again.
+            ViewerPageStateMachine.RetryDecision.RELOAD_FROM_LOADER -> {
+                if (page.status is Page.State.Error) {
+                    page.chapter.pageLoader?.retryPage(page)
+                }
+                // Not a loader failure (or the loader never saw it): re-present so the watcher
+                // or upload path picks the page up again.
+                else -> presentPage(page)
+            }
+
+            // The stream is already in hand: upload from scratch without touching the loader.
+            ViewerPageStateMachine.RetryDecision.REUPLOAD -> uploadPage(page)
+
+            // No route (page was not failed): just present its current state.
+            else -> presentPage(page)
         }
-        presentPage(page)
     }
 
     /** Decodes [input] and uploads the first full frame's image into the page cache. */
@@ -678,7 +702,7 @@ abstract class AndroidxWebGpuBaseViewer(
 
                             else -> {
                                 gpuImages[page] = image
-                                presentation[page] = PagePresentation.Drawn
+                                pageMachine.ready(page, presentation)
                                 pageFailureBreaker.onPageSuccess()
                                 true
                             }
