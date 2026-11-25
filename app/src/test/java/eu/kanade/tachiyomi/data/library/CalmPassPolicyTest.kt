@@ -41,7 +41,12 @@ class CalmPassPolicyTest {
         CalmPassPolicy.shouldRetryInCalmPass(false, false, isNoChapters = true, httpCode = null) shouldBe false
         CalmPassPolicy.shouldRetryInCalmPass(false, false, false, httpCode = 404) shouldBe false
         CalmPassPolicy.shouldRetryInCalmPass(false, false, false, httpCode = 410) shouldBe false
-        CalmPassPolicy.shouldRetryInCalmPass(false, isSourceNotInstalled = true, isNoChapters = false, httpCode = null) shouldBe false
+        CalmPassPolicy.shouldRetryInCalmPass(
+            false,
+            isSourceNotInstalled = true,
+            isNoChapters = false,
+            httpCode = null,
+        ) shouldBe false
     }
 
     @Test
