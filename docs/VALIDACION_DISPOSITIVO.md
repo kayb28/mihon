@@ -73,7 +73,7 @@
 
 # RONDA 2 (fijada) — tras el ciclo correctivo R1–R4
 
-**Build de esta ronda:** `MihonFix-0.21.3-build-362c432-arm64.apk` · sha256 `6b3b1369e108fe35bae28189640320b7d7aa4baeaa0cf9d370f3855781ad0d59` · firma ESTABLE verificada (cert `DE7889F3…D1296AD0`, instala ENCIMA) · CI verde run 45673989574 (18:19 UTC, `362c432`) · **Cambios:** fix del drift +1 (Fallo B) y aclaración del zoom (Fallo A: en modos continuos el visor experimental nunca tuvo zoom — feature de fase futura; en modo paginado sí zoomea).
+**Build de esta ronda:** `MihonFix-0.21.3-build-ce3db2d-arm64.apk` · sha256 `301878217561e9d8f122c9fdb4acb3f28460e620655f922061a0f7a417d6709b` · firma ESTABLE verificada (cert `DE7889F3…D1296AD0`, instala ENCIMA) · CI verde run 45698019408 (20:45 UTC, `ce3db2d`, incluye el endurecimiento R3) · **Cambios:** fix del drift +1 (Fallo B) y aclaración del zoom (Fallo A: en modos continuos el visor experimental nunca tuvo zoom — feature de fase futura; en modo paginado sí zoomea).
 **Nota:** el fix del drift toca solo el visor experimental CONTINUO. STOCK y HQ no cambiaron; los puntos de migración no se repiten (respaldados por unit tests, decisión del usuario).
 
 ## 1. Zoom en EXPERIMENTAL — MODO PAGINADO (L2R / R2L / vertical)
@@ -108,4 +108,4 @@
 - [ ] Cualquier otra cosa rara:
 - Notas: ____________
 
-**Resultado global:** ☐ todo OK · ☐ hay fallos (números de punto) · Fecha: ______ · Build probada: sha256 terminación `…ad0d59`
+**Resultado global:** ☐ todo OK · ☐ hay fallos (números de punto) · Fecha: ______ · Build probada: sha256 terminación `…d6709b`
