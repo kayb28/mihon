@@ -1,6 +1,6 @@
 # AGENTS.md — guía para agentes en este repositorio
 
-_Fork de Mihon («MihonFix»). Última actualización de esta guía: 2026-11-15._
+_Fork de Mihon («MihonFix»). Última actualización de esta guía: 2026-11-26._
 _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGISTRO.md`)._
 
 ## 1. Qué es este proyecto
@@ -28,11 +28,16 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
   - `./gradlew assembleDebug` / `assembleRelease` — APK (CI entrega arm64 como
     `MihonFix-0.21.3-build-<sha>-arm64.apk`).
   - `./gradlew :core:common:testDebugUnitTest` — tests JVM de `core:common`.
-- CI (GitHub Actions), dos workflows:
-  - **Build APK** — Build Release APK, Build Unminified APK (No R8), builds de las dos
-    extensiones, Detect extension changes. No revisa formato.
-  - **Build & Test** — Dependency Review (requiere Dependency graph activado en settings
-    del repo) y `spotlessKotlinCheck` en `core/common`.
+- CI (GitHub Actions), dos workflows (verificados el 2026-11-26):
+  - **Build APK** (`.github/workflows/build_apk.yml`) — en CADA push a cualquier rama corre
+    primero el job **«Spotless & Unit Tests»** (`spotlessCheck` + `testDebugUnitTest` con
+    reporte de tests; solo un disparo manual `workflow_dispatch` con `skip_tests: true`
+    puede saltárselo), y después los jobs de build: Build Release APK, Build Unminified
+    APK (No R8), builds de las dos extensiones, Detect extension changes.
+  - **Build & Test** (`.github/workflows/build.yml`) — en PRs y en cada push a `main`:
+    Dependency Review (solo en PRs; requiere Dependency graph activado en settings del
+    repo), `spotlessCheck`, `testDebugUnitTest` y **`verifySqlDelightMigration`** (este
+    workflow es el único que verifica las migraciones de SQLDelight).
 - ⚠️ El sandbox del agente NO tiene Android SDK ni Gradle: `./gradlew` no funciona aquí.
   Para probar el protocolo de sesión a nivel JVM hay un harness FUERA del repo:
   `bash /home/z/my-project/scripts/run_fetchsession_tests.sh` (kotlinc 2.4.21 + JUnit
@@ -42,43 +47,56 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 
 ## 3. Ramas
 
-- `feature/webgpu-clean` — **línea de trabajo WebGPU**: visor, motor web de respaldo,
-  migración y el resto de funciones del fork. Punta al corte: `4f4b79c46`. Verificado:
-  la rama existe y apunta a ese commit. Es donde se desarrolla el código nuevo, según
-  `docs/TRASPASO.md` y `docs/REGISTRO.md`.
-- `main` — rama de corte de upstream y distribución. Punta: `110c8f76e` (commit de solo
-  docs). **La relación exacta entre `main` y `feature/webgpu-clean` está por verificar.**
-  Antes de abrir cualquier PR, ejecuta `git rev-list --left-right --count main...feature/webgpu-clean`
-  y deja el resultado en la descripción del PR.
-- ⚠️ No instales ninguna build generada desde `main` mientras no esté reconciliada con
-  `feature/webgpu-clean` (advertencia de `docs/REGISTRO.md`).
-- `fix/webview-fetch-pr1` — PR #1 (fallback WebView: puente en mundo de página, POST
-  binario, puente endurecido). Punta `b24f4e29f`, 4 commits, en revisión, CI roja (§4).
-  No rebasar ni pushear encima sin autorización explícita.
+(Estado verificado contra GitHub el 2026-11-26.)
+
+- `main` — rama de distribución. Punta: `152027f` (merge de `fix/migration-guard-fixes`,
+  M1–M4, 2026-11-25 03:50 UTC). La reconciliación con `feature/webgpu-clean` YA ESTÁ
+  RESUELTA: `4f4b79c46` (punta del corte de `feature/webgpu-clean`) es ancestro de
+  `main` (`git merge-base --is-ancestor` exitoso), y la consolidación de las 7 ramas se
+  publicó como Release `v0.21.3-fork.1` (2026-11-19). Las builds de `main` se instalan
+  encima (firma estable, versionCode 40).
+- `feature/webgpu-clean` — línea de trabajo WebGPU del ciclo anterior. Punta `736fa6baa`
+  (= `v0.21.3-fork.1`). Su contenido está consolidado en `main`; los cambios nuevos van
+  en ramas propias cortadas de `main`.
+- `feat/t6-page-state-machine-wiring` — cableado del lector (T6a + fixes R1–R4 del
+  drift), cortada de `main` en `152027f`. **SIN MERGEAR**: pendiente de la checklist de
+  validación en dispositivo del usuario (Ronda 2; build probada `…ce3db2d-arm64.apk`,
+  CI verde). Su predecesora `feat/reader-page-state-wiring` (misma serie de commits,
+  hashes propios) quedó como archivo histórico del mismo trabajo. No tocar sin
+  autorización del usuario.
+- `fix/migration-guard-fixes` — encargo correctivo M1–M4, MERGEADA en `main` (`152027f`).
+- `fix/viewer-refactor-t1-t7` — bloque T1–T7 del visor, squash `c8d2f52` en `main`.
+- `ci/branch-checks` — job «Spotless & Unit Tests» en cada push (C6/C7), mergeada `ca86c55`.
 - Ramas nuevas: prefijos `fix/` (código) o `docs/` (documentación). Córtalas desde la
   rama base que indique la tarea. Si la tarea no indica base, pregunta antes de decidir.
 - Las ramas obsoletas están archivadas como `archive/*` (ver `docs/HISTORIA.md`;
   restaurar una con `git checkout -b <rama> <tag>`).
 
-## 4. Qué está verificado y qué no (corte: 2026-11-15)
+## 4. Qué está verificado y qué no (corte: 2026-11-26)
 
 Verificado:
-- `FetchSession.kt` + `FetchSessionProtocolTest.kt`: **17/17** en el harness JVM local.
-- La serie de parche del PR #1 aplica limpio sobre `110c8f76e`
-  (`git apply --check`, exit 0).
+- PR #1 **mergeeado en `main`** el 2026-11-17 18:16 UTC, incluido el fix de compilación
+  `UNSAFE_CALL` (`2222d6ca057494b49f183f3d9ddabe283b84737d`, «cuerpo nulo de la sesión
+  del fallback WebView tratado como fallo controlado»). Rutas en `main`:
+  `core/common/src/main/kotlin/eu/kanade/tachiyomi/network/interceptor/WebViewFetchFallbackInterceptor.kt`,
+  `…/FetchSession.kt` y `core/common/src/test/…/FetchSessionProtocolTest.kt` (17 tests,
+  corren en CI vía `testDebugUnitTest`).
+- Release `v0.21.3-fork.1` publicada (2026-11-19 03:13 UTC) con APK arm64 firmado con
+  el cert estable; CI verde en `18dc37a` (runs 44449995174 / 44449995252).
+- `main`: CI doble verde en su punta `152027f` (runs 45542702890 / 45542703056,
+  2026-11-25 03:50 UTC).
 
-No verificado o fallando:
-- **CI del PR #1 en rojo** (5 checks failure / 1 success). Los 4 jobs de build fallan en
-  `:core:common:compileReleaseKotlin` con `Kotlin compiler: UNSAFE_CALL` —
-  «Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver
-  of type 'ByteArray?'» en `WebViewFetchFallbackInterceptor.kt:342`. NO corregido aún.
-- El check `Build & Test App` falla en el step `Dependency Review`: «Dependency review
-  is not supported on this repository» — falta activar Dependency graph en settings del
-  repo (configuración, no código).
-- `Detect extension changes`: success.
-- Rutas reales de WebView (mundo de página, POST binario, puente legacy): verificadas
-  solo por inspección y harness JS local; sin dispositivo.
-- La corrección del punto 342 es prerequisito para aprobar/mergear el PR #1.
+No verificado o pendiente:
+- ⚠️ El harness JVM local (FUERA del repo, `bash /home/z/my-project/scripts/run_fetchsession_tests.sh`)
+  compila `FetchSession.kt` + `FetchSessionProtocolTest.kt` pero **NO compila
+  `WebViewFetchFallbackInterceptor.kt`** ni ningún otro archivo del repo — un commit no
+  queda probado solo porque el harness pase; CI decide.
+- ⚠️ Las rutas reales de WebView (mundo de página, POST binario, puente legacy) siguen
+  **sin validar en dispositivo**: verificadas solo por inspección, harness JS local y
+  tests JVM del protocolo de sesión. «Confirmado» solo cuando el usuario lo valide en
+  su teléfono.
+- Cableado del lector T6a + fixes R1–R4 (`feat/t6-page-state-machine-wiring`): CI verde
+  y 205 tests, pero **pendiente de validación en dispositivo** (checklist Ronda 2).
 
 ## 5. Reglas obligatorias
 
