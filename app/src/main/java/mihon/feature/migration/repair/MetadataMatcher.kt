@@ -228,23 +228,33 @@ object MetadataMatcher {
     const val DEFAULT_DESCRIPTION_THRESHOLD = 0.6
 
     /**
-     * Author agreement, tolerant to how scan sources actually write the same name:
+     * Author agreement, STRICT (M2): a shared surname token is not evidence that two names
+     * are the same person — "Park" is contained in "Park Joo" and in "Park Ji-Ho", and with
+     * status that pair used to push a fuzzy-titled different work over the 2-of-4 gate.
+     * Agreement is:
      *
-     * - Full-name intersection ("Kim Doe" on both sides) — the exact case.
-     * - Token overlap ("Kim Jae-Hwan" vs "Jae Hwan Kim"): romanization spacing, punctuation
-     *   and surname/given-name order flip constantly between sources.
-     * - Containment ("Chugong" vs "Chugong (Redice Studio)" or "Gim Do" vs "Do"): studio
-     *   credits and initials-only forms still point at the same person.
+     * - Full normalized-name intersection ("Kim Doe" on both sides) — the exact case.
+     * - Full token-set containment where the SHORTER side carries >= 2 tokens
+     *   ("Kim Jae-Hwan" vs "Jae Hwan Kim": romanization spacing, punctuation and
+     *   surname/given-name order flip constantly between sources; "Kim Doe" vs
+     *   "Kim Doe (Redice Studio)" for two-token names). A one-token name is never the
+     *   shorter side: "Park" alone matches nothing, and a studio credit attached to a
+     *   single-token name ("Chugong" vs "Chugong (Redice Studio)") no longer counts.
      *
      * Anything else is a real mismatch for this pair — but callers treat AUTHOR as ONE signal
-     * among four (no veto): the pair above is a match, "Kim Doe" vs "Park Joo" is not.
+     * among four (no veto in manual review; the M3 veto only guards the high-impact path).
      */
     private fun authorsMatch(current: Set<String>, candidate: Set<String>): Boolean {
         if (current.intersect(candidate).isNotEmpty()) return true
-        val currentTokens = current.flatMap { it.split(" ") }.filter { it.length >= 2 }.toSet()
-        val candidateTokens = candidate.flatMap { it.split(" ") }.filter { it.length >= 2 }.toSet()
-        if (currentTokens.intersect(candidateTokens).isNotEmpty()) return true
-        return current.any { name -> candidate.any { it.contains(name) || name.contains(it) } }
+        val currentTokens = current.map { it.split(" ").filter { t -> t.length >= 2 }.toSet() }
+        val candidateTokens = candidate.map { it.split(" ").filter { t -> t.length >= 2 }.toSet() }
+        val tokenPairs = sequence {
+            currentTokens.forEach { a -> candidateTokens.forEach { b -> yield(a to b) } }
+        }
+        return tokenPairs.any { (a, b) ->
+            (a.size >= 2 && a.size <= b.size && b.containsAll(a)) ||
+                (b.size >= 2 && b.size <= a.size && a.containsAll(b))
+        }
     }
 
     /**

@@ -700,7 +700,11 @@ class MetadataMatcherTest {
     }
 
     @Test
-    fun `author matches when studio credits are attached to the name`() {
+    fun `studio credit on a single-token name no longer counts as author agreement`() {
+        // M2: "Chugong" is ONE token; attaching "(Redice Studio)" to it used to count as
+        // containment agreement. The strict rule never lets a one-token name be the shorter
+        // side, so the author signal no longer matches here — status+genres still accept the
+        // candidate, but only via the weak-signal (strong-title) path, not the author signal.
         val verdict = MetadataMatcher.validate(
             currentAuthor = "Chugong",
             currentStatus = SManga.ONGOING,
@@ -711,7 +715,7 @@ class MetadataMatcherTest {
             candidateDescription = null,
             candidateGenres = listOf("Acción", "Fantasía"),
         )
-        assertTrue(
+        assertFalse(
             (verdict as MetadataMatcher.MetadataVerdict.Accepted)
                 .matchedSignals.contains(MetadataMatcher.Signal.AUTHOR),
         )
