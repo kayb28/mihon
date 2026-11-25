@@ -221,5 +221,4 @@ class TitleMatcherTest {
         assertEquals(NeedsReview.Reason.AUTHOR_MISMATCH, review.reason)
         assertTrue(review.candidates.isNotEmpty())
     }
-
 }

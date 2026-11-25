@@ -1428,5 +1428,4 @@ class MetadataMatcherTest {
         )
         assertTrue(MetadataMatcher.isSameWork(verdict, MetadataMatcher.TitleLevel.EXACT, fallbackToTitle = false))
     }
-
 }
