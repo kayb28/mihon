@@ -151,7 +151,7 @@ class TitleMatcherTest {
         val candidate = SManga.create().apply {
             title = "Solo Leveling"
             url = "u-other"
-            genre = arrayOf("Action", "Fantasy")
+            genre = "Action, Fantasy" 
         }
         val result = TitleMatcher.findMatchWithEvidence(
             "Solo Leveling",
