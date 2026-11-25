@@ -248,6 +248,13 @@ object MetadataMatcher {
         if (current.intersect(candidate).isNotEmpty()) return true
         val currentTokens = current.map { it.split(" ").filter { t -> t.length >= 2 }.toSet() }
         val candidateTokens = candidate.map { it.split(" ").filter { t -> t.length >= 2 }.toSet() }
+        // De-spaced full-name equality: normalize folds hyphens OUT ("Kim Jae-Hwan" ->
+        // "kimjaehwan"), so the same name spaced differently on the other side ("Kim Jae Hwan")
+        // is one token there. Equality on the de-spaced form is a FULL-sequence check, not a
+        // containment: "park" vs "park joo" still never matches.
+        val currentDeSpaced = current.map { it.replace(" ", "") }.toSet()
+        val candidateDeSpaced = candidate.map { it.replace(" ", "") }.toSet()
+        if (currentDeSpaced.intersect(candidateDeSpaced).isNotEmpty()) return true
         val tokenPairs = sequence {
             currentTokens.forEach { a -> candidateTokens.forEach { b -> yield(a to b) } }
         }
