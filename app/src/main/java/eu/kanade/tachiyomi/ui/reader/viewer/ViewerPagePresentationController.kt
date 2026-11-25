@@ -21,40 +21,57 @@ internal class ViewerPagePresentationController(
     fun stateOf(page: Any): ViewerPageStateMachine.State = machine.stateOf(page)
 
     /** Loader picked the page up: overlay shows loading, attempt budget is preserved. */
-    fun start(page: ReaderPage, presentation: SnapshotStateMap<ReaderPage, PagePresentation>) {
+    fun start(page: Any, presentation: SnapshotStateMap<ReaderPage, PagePresentation>? = null) {
         machine.start(page)
-        presentation[page] = PagePresentation.Loading(-1)
+        if (page is ReaderPage) {
+            presentation?.put(page, PagePresentation.Loading(-1))
+        }
     }
 
     /** Download progress while loading; ignored once the page left the loading phase. */
     fun progress(
-        page: ReaderPage,
+        page: Any,
         percent: Int,
-        presentation: SnapshotStateMap<ReaderPage, PagePresentation>,
+        presentation: SnapshotStateMap<ReaderPage, PagePresentation>? = null,
     ) {
         machine.progress(page, percent)
-        if (machine.stateOf(page).phase == ViewerPageStateMachine.Phase.LOADING) {
-            presentation[page] = PagePresentation.Loading(percent)
+        if (
+            page is ReaderPage &&
+            machine.stateOf(page).phase == ViewerPageStateMachine.Phase.LOADING
+        ) {
+            presentation?.put(page, PagePresentation.Loading(percent))
         }
     }
 
     /** First full frame drawn: overlay clears, failure state forgotten. */
-    fun ready(page: ReaderPage, presentation: SnapshotStateMap<ReaderPage, PagePresentation>) {
+    fun ready(page: Any, presentation: SnapshotStateMap<ReaderPage, PagePresentation>? = null) {
         machine.ready(page)
-        presentation[page] = PagePresentation.Drawn
+        if (page is ReaderPage) {
+            presentation?.put(page, PagePresentation.Drawn)
+        }
     }
 
     /**
      * A load failed with [error]: the machine classifies it (HTTP/NETWORK/DECODE/STORAGE/
      * CANCELLED/UNKNOWN), records the attempt, and the overlay shows the failure.
      */
+    /** Overload taking the classified reason directly (JVM tests, no throwable at hand). */
+    fun failed(page: Any, reason: ViewerPageStateMachine.FailureReason) {
+        machine.failed(page, reason)
+    }
+
     fun failed(
-        page: ReaderPage,
+        page: Any,
         error: Throwable?,
-        presentation: SnapshotStateMap<ReaderPage, PagePresentation>,
+        presentation: SnapshotStateMap<ReaderPage, PagePresentation>? = null,
     ) {
         machine.failed(page, ViewerPageStateMachine.classify(error))
-        presentation[page] = PagePresentation.Failed(error ?: IllegalStateException("unknown"))
+        if (page is ReaderPage) {
+            presentation?.put(
+                page,
+                PagePresentation.Failed(error ?: IllegalStateException("unknown")),
+            )
+        }
     }
 
     /** How a failed page should be retried; see [ViewerPageStateMachine.retryDecision]. */
@@ -65,12 +82,14 @@ internal class ViewerPagePresentationController(
      * reason — the user's explicit retry always works, cancellations included.
      */
     fun manualRetry(
-        page: ReaderPage,
-        presentation: SnapshotStateMap<ReaderPage, PagePresentation>,
+        page: Any,
+        presentation: SnapshotStateMap<ReaderPage, PagePresentation>? = null,
     ) {
         if (machine.stateOf(page).isFailed) {
             machine.start(page)
-            presentation[page] = PagePresentation.Loading(-1)
+            if (page is ReaderPage) {
+                presentation?.put(page, PagePresentation.Loading(-1))
+            }
         }
     }
 
