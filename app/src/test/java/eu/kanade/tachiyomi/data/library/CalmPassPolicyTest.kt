@@ -99,8 +99,9 @@ class CalmPassPolicyTest {
     @Test
     fun `the budget only exhausts past the deadline`() {
         val startedAt = 10_000L
-        CalmPassPolicy.budgetExhausted(startedAt, now = startedAt + CalmPassPolicy.CALM_PASS_BUDGET_MS) shouldBe false
-        CalmPassPolicy.budgetExhausted(startedAt, now = startedAt + CalmPassPolicy.CALM_PASS_BUDGET_MS + 1) shouldBe true
+        val deadline = startedAt + CalmPassPolicy.CALM_PASS_BUDGET_MS
+        CalmPassPolicy.budgetExhausted(startedAt, now = deadline) shouldBe false
+        CalmPassPolicy.budgetExhausted(startedAt, now = deadline + 1) shouldBe true
     }
 
     @Test
