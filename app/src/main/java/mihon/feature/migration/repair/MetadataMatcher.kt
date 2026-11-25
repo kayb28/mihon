@@ -132,12 +132,15 @@ object MetadataMatcher {
     /**
      * Splits an author string into normalized author names. Separators: "/", ",", "&",
      * " y " and " and " (the latter two matching TitleMatcher's author handling). Blank or
-     * missing authors yield an empty set.
+     * missing authors yield an empty set. Each name is romanized BEFORE normalizing (M4),
+     * the same treatment titles already get, so «김도» and «Kim Do» compare as "kimdo" on
+     * both sides; the M2 strict rule and its de-spaced equality apply AFTER romanization
+     * and are not relaxed.
      */
     fun normalizeAuthors(author: String?): Set<String> {
         if (author.isNullOrBlank()) return emptySet()
         return AUTHOR_SPLIT_PATTERN.split(author)
-            .map { TitleMatcher.normalize(it) }
+            .map { TitleMatcher.normalize(Romanizer.romanize(it)) }
             .filter { it.isNotBlank() }
             .toSet()
     }
