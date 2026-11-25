@@ -1,7 +1,7 @@
 # VALIDACIÓN EN DISPOSITIVO — T6 (máquina de estados de página)
 
-**Build:** `MihonFix-0.21.3-build-f520f77-arm64.apk` · sha256 `f5c290fa1801042aa14df6828de06ccffe313b19f42a60be06e3fd417ba5669f` · firma estable verificada (cert SHA-256 `DE7889F3…D1296AD0` — instala ENCIMA, sin desinstalar)
-**Encargo:** T6a cableado de `ViewerPageStateMachine` · **CI verde:** run de 05:10 UTC en `feat/t6-page-state-machine-wiring` (`f520f77`, 197 tests)
+**Build:** `MihonFix-0.21.3-build-c2de25f-arm64.apk` · sha256 `1428beb316184ea7e559705471a0f17e52219d71732b8750bcd7b1defda2cf43` · firma estable verificada (cert SHA-256 `DE7889F3…D1296AD0` — instala ENCIMA, sin desinstalar)
+**Encargo:** T6a cableado de `ViewerPageStateMachine` · **CI verde:** run 45647679860 (15:39 UTC) en `feat/t6-page-state-machine-wiring` (`c2de25f`, 197 tests) — rama sin mergear a `main` hasta checklist aprobada
 **Estado del agente:** **ESPERANDO VALIDACIÓN EN DISPOSITIVO** — el cierre de T6 lo firma el usuario con esta checklist. La CI verde NO sustituye al dispositivo.
 
 > Reglas antes de empezar:
@@ -67,4 +67,4 @@
 
 ---
 
-**Resultado global:** ☐ todo OK · ☐ hay fallos (listar números de punto) · Fecha de la prueba: ______ · Build probada: sha256 terminación `…5669f`
+**Resultado global:** ☐ todo OK · ☐ hay fallos (listar números de punto) · Fecha de la prueba: ______ · Build probada: sha256 terminación `…da2cf43`
