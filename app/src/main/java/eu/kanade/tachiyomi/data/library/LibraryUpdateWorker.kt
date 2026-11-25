@@ -296,7 +296,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                             var lastFailure: Throwable? = null
                             var attemptedCount = 0
                             var failureCount = 0
-                            var consecutiveOutageFailures = 0
+                            val outageCutoff = CalmPassPolicy.CutoffState()
                             var skipRestToCalmPass = false
                             val sourcePassStartedAt = SystemClock.elapsedRealtime()
                             mangaInSource.forEachIndexed { queueIndex, libraryManga ->
@@ -333,7 +333,7 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
                                         handleUpdateSuccess(manga, newChapters, newUpdates, hasDownloads)
                                         lastFailure = null
-                                        consecutiveOutageFailures = 0
+                                        outageCutoff.reset()
                                     } catch (e: Throwable) {
                                         // La cancelación no es un fallo del título: relanzarla como
                                         // hace la pasada en calma, para que una corrida cancelada
@@ -341,7 +341,13 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         if (e is CancellationException) throw e
                                         lastFailure = e
                                         failureCount++
-                                        if (e.isCalmRetryable()) {
+                                        if (CalmPassPolicy.shouldRetryInCalmPass(
+                                                isCancellation = false,
+                                                isSourceNotInstalled = e.isSourceNotInstalled(),
+                                                isNoChapters = e.isNoChapters(),
+                                                httpCode = e.httpExceptionOrNull()?.code,
+                                            )
+                                        ) {
                                             // Víctima probable de un episodio del origen (502/522/526,
                                             // 429, timeout): segunda oportunidad en calma antes de
                                             // registrar el error. Si la calma lo recupera, no hay error.
@@ -350,15 +356,14 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                             failedUpdates.add(manga to errorMessageFor(e))
                                             updateErrors.add(updateErrorFor(manga, e))
                                         }
-                                        if (e.isOutageFailure()) {
-                                            consecutiveOutageFailures++
-                                            if (consecutiveOutageFailures >= SOURCE_OUTAGE_BREAK_THRESHOLD) {
-                                                // El origen está caído: dejar de machacarlo; el resto
-                                                // de la cola pasa a la pasada en calma.
-                                                skipRestToCalmPass = true
-                                            }
-                                        } else {
-                                            consecutiveOutageFailures = 0
+                                        // El origen está caído (3 fallos 5xx seguidos): dejar de
+                                        // machacarlo; el resto de la cola pasa a la pasada en calma.
+                                        if (outageCutoff.recordFailure(
+                                                httpCode = e.httpExceptionOrNull()?.code,
+                                                isCancellation = false,
+                                            )
+                                        ) {
+                                            skipRestToCalmPass = true
                                         }
                                     }
                                 }
@@ -413,11 +418,10 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                                 var lastFailure: Throwable? = null
                                 var budgetExhausted = false
                                 val startedAt = SystemClock.elapsedRealtime()
-                                val deadline = startedAt + CALM_PASS_BUDGET_MS
                                 queue.forEachIndexed { queueIndex, manga ->
                                     ensureActive()
                                     if (queueIndex > 0) delay(CALM_PASS_PACING_MS)
-                                    if (SystemClock.elapsedRealtime() > deadline) {
+                                    if (CalmPassPolicy.budgetExhausted(startedAt, SystemClock.elapsedRealtime())) {
                                         budgetExhausted = true
                                         skippedNoAttempt.add(manga.id)
                                         return@forEachIndexed
@@ -618,20 +622,12 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
     private fun Throwable.isRateLimitFailure(): Boolean = httpExceptionOrNull()?.code == 429
 
-    /**
-     * True para fallos que merecen una segunda oportunidad en calma: problemas transitorios
-     * de red/HTTP. Lo que el pacing no puede arreglar por ser dato del título (sin capítulos,
-     * enlace roto confirmado, fuente desinstalada) no se reintenta en calma.
-     */
-    private fun Throwable.isCalmRetryable(): Boolean {
-        if (this is NoChaptersException || cause is NoChaptersException) return false
-        if (this is SourceNotInstalledException || cause is SourceNotInstalledException) return false
-        return isTransientUpdateFailure()
-    }
+    /** Inputs for CalmPassPolicy.shouldRetryInCalmPass: the failure's own data. */
+    private fun Throwable.isNoChapters(): Boolean =
+        this is NoChaptersException || cause is NoChaptersException
 
-    /** Familia 5xx (Cloudflare/origen: 502, 522, 526, 503…): señal de origen caído. */
-    private fun Throwable.isOutageFailure(): Boolean =
-        httpExceptionOrNull()?.code?.let { it in 500..599 } == true
+    private fun Throwable.isSourceNotInstalled(): Boolean =
+        this is SourceNotInstalledException || cause is SourceNotInstalledException
 
     /** Éxito de actualización compartido por la pasada principal y la pasada en calma. */
     private suspend fun handleUpdateSuccess(
@@ -799,12 +795,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         /** Tamaño de cola a partir del cual se aplica el pacing de la pasada principal. */
         private const val MAIN_PASS_PACING_MIN_QUEUE = 20
 
-        /** Fallos 5xx consecutivos que marcan el origen como caído y cortan su cola. */
-        private const val SOURCE_OUTAGE_BREAK_THRESHOLD = 3
-
-        /** Segunda pasada en calma: pausa entre títulos, presupuesto por fuente y reintentos. */
+        /** Segunda pasada en calma: pausa entre títulos y reintentos (presupuesto: CalmPassPolicy). */
         private const val CALM_PASS_PACING_MS = 500L
-        private const val CALM_PASS_BUDGET_MS = 20 * 60_000L
         private const val CALM_PASS_MAX_ATTEMPTS = 2
         private const val CALM_PASS_RETRY_MS = 8000L
 
