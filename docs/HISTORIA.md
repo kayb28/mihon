@@ -119,6 +119,17 @@ Al consolidar quedaron **solo `main` y `feature/webgpu-clean`** (idénticas, `98
 | `integration` | `archive/integration` (`7fb14b591`) | ahead 0 — completamente fusionada |
 | `fix/repair-links-main` | `archive/fix-repair-links-main` (`b1d69aeb6`) | ahead 0 — completamente fusionada |
 
+## Corrección de guards de migración (M1–M4, 24–25/11, rama `fix/migration-guard-fixes`)
+
+Encargo correctivo sobre los hallazgos de `docs/INFORME_AUDITORIA_MIGRACION_GUARDS.md`. Cuatro tareas, ciclo red-green por comportamiento verificado en la CI real («Spotless & Unit Tests», ~8 min/ciclo):
+
+- **M1 (b9ea139) — Alto 1 (A-H1):** el auto-aceptar sin evidencia del título exacto ya no pre-selecciona un remake con el mismo título cuando la candidata no entrega metadatos: `findMatchWithEvidence` lo manda a revisión manual («en lista para revisión, sin auto-preselección»). Las exactas cross-source con autor verificado siguen auto-aceptándose intactas.
+- **M2 (e734e1c) — Alto 2 (A-H2):** semántica estricta de autor — la contención de apellidos ya no casa: la igualdad de nombre completo de-spaced («Kim Jae-Hwan» = «Kim Jae Hwan») es una verificación de secuencia COMPLETA, así que «Park» vs «Park Joo» nunca casan. Créditos de estudio y variantes de espaciado legítimas siguen funcionando.
+- **M3 (e106b71) — G3, el veto REAL:** el veto por autor existe y es exactamente esto — cuando ambos lados tienen datos de autor y NO coinciden tras la regla de M2, la obra jamás se identifica en el camino de alto impacto (auto-aceptar del lote y pre-selección masiva), ni siquiera con título exacto. En la revisión manual el autor NO es veto: sigue siendo una señal más de las cuatro y el usuario decide (la candidata se ofrece marcada `NeedsReview.AUTHOR_MISMATCH`, no se filtra). No hay —ni hubo— un «veto por autor» genérico que bloquee la revisión manual.
+- **M4 (8cbe04c) — G4 (A-M1):** los autores se romanizan antes de comparar (lo que los títulos ya hacían): «김도» → `kimdo` (김→kim por override de apellido, 도→do) casa con «Kim Do» vía la igualdad de-spaced de M2 aplicada DESPUÉS de romanizar. La regla estricta de M2 no se relaja: «김도» vs «Kim Doe» (kimdoe) sigue sin casar — la tolerancia de vocales queda anotada como trabajo futuro.
+
+Merge a `main` como merge commit (estilo `ca86c55`); rama intacta. Hallazgos medios/bajos de la auditoría EXPLÍCITAMENTE ABIERTOS.
+
 ## Convenciones vigentes
 
 1. **Fechas y horas en UTC** (las de git y la CI son la fuente de la verdad).
