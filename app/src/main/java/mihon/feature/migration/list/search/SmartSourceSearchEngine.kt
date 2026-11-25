@@ -27,6 +27,13 @@ data class ScoredManga(
     val similarity: Double,
     val isExactTitle: Boolean,
     /**
+     * True when the exact pass accepted the candidate WITHOUT any author/genre evidence on
+     * either side (M1): the title match is real, but a remake or unrelated work could share
+     * the exact title, so the entry must not auto-preselect for bulk migration — it stays
+     * on the list for review with its "no data to validate" mark.
+     */
+    val exactUnverified: Boolean = false,
+    /**
      * True when the candidate was auto-accepted because the query returned exactly one result —
      * no title comparison happened, so 1.0 here means "only result", not "same title".
      */

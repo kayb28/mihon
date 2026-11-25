@@ -532,6 +532,14 @@ class RepairLinksViewModel(
                 status = ProposedRepair.Status.MATCH_FOUND,
                 isExactMatch = true,
             )
+            // Repair flow never calls findMatchWithEvidence, so this variant cannot be
+            // produced here; exhaustive when still requires the branch.
+            is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence -> ProposedRepair(
+                currentManga = manga,
+                proposedManga = exactResult.candidate,
+                status = ProposedRepair.Status.NEEDS_REVIEW,
+                isExactMatch = true,
+            )
             is TitleMatcher.MatchResult.NeedsReview -> {
                 if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
                     source != null
