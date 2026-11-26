@@ -105,10 +105,29 @@ jobs:
         # every build; they have their own gated jobs below.
         run: ./gradlew :app:assembleRelease -Pdist=ci -Pinclude-telemetry=false
 
+      # Naming convention (user rule, 2026-11-26): the installable APK carries the full
+      # identity — version, commit, UTC timestamp, ABI — and its artifact is marked
+      # INSTALAR- so the user never installs the wrong artifact by mistake. The rename is
+      # the only surface change: same signing, same content, scripts/verify_apk_signature.py
+      # keeps taking the path as its argument.
+      - name: Rename installable APK and upload artifact
+        env:
+          STAMP: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${STAMP:0:7}"
+          UTC_STAMP="$(date -u +%Y%m%d-%H%M)"
+          cd app/build/outputs/apk/release
+          for apk in *.apk; do
+            case "$apk" in
+              *arm64-v8a*) mv "$apk" "MihonFix-0.21.3-build-${SHORT_SHA}-${UTC_STAMP}-arm64.apk" ;;
+            esac
+          done
+          ls -1
+
       - name: Upload Release APKs
         uses: actions/upload-artifact@v4
         with:
-          name: mihon-release-apks-${{ github.sha }}
+          name: INSTALAR-${{ github.sha }}
           path: |
             app/build/outputs/apk/release/*.apk
           retention-days: 30
@@ -150,10 +169,20 @@ jobs:
         # Scoped to :app for the same reason as the release job: extensions have their own jobs.
         run: ./gradlew :app:assembleRelease -Pdist=ci -Pinclude-telemetry=false -PdisableMinify=true
 
+      # Not for installing (debugging aid only): artifact gets the NO-INSTALAR- prefix and
+      # the inner APKs gain a -nor8 suffix, per the naming convention of 2026-11-26.
+      - name: Rename non-installable APKs and upload artifact
+        run: |
+          cd app/build/outputs/apk/release
+          for apk in *.apk; do
+            mv "$apk" "${apk%.apk}-nor8.apk"
+          done
+          ls -1
+
       - name: Upload Unminified APKs
         uses: actions/upload-artifact@v4
         with:
-          name: mihon-unminified-apks-${{ github.sha }}
+          name: NO-INSTALAR-mihon-unminified-apks-${{ github.sha }}
           path: |
             app/build/outputs/apk/release/*.apk
           retention-days: 30
