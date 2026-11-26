@@ -488,7 +488,7 @@ class RepairLinksViewModel(
     private suspend fun searchRepair(manga: Manga): ProposedRepair {
         val source = sourceManager.get(manga.source)
 
-        var searchHadError = false
+        var exactFailed = false
         val exactResult = if (source != null) {
             searchSemaphore.withPermit {
                 try {
@@ -501,7 +501,7 @@ class RepairLinksViewModel(
                 } catch (_: Exception) {
                     // The deep pass below still runs (its other queries may get through), but
                     // the outage is remembered in case it produces nothing either.
-                    searchHadError = true
+                    exactFailed = true
                     TitleMatcher.MatchResult.NeedsReview(
                         TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH,
                     )
@@ -513,136 +513,117 @@ class RepairLinksViewModel(
             )
         }
 
-        // Deep-search fallback: only when the strict exact-title pass found nothing at all.
-        // MULTIPLE_EXACT_MATCHES / SAME_URL stay manual-review (a fuzzy pick can't resolve
-        // a tie or a self-link). NO_MATCH gets a second chance through the same engine the
-        // bulk migration list uses — it re-runs the search with cleaned-title and word-
-        // fragment queries and applies the user's configured similarity threshold, so a
-        // title the exact pass missed (typo, parenthetical subtitle, romanization variant)
-        // can still surface. A fuzzy pick never lands in MATCH_FOUND: it stays
-        // NEEDS_REVIEW with its score as the reason, so "Repair first 10" and
-        // "Repair all" — which only take MATCH_FOUND — can never migrate a
-        // similar-but-different series without the user confirming it first. An exact-title
-        // hit found via the deep pass (ScoredManga.isExactTitle) is as trustworthy as the
-        // strict pass and does go to MATCH_FOUND.
-        return when (exactResult) {
-            is TitleMatcher.MatchResult.AutoAccept -> ProposedRepair(
+        // The status fold lives in the pure RepairOutcomePolicy (JVM-tested); this
+        // function owns the network passes and attaches the candidates the policy
+        // never sees. Behavior is unchanged — the policy was extracted verbatim from
+        // this tree. The passes run in the same order and only when the policy's
+        // inputs require them (deep: NO_MATCH with the source present; cross: nothing
+        // found by the exact or deep passes).
+        var deepFailed = false
+        var deepResult: RepairOutcomePolicy.DeepPick? = null
+        var deepPickManga: SManga? = null
+        var crossResult: RepairOutcomePolicy.CrossOutcome? = null
+        var crossCandidates: List<CrossSourceCandidate> = emptyList()
+
+        if (exactResult is TitleMatcher.MatchResult.NeedsReview &&
+            exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
+            source != null
+        ) {
+            val fuzzy = try {
+                searchSemaphore.withPermit {
+                    smartSearchEngine.deepSearch(source, manga.title, manga.url)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                deepFailed = true
+                null
+            }
+            deepResult = fuzzy?.let {
+                RepairOutcomePolicy.DeepPick(isExactTitle = it.isExactTitle, similarity = it.similarity)
+            }
+            deepPickManga = fuzzy?.manga?.toSManga()
+            if (fuzzy == null) {
+                // Primary resolver exhausted — no trace of the title in its own source
+                // (or the source itself errored). Second chance: the secondary resolver
+                // looks for an exact title match in the OTHER installed sources.
+                val cross = crossSourceSearch(manga)
+                crossResult = RepairOutcomePolicy.CrossOutcome(cross.candidates.size, cross.hadError)
+                crossCandidates = cross.candidates
+            }
+        } else if (exactResult is TitleMatcher.MatchResult.NeedsReview &&
+            exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
+            source == null
+        ) {
+            // Only reachable with source == null: the primary resolver doesn't exist —
+            // extension missing or uninstalled. Exactly the case where the secondary
+            // resolver matters most.
+            val cross = crossSourceSearch(manga)
+            crossResult = RepairOutcomePolicy.CrossOutcome(cross.candidates.size, cross.hadError)
+            crossCandidates = cross.candidates
+        }
+
+        val outcome = RepairOutcomePolicy.resolve(
+            sourceAvailable = source != null,
+            exact = exactResult,
+            exactFailed = exactFailed,
+            deep = deepResult,
+            deepFailed = deepFailed,
+            cross = crossResult,
+        )
+        return when (outcome.status) {
+            RepairOutcomePolicy.Status.MATCH_FOUND -> ProposedRepair(
                 currentManga = manga,
-                proposedManga = exactResult.candidate,
+                proposedManga = when (exactResult) {
+                    is TitleMatcher.MatchResult.AutoAccept -> exactResult.candidate
+                    // The deep pass found it; the policy contract guarantees an exact
+                    // deep pick exists in this branch (MATCH_FOUND requires either an
+                    // AutoAccept from the strict pass or an exact deep pick).
+                    else -> deepPickManga
+                },
                 status = ProposedRepair.Status.MATCH_FOUND,
                 isExactMatch = true,
             )
-            // Repair flow never calls findMatchWithEvidence, so this variant cannot be
-            // produced here; exhaustive when still requires the branch.
-            is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence -> ProposedRepair(
-                currentManga = manga,
-                proposedManga = exactResult.candidate,
-                status = ProposedRepair.Status.NEEDS_REVIEW,
-                isExactMatch = true,
-            )
-            is TitleMatcher.MatchResult.NeedsReview -> {
-                if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH &&
-                    source != null
-                ) {
-                    val fuzzy = try {
-                        searchSemaphore.withPermit {
-                            smartSearchEngine.deepSearch(source, manga.title, manga.url)
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        searchHadError = true
-                        null
-                    }
-                    when {
-                        fuzzy == null -> {
-                            // Primary resolver exhausted — no trace of the title in its own
-                            // source (or the source itself errored). Second chance: the
-                            // secondary resolver looks for an exact title match in the OTHER
-                            // installed sources; anything it finds needs the user's explicit
-                            // confirmation, so it lands on CROSS_SOURCE_MATCH.
-                            val cross = crossSourceSearch(manga)
-                            val first = cross.candidates.firstOrNull()
-                            if (first != null) {
-                                ProposedRepair(
-                                    currentManga = manga,
-                                    proposedManga = first.manga,
-                                    status = ProposedRepair.Status.CROSS_SOURCE_MATCH,
-                                    targetSourceId = first.source.id,
-                                    targetSourceName = first.source.name.ifBlank { "Source (${first.source.id})" },
-                                    crossSourceExtraMatches = cross.candidates.size - 1,
-                                )
-                            } else {
-                                ProposedRepair(
-                                    currentManga = manga,
-                                    status = if (searchHadError || cross.hadError) {
-                                        ProposedRepair.Status.SEARCH_ERROR
-                                    } else {
-                                        ProposedRepair.Status.NO_MATCH
-                                    },
-                                )
-                            }
-                        }
-                        fuzzy.isExactTitle -> {
-                            // The deep pass re-checked titles with TitleMatcher and found a
-                            // single normalized-title match on a different URL: as trustworthy
-                            // as the strict pass, just discovered through a cleaned query.
-                            ProposedRepair(
-                                currentManga = manga,
-                                proposedManga = fuzzy.manga.toSManga(),
-                                status = ProposedRepair.Status.MATCH_FOUND,
-                            )
-                        }
-                        else -> ProposedRepair(
-                            currentManga = manga,
-                            proposedManga = fuzzy.manga.toSManga(),
-                            status = ProposedRepair.Status.NEEDS_REVIEW,
-                            isExactMatch = false,
-                            matchScore = fuzzy.similarity,
-                            reason = "Fuzzy match ${(fuzzy.similarity * 100).toInt()}%",
-                        )
-                    }
-                } else if (exactResult.reason == TitleMatcher.MatchResult.NeedsReview.Reason.NO_MATCH) {
-                    // Only reachable with source == null (the branch above owns NO_MATCH when the
-                    // source exists): the primary resolver doesn't exist — extension missing or
-                    // uninstalled. Exactly the case where the secondary resolver matters most.
-                    val cross = crossSourceSearch(manga)
-                    val first = cross.candidates.firstOrNull()
-                    if (first != null) {
-                        ProposedRepair(
-                            currentManga = manga,
-                            proposedManga = first.manga,
-                            status = ProposedRepair.Status.CROSS_SOURCE_MATCH,
-                            targetSourceId = first.source.id,
-                            targetSourceName = first.source.name.ifBlank { "Source (${first.source.id})" },
-                            crossSourceExtraMatches = cross.candidates.size - 1,
-                        )
-                    } else {
-                        ProposedRepair(
-                            currentManga = manga,
-                            status = if (cross.hadError) {
-                                ProposedRepair.Status.SEARCH_ERROR
-                            } else {
-                                ProposedRepair.Status.NO_MATCH
-                            },
-                        )
-                    }
+            RepairOutcomePolicy.Status.CROSS_SOURCE_MATCH -> {
+                val first = crossCandidates.firstOrNull()
+                if (first != null) {
+                    ProposedRepair(
+                        currentManga = manga,
+                        proposedManga = first.manga,
+                        status = ProposedRepair.Status.CROSS_SOURCE_MATCH,
+                        targetSourceId = first.source.id,
+                        targetSourceName = first.source.name.ifBlank { "Source (${first.source.id})" },
+                        crossSourceExtraMatches = outcome.crossSourceExtraMatches,
+                    )
                 } else {
-                    when (exactResult.reason) {
-                        Reason.MULTIPLE_EXACT_MATCHES -> ProposedRepair(
-                            currentManga = manga,
-                            status = ProposedRepair.Status.NEEDS_REVIEW,
-                            reason = "Multiple identical titles",
-                        )
-                        Reason.SAME_URL -> ProposedRepair(
-                            currentManga = manga,
-                            status = ProposedRepair.Status.NEEDS_REVIEW,
-                            reason = "Same URL as current",
-                        )
-                        else -> ProposedRepair(currentManga = manga, status = ProposedRepair.Status.NEEDS_REVIEW)
-                    }
+                    // Defensive: the policy only emits CROSS_SOURCE_MATCH with
+                    // candidates; keep the item reviewable if that ever breaks.
+                    ProposedRepair(currentManga = manga, status = ProposedRepair.Status.NEEDS_REVIEW)
                 }
             }
+            RepairOutcomePolicy.Status.SEARCH_ERROR -> ProposedRepair(
+                currentManga = manga,
+                status = ProposedRepair.Status.SEARCH_ERROR,
+            )
+            RepairOutcomePolicy.Status.NO_MATCH -> ProposedRepair(
+                currentManga = manga,
+                status = ProposedRepair.Status.NO_MATCH,
+            )
+            RepairOutcomePolicy.Status.NEEDS_REVIEW -> ProposedRepair(
+                currentManga = manga,
+                proposedManga = when {
+                    // The defensive without-evidence variant still carries its candidate.
+                    exactResult is TitleMatcher.MatchResult.AutoAcceptWithoutEvidence ->
+                        exactResult.candidate
+                    // A fuzzy deep pick keeps its candidate for the item-by-item review.
+                    outcome.matchScore != null -> deepPickManga
+                    else -> null
+                },
+                status = ProposedRepair.Status.NEEDS_REVIEW,
+                isExactMatch = outcome.isExactMatch,
+                matchScore = outcome.matchScore,
+                reason = outcome.reason,
+            )
         }
     }
 
