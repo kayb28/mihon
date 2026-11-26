@@ -10,6 +10,14 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix — bloque reparador: coherencia documental y tests B1–B4] - 2026-11-26
+
+> Dos merges a `main` con instrucción explícita del usuario, ramas intactas. PR #8 (`b5a1323`) y PR #9 (`00f465d`); CI de `main` en `00f465d` doble verde: «Build & Test» [45726397373](https://github.com/kayb28/mihon/actions/runs/45726397373) y «Build APK» [45726397560](https://github.com/kayb28/mihon/actions/runs/45726397560).
+
+### Other
+- **PR #8 (`b5a1323`) — coherencia post-auditoría del bloque reparador (F1/F2/F3):** AGENTS.md actualizado a la realidad verificada del 26/11 (PR #1 mergeado el 17/11 con el fix `2222d6ca`; CI real de ambos workflows; tabla de ramas; advertencias de reconciliación retiradas — `4f4b79c46` es ancestro de `main`); hueco del índice de builds 18–25/11 de `docs/REGISTRO.md` reconstruido desde git + API de Actions con nota de reconstrucción; NOTE de `TitleMatcherTest.kt` corregido. Un único commit `509c1c6`, run [45710521222](https://github.com/kayb28/mihon/actions/runs/45710521222) verde. Solo docs y comentarios.
+- **PR #9 (`00f465d`) — tests B1–B4 del reparador de enlaces (F5):** 35 tests nuevos (240 en total): caracterización del almacén `UpdateErrorStore` y de la clasificación de enlace roto (B1+B2, `f4f30bc`/`9b8be0d`, run [45715318646](https://github.com/kayb28/mihon/actions/runs/45715318646)); árbol de decisión del resolvedor extraído verbatim a `RepairOutcomePolicy` (B4, `fb47012`, run [45717118756](https://github.com/kayb28/mihon/actions/runs/45717118756)) y decisiones de la pasada en calma a `CalmPassPolicy` (B3, `8898fd5`/`03fe724`, run [45721723015](https://github.com/kayb28/mihon/actions/runs/45721723015)). Sin cambio de comportamiento: los 4 comportamientos ya existían (caracterización); el desfase «racha pegajosa» (B1) se reportó y el usuario decidió MANTENERLO el 2026-11-26 (fila cerrada en `docs/PROBLEMAS.md`). Pendiente de validación en dispositivo (F4).
+
 ## [Mihon Fix — corrección de guards de migración M1–M4] - 2026-11-25
 
 > Rama `fix/migration-guard-fixes`, merge a `main`. Cada tarea cerró con ciclo red-green por comportamiento en la CI real (rojo: solo tests fallando contra el código viejo; verde: implementación). Hallazgos medios/bajos de la auditoría quedan abiertos.
