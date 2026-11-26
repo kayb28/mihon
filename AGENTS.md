@@ -49,8 +49,10 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 
 (Estado verificado contra GitHub el 2026-11-26.)
 
-- `main` — rama de distribución. Punta: `152027f` (merge de `fix/migration-guard-fixes`,
-  M1–M4, 2026-11-25 03:50 UTC). La reconciliación con `feature/webgpu-clean` YA ESTÁ
+- `main` — rama de distribución. Punta: `00f465d` (merge PR #9: tests B1–B4 del
+  reparador de enlaces; antes `b5a1323`, PR #8 de coherencia documental post-auditoría;
+  antes `152027f`, merge de `fix/migration-guard-fixes`, M1–M4, 2026-11-25 03:50 UTC).
+  La reconciliación con `feature/webgpu-clean` YA ESTÁ
   RESUELTA: `4f4b79c46` (punta del corte de `feature/webgpu-clean`) es ancestro de
   `main` (`git merge-base --is-ancestor` exitoso), y la consolidación de las 7 ramas se
   publicó como Release `v0.21.3-fork.1` (2026-11-19). Las builds de `main` se instalan
@@ -65,6 +67,10 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
   hashes propios) quedó como archivo histórico del mismo trabajo. No tocar sin
   autorización del usuario.
 - `fix/migration-guard-fixes` — encargo correctivo M1–M4, MERGEADA en `main` (`152027f`).
+- `docs/coherencia-post-auditoria-reparador` — PR #8 (F1/F2/F3 de la auditoría del
+  reparador), MERGEADA en `main` (`b5a1323`, 2026-11-26).
+- `fix/reparador-enlaces-tests` — PR #9 (tests B1–B4, F5 de la auditoría), MERGEADA en
+  `main` (`00f465d`, 2026-11-26).
 - `fix/viewer-refactor-t1-t7` — bloque T1–T7 del visor, squash `c8d2f52` en `main`.
 - `ci/branch-checks` — job «Spotless & Unit Tests» en cada push (C6/C7), mergeada `ca86c55`.
 - Ramas nuevas: prefijos `fix/` (código) o `docs/` (documentación). Córtalas desde la
