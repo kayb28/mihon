@@ -38,7 +38,7 @@ La orden de trabajo pedía separar las tres decisiones que estaban mezcladas en 
 
 1. **Ya no se cuelga el lector por una preferencia dañada.** Antes, si el ajuste del modo de lectura quedaba corrupto (por ejemplo tras un corte de luz o una actualización a medias), abrir el lector lo tiraba abajo. Ahora, ante cualquier valor raro, el lector arranca con el visor clásico y anota en el log qué pasó. Peor caso: leés igual.
 
-2. **El ajuste nuevo manda de verdad.** Antes, cada vez que abrías la app, el sistema recalculaba tu modo de visor mirando los interruptores viejos, así que si algo viejo quedaba en «sí», seguía mandando para siempre. Ahora: la primera vez que abrís la app después de actualizar, se guarda el modo una sola vez y desde ahí el ajuste nuevo es el único que cuenta. Tus interruptores viejos ya no molestan.
+2. **El ajuste nuevo manda de verdad.** Antes, cada vez que abrías la app, el sistema recalculaba tu modo de visor mirando los interruptores viejos, así que si algo viejo quedaba en «sí», seguía mandando para siempre. Ahora: la primera vez que abrías la app después de actualizar, se guarda el modo una sola vez y desde ahí el ajuste nuevo es el único que cuenta. Tus interruptores viejos ya no molestan.
 
 3. **El visor experimental se cuida solo.** Si el visor experimental falla tres páginas seguidas, el lector solo baja a la versión HQ sin que hagas nada; si la HQ también fallara, baja a la clásica. Ojo: **solo por esa sesión** — al día siguiente vuelve a intentar el experimental por su cuenta, y tu preferencia guardada jamás se pisa. Un fallo aislado (una imagen rota de algún capítulo) no provoca la bajada.
 
@@ -72,3 +72,27 @@ La orden de trabajo pedía separar las tres decisiones que estaban mezcladas en 
 - Fusión a `main`: merge `ca86c55` (22:12 UTC aprox.).
 
 **En criollo:** antes, un error de formato o un test roto llegaba a `main` y lo descubríamos tarde, cuando ya estaba todo fusionado. Ahora, cualquier push a cualquier rama se auto-revisa: si el formato está roto o los tests no compilan o fallan, la CI se pone roja al instante. Para vos no cambia nada en la app — es solo la alarma de incendios que ahora suena antes.
+
+---
+
+## Cierre de T6 — cableado de la máquina de estados + fix del drift (2026-11-26)
+
+**Rama:** `feat/t6-page-state-machine-wiring` (cortada de `main` en `152027f`) · **Estado:** Ronda 2 validada y puerta de merge aprobada — suplanta el punto de «Pendientes» que decía «cableado pendiente de validación en dispositivo».
+
+La T6 original dejó la máquina de estados «pieza lista, cableado pendiente» (C4). El cableado se ejecutó después en esta rama (T6a) y el uso real en el dispositivo del usuario destapó un fallo preexistente del visor continuo experimental (drift +1 al reabrir), corregido con el ciclo R1–R4. Todo verificado con CI real y con la checklist Ronda 2 en el teléfono del usuario.
+
+**Resultado de la puerta de merge (test de zoom, 26/11):** modos paginados L2R/R2L/vertical × pellizco + doble toque en el visor EXPERIMENTAL — **6/6 OK**. Fuente de evidencia: el dispositivo del usuario (reporte en el chat, sin captura ni logcat adjuntos; se etiqueta honestamente). Build probada: `MihonFix-0.21.3-build-ce3db2d-arm64.apk` (run 45698019408, firma ESTABLE, instala encima). El zoom en modos CONTINUOS del experimental sigue sin existir por diseño (fase futura declarada en su KDoc) — es el Fallo A, cerrado como feature ausente, no como bug.
+
+**Mapa P1+P2 (cierre de fallos):**
+
+| Fallo | Estado | Qué lo cierra |
+|---|---|---|
+| Fallo A — zoom en EXPERIMENTAL continuo | **Cerrado como premisa** (feature ausente, preexistente) | Nunca fue bug del cableado: el continuo experimental nunca tuvo zoom (fase futura en su KDoc); el paginado zoomea por la capa T4. Ronda 2 revalidó el zoom del paginado (6/6, 26/11). |
+| Fallo B — drift +1 al reabrir | **Cerrado por P1+P2 (`e3ade9c`)** | P1 (estabilidad): un restore reporta exactamente la página restaurada PARA CUALQUIER alto de página — la regla es la página que contiene el tope del viewport, paramétrica (2×, 1×, ½, ¼ y tiras mixtas). P2 (fin de tira): única excepción — si el final del capítulo ya entra en pantalla al abrir, converge a la última página en UN paso y se mantiene. Ciclo: rojo POR COMPORTAMIENTO `d75b6e4` (run 45695265725, 3/205, exactamente los 3 casos P1) → verde `e3ade9c` (run 45696649989, 205 tests). |
+| F4 (rutas WebView sin dispositivo) | **Sigue ABIERTO** | No es T6; sin cambios. |
+| Fallo C (conflicto de paquete) | **Sigue ABIERTO** | No es T6; sin cambios. |
+| Fallo D (Truncated WebP en STOCK/HQ) | **Sigue ABIERTO** | No es T6; sin cambios. |
+
+**CI de la serie T6 (rama):** verde `c2de25f` (run 45647679860, 15:39 UTC, 197 tests, T6a) → rojo por comportamiento `b44029d`/`2f733e4`/`d3255b6` (R1) hasta el verde `083edad` (run 45672474212, 202 tests) → rojo POR COMPORTAMIENTO `d75b6e4` (run 45695265725, 3/205) → verde final `e3ade9c` (run 45696649989, 20:37 UTC, 205 tests) → build del usuario `ce3db2d` (run 45698019408). STOCK/HQ/migración sin tocar en todo el ciclo.
+
+**Paso siguiente (encargo «Cierre + merge de T6»):** PR `feat/t6-page-state-machine-wiring` → `main` y merge POR COMMIT DE MERGE (sin squash, sin rebase, sin borrar la rama; todas las ramas del ciclo se conservan), solo cuando la CI de la rama esté verde. La build instalable de este cierre sale del artefacto `INSTALAR-<sha-del-merge>` del job «Build Release APK» en `main` (convención §5.4 de AGENTS.md); sus runs se registran en `docs/REGISTRO.md`.
