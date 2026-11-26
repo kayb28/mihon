@@ -13,10 +13,12 @@ import org.junit.jupiter.api.Test
  * candidate, or — worse — collapsed two different series onto the same empty key and joined them
  * as an exact match.
  *
- * NOTE: this test does NOT run in CI. The fork's `build_apk.yml` workflow only invokes
- * `./gradlew assembleRelease`, which does not compile or execute the unit-test source set.
+ * NOTE: this test runs in CI on every push. The job «Spotless & Unit Tests» of
+ * `.github/workflows/build_apk.yml` executes `./gradlew testDebugUnitTest` (see the
+ * «Run unit tests» step), which compiles and runs this source set; the «Build & Test»
+ * workflow adds the same suite on PRs and pushes to `main`.
  * Run it locally with `./gradlew :app:testDebugUnitTest --tests "*TitleMatcherTest*"`
- * (or `:app:test`) to actually exercise these assertions.
+ * (or `:app:test`) to exercise these assertions without a full CI round.
  */
 class TitleMatcherTest {
 

@@ -16,6 +16,93 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 > Reconstruido el 2026-11-17 a partir del historial completo de GitHub Actions (171 runs, 29/10–17/11). Cada fila: fecha UTC de la run, rama, commit, resultado y contenido. «instalable» = run exitosa que produce el APK arm64 `MihonFix-0.21.3-build-<sha>-arm64.apk` (firma estable desde `ef0ece3`, 06/11; antes de esa fecha cada build firmaba distinto y exigía desinstalar). Las runs canceladas y fallidas se listan porque también son historia — de cada fallida salió la corrección de la fila siguiente.
 
 
+## 2026-11-25
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 03:50 | `main` | `152027f` | ✅ success | Merge fix/migration-guard-fixes: migration guard fixes M1-M4 |
+| 05:10 | `feat/reader-page-state-wiring` | `f520f77` | ✅ success | test(reader): align attempt-budget test with the machine contract |
+| 05:20 | `feat/reader-page-state-wiring` | `fd0f2d0` | ✅ success | docs(reader): device validation checklist for the T6 wiring |
+| 15:39 | `feat/t6-page-state-machine-wiring` | `c2de25f` | ✅ success | docs(reader): point the T6 records at the wiring branch off main |
+| 15:54 | `feat/t6-page-state-machine-wiring` | `0c39488` | ✅ success | docs(reader): attach this branch's build evidence (c2de25f) |
+| 17:44 | `feat/t6-page-state-machine-wiring` | `b44029d` | ❌ failure | test(reader): R1 red — continuous restore must be cycle-stable (rojo POR COMPORTAMIENTO: 1/201) |
+| 17:53 | `feat/t6-page-state-machine-wiring` | `2f733e4` | ❌ failure | feat(reader): R1 refactor — extract the continuous report rule as a pure policy (rojo POR COMPORTAMIENTO) |
+| 18:02 | `feat/t6-page-state-machine-wiring` | `d3255b6` | ❌ failure | fix(reader): R1 — continuous restore reports the restored page (rojo por alineación de tests propios) |
+| 18:10 | `feat/t6-page-state-machine-wiring` | `083edad` | ✅ success | test(reader): R1 — align the policy tests with the end-visible rule (verde, 202 tests) |
+| 18:19 | `feat/t6-page-state-machine-wiring` | `362c432` | ✅ success | docs(reader): R1-R4 — device failures A/B, diagnosis, round-2 checklist |
+| 18:29 | `feat/t6-page-state-machine-wiring` | `d372263` | ✅ success | docs(reader): attach the round-2 build evidence (362c432) |
+| 20:18 | `feat/t6-page-state-machine-wiring` | `6b60b5b` | ❌ failure | test(reader): R3 red — P1 for every page height (rojo POR FORMATO, no cuenta; corregido en d75b6e4) |
+| 20:28 | `feat/t6-page-state-machine-wiring` | `d75b6e4` | ❌ failure | test(reader): fix the R3 red tests' file structure (rojo POR COMPORTAMIENTO: 3/205 P1) |
+| 20:37 | `feat/t6-page-state-machine-wiring` | `e3ade9c` | ✅ success | fix(reader): R3 — report the page under the viewport top (P1), last page at strip end (P2) |
+| 20:45 | `feat/t6-page-state-machine-wiring` | `ce3db2d` | ✅ success | docs(reader): R3 — hardening record, P1/P2 contract, widened round-2 drift check |
+| 20:55 | `feat/t6-page-state-machine-wiring` | `12703d3` | ✅ success | docs(reader): attach the round-2 build evidence (ce3db2d) |
+
+_2026-11-25: 33 runs, 15 exitosas. Incluye las runs «Build & Test» de `main` (03:50, doble verde en 152027f) y la serie red-green de la rama T6. Fuente: GitHub Actions, API `/repos/kayb28/mihon/actions/runs`._
+
+### 2026-11-24
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 18:42 | `fix/viewer-refactor-t1-t7` | `e417756` | ⚪ cancelled | test(selection): 36-case truth table (T7) — cancelada por concurrencia |
+| 18:43 | `fix/viewer-refactor-t1-t7` | `405788c` | ❌ failure | docs: informe T1-T7 (rojo: import faltante appGraph, corregido en 2df1dd9) |
+| 18:49 | `fix/viewer-refactor-t1-t7` | `2df1dd9` | ✅ success | fix(reader): import missing appGraph extension in ReaderActivity (verde) |
+| 18:56 | `fix/viewer-refactor-t1-t7` | `fa91a39` | ✅ success | docs: record green CI + honest note about intermediate commits |
+| 19:05 | `main` | `c8d2f52` | ❌ failure | refactor(reader): viewer architecture T1-T7 (squash; Build & Test rojo por spotless, C1) |
+| 19:07 | `main` | `eda3174` | ❌ failure | docs: mark T6 as ready-but-unwired pending device validation |
+| 19:14 | `main` | `b5ab3bb` | ✅ success | style(app): fix spotless violations in squashed T1-T7 files (Build APK verde; B&T aún rojo) |
+| 19:21 | `main` | `697add9` | ✅ success | style(app): shorten qualified names (Build APK verde; B&T aún rojo) |
+| 19:29 | `main` | `e4dcc2e` | ✅ success | fix(test): JVM-legal test names and missing imports (doble verde, C1-C5) |
+| 19:41 | `main` | `aada310` | ✅ success | docs: record C1-C5 completion with green CI evidence |
+| 21:58 | `ci/branch-checks` | `4c4bda3` | ✅ success | ci: run spotless and unit tests on every branch push (C6, verde) |
+| 22:03 | `ci/branch-checks` | `1f0925e` | ❌ failure | ci: temporary spotless violation to verify branch checks fail (C6, verificación negativa) |
+| 22:10 | `ci/branch-checks` | `a6ba615` | ✅ success | Revert «temporary spotless violation» (C6) |
+| 22:10 | `main` | `ca86c55` | ⚪ cancelled | Merge branch 'ci/branch-checks' (cancelada por concurrencia al superarla 4b0c11f) |
+| 22:10 | `main` | `4b0c11f` | ✅ success | docs: record branch CI hardening with run evidence (C6/C7) |
+| 22:31 | `main` | `60ba74d` | ⚪ cancelled | ci: bump actions/setup-java to v5 (cancelada por concurrencia) |
+| 22:31 | `main` | `cd49eb4` | ✅ success | ci: wire skip_tests input to the checks job (doble verde) |
+| 22:43 | `main` | `7a1fcdc` | ✅ success | docs: record CI maintenance and migration-guards audit findings |
+| 23:27 | `fix/migration-guard-fixes` | `89e23a0` | ❌ failure | test(migration): M1 red (rojo nublado por formato — lección de proceso) |
+| 23:36 | `fix/migration-guard-fixes` | `01bda2c` | ❌ failure | style(migration): wrap long call lines (formato) |
+| 23:44 | `fix/migration-guard-fixes` | `924f41e` | ❌ failure | style(migration): move M1 tests inside the test class (formato) |
+| 23:52 | `fix/migration-guard-fixes` | `339019d` | ❌ failure | style(migration): wrap remaining long calls (formato) |
+
+_2026-11-24: 24 runs (Build APK en todas las ramas + Build & Test en main), 12 exitosas. Fuente: GitHub Actions._
+
+### 2026-11-23
+
+_Sin actividad: 0 commits y 0 runs de CI en el repositorio (verificado con `git log --all --since --until` y la API de Actions con filtro `created=2026-11-23..2026-11-23`, total_count=0)._
+
+### 2026-11-22
+
+_Sin actividad: 0 commits y 0 runs de CI (verificación idéntica)._
+
+### 2026-11-21
+
+_Sin actividad: 0 commits y 0 runs de CI (verificación idéntica)._
+
+### 2026-11-20
+
+_Sin actividad: 0 commits y 0 runs de CI (verificación idéntica)._
+
+### 2026-11-19
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 03:13 | `main` | `736fa6b` | ✅ success | Release v0.21.3-fork.1 publicada (runs «Update website» 44449929485/44449951423 fallan: sitio web del fork no configurado — sin impacto en el APK) |
+| 03:14 | `main` | `18dc37a` | ✅ success | docs: record the first GitHub Release v0.21.3-fork.1 (doble verde: Build APK 44449995174 + Build & Test 44449995252) |
+
+_2026-11-19: 4 runs, 2 exitosas, 2 fallidas (website). Fuente: GitHub Actions + `git log` (solo `18dc37a`; la Release se publicó sobre `736fa6b`)._
+
+### 2026-11-18
+
+_Sin actividad: 0 commits y 0 runs de CI (verificado igual que los días 20–23)._
+
+---
+
+### Nota de reconstrucción (2026-11-26)
+
+> Las secciones de este índice desde el 2026-11-18 hasta el 2026-11-25 fueron **reconstruidas a posteriori** el 2026-11-26 a partir de dos fuentes: el historial git del repositorio (`git log --all` con fechas ISO) y la API de GitHub Actions (`/repos/kayb28/mihon/actions/runs`, consultada por página). Horas en UTC tal como las guarda GitHub. Cada resultado (success/failure/cancelled) es la conclusión real de la run citada. Las entradas narrativas de los días 19, 24 y 25 que ya existían más abajo en este documento se escribieron en su momento y NO se tocaron; esta reconstrucción cubre únicamente el índice cronológico de builds, que se cortaba en el 2026-11-17. Nada de lo listado arriba fue validado en dispositivo salvo lo que el propio REGISTRO marca como «confirmado».
+
 ## 2026-11-17
 
 | Hora (UTC) | Rama | Commit | Resultado | Contenido |
