@@ -114,6 +114,14 @@ No verificado o pendiente:
    las convenciones que el propio REGISTRO.md define en su cabecera.
    La entrada de `docs/REGISTRO.md` puede ir en un commit propio dentro de la misma rama:
    así el commit de código y el de registro siguen siendo un cambio cada uno.
+4. **Qué build instalar** (regla del usuario, 2026-11-26): el entregable de TODO encargo
+   termina con un bloque 📲 «BUILD PARA INSTALAR» — o su versión «Ninguna — encargo sin
+   build nueva». Si el informe no marca build, no se instala nada. La build instalable es
+   el APK arm64 del artefacto `INSTALAR-<sha>` del job «Build Release APK» (desde
+   `ci/nomenclatura-builds` se llama `MihonFix-0.21.3-build-<sha>-<yyyymmdd-hhmm UTC>-arm64.apk`).
+   Todo artefacto con prefijo `NO-INSTALAR-` (No-R8 `-nor8`, tests `-test`) es aid de
+   depuración: no se instala. Los nombres históricos citados en docs antiguos siguen
+   siendo válidos como historia.
 
 ## 6. Operativa del entorno del agente
 
