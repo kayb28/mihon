@@ -78,3 +78,65 @@ extensión: mantenés apretada la fuente en la app, «Editar dominio», pegás e
 listo — la app le «corrige» la dirección a todas las peticiones viejas para que apunten al
 sitio nuevo, y el resto de las fuentes ni se enteran. Si borrás la regla, todo vuelve como
 estaba. Y si la propia extensión ya se arregló sola, nuestra regla no se mete.
+
+---
+
+# Ampliación — tres bordes de la auditoría externa del PR #18 (feat/p8-fixes)
+
+Auditoría externa del PR #18 detectó tres bordes sin pulir; ninguno rompía nada hoy,
+los tres se cierran en la rama `feat/p8-fixes` desde `main`, un commit verde por
+comportamiento (los IDs `P8-fix1/2/3` son de este encargo, no de la serie D1-D7).
+
+## P8-fix1 — Snackbar de confirmación al guardar/borrar
+
+`source_action_edit_domain_saved` y `source_action_edit_domain_removed` existían en
+i18n pero nadie los mostraba: los callbacks `onSave`/`onDelete` del
+`SourceEditDomainDialog` en `SourcesTab.kt` solo guardaban/borraban y cerraban. Ahora
+ambos llaman a `snackbarHostState.showSnackbar(...)` siguiendo el patrón de
+`onClickUpdateLibrary` del mismo archivo; `saved` usa
+`context.stringResource(..., host, toHost)` (extensión `Context.stringResource` de
+core/common, misma que `DownloadProvider`). Sin test JVM (UI pura): criterio = el
+checklist de dispositivo de abajo.
+
+## P8-fix2 — Variante www. automática del par de reglas
+
+`DomainOverrideStore.upsert()` guarda ahora SIEMPRE un par: la regla exacta que dio el
+usuario más su gemela www., porque la mayoría de los sitios sirven el mismo contenido
+con y sin «www.» y pedirle al usuario que cree dos reglas a mano —sin avisarle— era una
+trampa. Simétrico en ambas direcciones:
+
+- `from` SIN www. → se añade `www.from -> www.to` (si `to` ya traía www., se respeta tal cual).
+- `from` CON www. → se añade `from-sin-www -> to-sin-www` (nunca una tercera variante
+  «www.www.»; si `bareFrom` quedara vacío no hay gemela).
+
+`delete()` borra las dos variantes del par con una sola acción del usuario.
+`rules()` sigue devolviendo el mapa plano (ambas entradas visibles) y
+`activeDomainRule()` en `SourcesViewModel` sigue mostrando UNA línea
+(`targetFor(host)` es exacto, la gemela no duplica el texto del diálogo). El match
+sigue siendo por host exacto: `cdn.old.example` sigue sin matchear (E3/„no
+subdominios en general" intacto salvo el gemela documentado). Tests: 5 nuevos en
+`DomainOverrideTest.kt` (`P8-fix2 *`), más las expectativas D1 actualizadas al nuevo
+contrato documentado.
+
+## P8-fix3 — El diálogo no queda colgado si el host no se resuelve
+
+`showEditDomainDialog` resolvía el host en `Dispatchers.IO` y si `installed` no era
+`HttpSource`, `baseUrl` faltaba o no parseaba, `editDomainState` quedaba con
+`host=null` para siempre: ni diálogo ni aviso. Ahora, si tras la resolución el host es
+null, se cierra `editDomainState` y se emite `Event.EditDomainUnavailable` (nuevo
+miembro de `SourcesViewModel.Event`, patrón `FailedFetchingSources`); `SourcesTab.kt`
+lo captura en el `collectLatest` existente y muestra el snackbar
+`source_action_edit_domain_unavailable` (string nuevo, base + es). Test JVM no viable
+sin mockear Android (`SourceManager`, `HttpSource`): documentado como caso de
+checklist de dispositivo.
+
+## Checklist de dispositivo (esta ampliación)
+
+1. P8-fix1: guardar una regla → snackbar «Regla guardada: viejo → nuevo»; borrarla →
+   snackbar «Regla de dominio eliminada».
+2. P8-fix2: guardar `old.example -> new.example` y navegar la fuente sirviendo
+   `www.old.example` → también debe ir al sitio nuevo (regla gemela). Borrar la regla
+   elimina las dos variantes (no queda la www. huérfana).
+3. P8-fix3: fuente rota o sin baseUrl → «Editar dominio» → el diálogo se cierra solo
+   con el aviso «No se pudo resolver el dominio de esta fuente»; nunca queda la
+   pantalla en blanco.

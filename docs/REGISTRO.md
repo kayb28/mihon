@@ -819,3 +819,16 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-28 (feat/p8-fixes — auditoría externa del PR #18: tres bordes de «Editar dominio»)
+
+Motivo: auditoría externa del PR #18 detectó tres bordes sin pulir (ninguno rompía hoy).
+Rama `feat/p8-fixes` desde `main`, un commit verde por comportamiento: P8-fix1 (snackbars
+saved/removed que existían sin uso), P8-fix2 (variante www. automática del par en
+`DomainOverrideStore`, delete borra ambas, sin bucles; 5 tests nuevos + D1 actualizado),
+P8-fix3 (host no resoluble cierra el diálogo y emite `Event.EditDomainUnavailable` con
+snackbar; sin test JVM viable — caso de checklist). Informe: `docs/INFORME_DOMINIO_EDITABLE.md`
+(ampliación) + esta entrada.
+
+Estado: **en curso** — push + CI + PR contra main al cerrar; merge solo por orden
+explícita del usuario.
