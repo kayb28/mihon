@@ -46,11 +46,12 @@ class WebViewFallbackPolicy(
         hasConnectivity: Boolean = true,
     ): Boolean {
         if (method !in SUPPORTED_METHODS) return false
-        val code = statusCode ?: return false
-        // W1: any HTTP error status (4xx/5xx) triggers, not just {403, 503}. The three-layer
-        // model (OkHttp first try -> WebView second try -> manual triage) applies to every
-        // failure; the guards (per-request single attempt, per-host lock/cooldown) bound the cost.
-        if (code !in FALLBACK_CODES) return false
+        // W2: a network failure (IOException and its subtypes) is as much a "first try
+        // failed" as an HTTP error code — it gets the WebView second try too. Anything that
+        // is not an HTTP error and not a network exception (2xx/3xx codes, non-I/O bugs)
+        // never triggers.
+        val failure = (statusCode != null && statusCode in FALLBACK_CODES) || cause is IOException
+        if (!failure) return false
         val lastFailure = cooldowns[host] ?: return true
         return clock() - lastFailure > cooldownMs
     }

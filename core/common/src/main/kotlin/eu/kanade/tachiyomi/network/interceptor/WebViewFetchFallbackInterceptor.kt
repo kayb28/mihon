@@ -45,6 +45,7 @@ import okio.Buffer
 import org.json.JSONObject
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -120,12 +121,51 @@ class WebViewFetchFallbackInterceptor(
         )
     }
 
+    // W2: network exceptions from the first OkHttp try get the same WebView second chance as
+    // HTTP error codes. The policy only triggers for real network I/O failures; if the
+    // WebView attempt also fails, WebViewInterceptor rethrows the ORIGINAL exception.
+    override fun shouldInterceptException(request: Request, cause: IOException): Boolean {
+        if (!preferences.webviewFallbackEnabled.get()) return false
+        return policy.shouldAttempt(
+            host = request.url.host,
+            method = request.method,
+            cause = cause,
+        )
+    }
+
+    override fun interceptException(chain: Interceptor.Chain, request: Request, cause: IOException): Response? {
+        val headersJson = request.toFetchHeadersJson()
+        val bodyJson = request.toFetchBodyJson() ?: return null
+        return attemptFallback(request, headersJson, bodyJson, failureStatusCode = null)
+    }
+
     override fun intercept(chain: Interceptor.Chain, request: Request, response: Response): Response {
         val headersJson = request.toFetchHeadersJson()
         val bodyJson = request.toFetchBodyJson()
 
         if (bodyJson == null) return response
 
+        val fallback = attemptFallback(request, headersJson, bodyJson, failureStatusCode = response.code)
+
+        return if (fallback != null) {
+            response.close()
+            fallback
+        } else {
+            response
+        }
+    }
+
+    /**
+     * One guarded WebView attempt: per-host lock, exactly one retry per request, failure
+     * recorded on the policy (cooldown). Returns null when the fallback yields nothing —
+     * callers then surface the original response/exception untouched.
+     */
+    private fun attemptFallback(
+        request: Request,
+        headersJson: JSONObject,
+        bodyJson: JSONObject,
+        failureStatusCode: Int?,
+    ): Response? {
         val host = request.url.host
         val lock = hostLocks.computeIfAbsent(host) { ReentrantReadWriteLock() }
         var fallback: Response? = null
@@ -139,18 +179,13 @@ class WebViewFetchFallbackInterceptor(
 
             if (fallback != null) {
                 onFallbackSuccess()
+                policy.recordResult(host, success = true, statusCode = fallback!!.code)
             } else {
-                policy.recordResult(host, success = false, statusCode = response.code)
+                policy.recordResult(host, success = false, statusCode = failureStatusCode)
             }
         }
 
-        val result = fallback
-        return if (result != null) {
-            response.close()
-            result
-        } else {
-            response
-        }
+        return fallback
     }
 
     private fun onFallbackSuccess() {
