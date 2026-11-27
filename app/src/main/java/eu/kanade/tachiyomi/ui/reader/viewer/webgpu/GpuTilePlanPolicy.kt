@@ -8,9 +8,9 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
  * some). This policy splits oversized content into ordered tiles; the wiring uploads one
  * texture per tile and draws one quad per tile — no scaling, no quality loss, correct
  * order (same pattern as ContinuousPageReportPolicy: pure decisions, JVM-testable).
- *
- * RED SKELETON: returns an empty plan; the red tests fail on BEHAVIOR (today the plan is
- * "one texture the full frame size, whatever the device limit").
+
+ * Bands run top-to-bottom; tiles within a band left-to-right: reading order.
+ */
  */
 object GpuTilePlanPolicy {
 
@@ -30,5 +30,20 @@ object GpuTilePlanPolicy {
      * content. Frames that fit return a single tile covering everything (E3: normal
      * pages keep today's one-texture plan). Degenerate frames return an empty list.
      */
-    fun planTiles(width: Int, height: Int, maxDimension: Int): List<Tile> = emptyList()
+    fun planTiles(width: Int, height: Int, maxDimension: Int): List<Tile> {
+        if (width <= 0 || height <= 0 || maxDimension <= 0) return emptyList()
+        val tiles = ArrayList<Tile>()
+        var bandY = 0
+        while (bandY < height) {
+            val bandHeight = minOf(maxDimension, height - bandY)
+            var tileX = 0
+            while (tileX < width) {
+                val tileWidth = minOf(maxDimension, width - tileX)
+                tiles.add(Tile(sourceX = tileX, sourceY = bandY, width = tileWidth, height = bandHeight))
+                tileX += tileWidth
+            }
+            bandY += bandHeight
+        }
+        return tiles
+    }
 }
