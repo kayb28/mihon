@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.network.interceptor
 
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 
 /**

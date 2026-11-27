@@ -70,7 +70,7 @@ abstract class WebViewInterceptor(
         cause: IOException,
     ): Response? = null
 
-    final override fun intercept(chain: Interceptor.Chain): Response {
+    override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val response = try {
             chain.proceed(request)
