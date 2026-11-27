@@ -22,14 +22,6 @@ object GpuTilePlanPolicy {
     )
 
     /**
-     * E1/E2: plan the tiles for a [width]x[height] frame on a device whose texture
-     * dimension limit is [maxDimension]. Tiles are ordered top-to-bottom (and, for
-     * oversized widths, left-to-right within each band), cover the frame exactly with no
-     * gaps or overlaps, never exceed the limit in either dimension, and never scale the
-     * content. Frames that fit return a single tile covering everything (E3: normal
-     * pages keep today's one-texture plan). Degenerate frames return an empty list.
-     */
-    /**
      * E3: the NDC quad for one tile of a page whose full-frame quad is
      * ([pageScaleX], [pageScaleY], [pageOffsetX], [pageOffsetY]). Single-tile pages
      * (sourceX=0, sourceY=0, width=frameWidth, height=frameHeight) return the page's
@@ -62,6 +54,14 @@ object GpuTilePlanPolicy {
         val offsetY: Float,
     )
 
+    /**
+     * E1/E2: plan the tiles for a [width]x[height] frame on a device whose texture
+     * dimension limit is [maxDimension]. Tiles are ordered top-to-bottom (and, for
+     * oversized widths, left-to-right within each band), cover the frame exactly with no
+     * gaps or overlaps, never exceed the limit in either dimension, and never scale the
+     * content. Frames that fit return a single tile covering everything (E3: normal
+     * pages keep today's one-texture plan). Degenerate frames return an empty list.
+     */
     fun planTiles(width: Int, height: Int, maxDimension: Int): List<Tile> {
         if (width <= 0 || height <= 0 || maxDimension <= 0) return emptyList()
         val tiles = ArrayList<Tile>()
