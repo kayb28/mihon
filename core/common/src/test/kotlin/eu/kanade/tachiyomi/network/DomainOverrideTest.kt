@@ -34,14 +34,68 @@ class DomainOverrideTest {
         s.rules() shouldBe emptyMap()
 
         s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "new.example"))
-        s.rules() shouldBe mapOf("old.example" to "new.example")
+        s.rules() shouldBe mapOf(
+            "old.example" to "new.example",
+            "www.old.example" to "www.new.example",
+        )
 
         // edit = same fromHost, new toHost
         s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "newer.example"))
-        s.rules() shouldBe mapOf("old.example" to "newer.example")
+        s.rules() shouldBe mapOf(
+            "old.example" to "newer.example",
+            "www.old.example" to "www.newer.example",
+        )
 
         s.delete("old.example")
         s.rules() shouldBe emptyMap()
+    }
+
+    // ---------------------------------------------------------------- P8 fixes (auditoría PR #18)
+
+    @Test
+    fun `P8-fix2 upsert creates the automatic www_ twin of the rule`() {
+        val s = store()
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "new.example"))
+        s.targetFor("old.example") shouldBe "new.example"
+        s.targetFor("www.old.example") shouldBe "www.new.example"
+    }
+
+    @Test
+    fun `P8-fix2 the twin keeps a toHost that already has www_`() {
+        val s = store()
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "www.new.example"))
+        s.targetFor("www.old.example") shouldBe "www.new.example"
+        s.targetFor("old.example") shouldBe "www.new.example"
+    }
+
+    @Test
+    fun `P8-fix2 delete removes both variants of the pair`() {
+        val s = store()
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "new.example"))
+        s.delete("old.example")
+        s.targetFor("old.example") shouldBe null
+        s.targetFor("www.old.example") shouldBe null
+        s.rules() shouldBe emptyMap()
+    }
+
+    @Test
+    fun `P8-fix2 a rule given with www_ gets the bare twin, no third variant`() {
+        val s = store()
+        s.upsert(DomainOverrideRule(fromHost = "www.old.example", toHost = "www.new.example"))
+        s.targetFor("www.old.example") shouldBe "www.new.example"
+        s.targetFor("old.example") shouldBe "new.example"
+        // exactly two entries: no "www.www…" or repeated variants
+        s.rules() shouldHaveSize 2
+    }
+
+    @Test
+    fun `P8-fix2 editing one variant rewrites both entries of the pair`() {
+        val s = store()
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "new.example"))
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "newer.example"))
+        s.targetFor("old.example") shouldBe "newer.example"
+        s.targetFor("www.old.example") shouldBe "www.newer.example"
+        s.rules() shouldHaveSize 2
     }
 
     @Test
@@ -51,8 +105,10 @@ class DomainOverrideTest {
         // exact match (case-insensitive, as HttpUrl normalizes hosts)
         s.targetFor("old.example") shouldBe "new.example"
         s.targetFor("OLD.example") shouldBe "new.example"
-        // subdomains and unrelated hosts do NOT match
-        s.targetFor("www.old.example") shouldBe null
+        // the automatic www. twin of the rule DOES match (same content served),
+        // but other subdomains and unrelated hosts do NOT
+        s.targetFor("www.old.example") shouldBe "www.new.example"
+        s.targetFor("cdn.old.example") shouldBe null
         s.targetFor("notold.example") shouldBe null
         s.targetFor("new.example") shouldBe null
     }
