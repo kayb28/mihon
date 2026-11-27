@@ -144,7 +144,14 @@ class MigrateMangaUseCase(
             }
                 .takeIf { replace }
             val targetMangaUpdate = MangaUpdate(target.id) {
-                favoriteAt = current.favoriteAt?.takeIf { replace } ?: Clock.System.now()
+                // P0-3 (T-10.2): with `replace = false` the target's own date survives —
+                // falling through to now() re-dated the entry and reordered the library.
+                favoriteAt = MigrationGuardPolicy.resolveFavoriteAt(
+                    replace = replace,
+                    currentFavoriteAt = current.favoriteAt,
+                    targetFavoriteAt = target.favoriteAt,
+                    now = Clock.System.now(),
+                )
                 chapterFlags = current.chapterFlags
                 viewerFlags = current.viewerFlags
                 if (MigrationFlag.NOTES in flags) notes = current.notes
