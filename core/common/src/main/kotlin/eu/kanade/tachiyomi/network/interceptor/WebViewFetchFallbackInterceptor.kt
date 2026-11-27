@@ -88,9 +88,6 @@ class WebViewFetchFallbackInterceptor(
     // same host wait for one WebView instead of each opening their own
     private val hostLocks = ConcurrentHashMap<String, ReentrantReadWriteLock>()
 
-    // Hosts where the fallback recently failed; they get a cooldown before trying again
-    private val cooldowns = ConcurrentHashMap<String, Long>()
-
     // Fallback activations per host, used to decide when to keep a warm WebView (level 2)
     private val activations = ConcurrentHashMap<String, ArrayDeque<Long>>()
 
@@ -99,6 +96,10 @@ class WebViewFetchFallbackInterceptor(
     private val poolMutex = Any()
 
     private val firstSuccessShown = AtomicBoolean(false)
+
+    // Pure decision layer (W1-W5): trigger rules and per-host cooldown bookkeeping live in
+    // WebViewFallbackPolicy so they are unit-testable on the JVM. The interceptor only wires it.
+    private val policy = WebViewFallbackPolicy()
 
     init {
         appScope.launch(Dispatchers.Main) {
@@ -111,11 +112,12 @@ class WebViewFetchFallbackInterceptor(
 
     override fun shouldIntercept(response: Response): Boolean {
         if (!preferences.webviewFallbackEnabled.get()) return false
-        if (response.code !in FALLBACK_CODES) return false
         val request = response.request
-        if (request.method !in SUPPORTED_METHODS) return false
-        val lastFailure = cooldowns[request.url.host] ?: return true
-        return System.currentTimeMillis() - lastFailure > COOLDOWN_MS
+        return policy.shouldAttempt(
+            host = request.url.host,
+            method = request.method,
+            statusCode = response.code,
+        )
     }
 
     override fun intercept(chain: Interceptor.Chain, request: Request, response: Response): Response {
@@ -138,7 +140,7 @@ class WebViewFetchFallbackInterceptor(
             if (fallback != null) {
                 onFallbackSuccess()
             } else {
-                cooldowns[host] = System.currentTimeMillis()
+                policy.recordResult(host, success = false, statusCode = response.code)
             }
         }
 
@@ -654,8 +656,6 @@ class WebViewFetchFallbackInterceptor(
 }
 
 private const val BRIDGE_NAME = "mihonfix"
-private val FALLBACK_CODES = setOf(403, 503)
-private val SUPPORTED_METHODS = setOf("GET", "POST")
 private const val FALLBACK_HEADER = "X-MihonFix-Webview-Fallback"
 internal const val MAX_RESPONSE_BYTES = 25L * 1024 * 1024
 private const val MAX_REQUEST_BODY_BYTES = 2L * 1024 * 1024
@@ -664,7 +664,6 @@ private const val OP_TIMEOUT_SECONDS = 60L
 // Max time waiting for a challenge to auto-solve before running the fetch anyway
 private const val NAV_MAX_WAIT_MS = 20_000L
 
-private const val COOLDOWN_MS = 10L * 60_000L
 private const val WARM_WINDOW_MS = 10L * 60_000L
 private const val WARM_THRESHOLD = 2
 private const val POOL_TTL_MS = 2L * 60_000L

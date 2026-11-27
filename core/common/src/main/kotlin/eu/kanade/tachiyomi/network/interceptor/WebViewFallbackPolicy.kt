@@ -47,6 +47,9 @@ class WebViewFallbackPolicy(
     ): Boolean {
         if (method !in SUPPORTED_METHODS) return false
         val code = statusCode ?: return false
+        // W1: any HTTP error status (4xx/5xx) triggers, not just {403, 503}. The three-layer
+        // model (OkHttp first try -> WebView second try -> manual triage) applies to every
+        // failure; the guards (per-request single attempt, per-host lock/cooldown) bound the cost.
         if (code !in FALLBACK_CODES) return false
         val lastFailure = cooldowns[host] ?: return true
         return clock() - lastFailure > cooldownMs
@@ -69,7 +72,8 @@ class WebViewFallbackPolicy(
     fun usageReport(): List<HostFallbackSummary> = tracker.summary()
 
     companion object {
-        val FALLBACK_CODES = setOf(403, 503)
+        // W1: every 4xx/5xx triggers the WebView attempt (was {403, 503})
+        val FALLBACK_CODES: IntRange = 400..599
         val SUPPORTED_METHODS = setOf("GET", "POST")
         const val DEFAULT_COOLDOWN_MS = 10L * 60_000L
     }
