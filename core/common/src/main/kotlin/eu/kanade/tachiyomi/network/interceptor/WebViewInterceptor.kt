@@ -64,7 +64,11 @@ abstract class WebViewInterceptor(
      * W2 hook: run the WebView attempt for a request whose first try threw. Returns null when
      * the fallback cannot produce a response (the original exception then propagates).
      */
-    protected open fun interceptException(chain: Interceptor.Chain, request: Request, cause: IOException): Response? = null
+    protected open fun interceptException(
+        chain: Interceptor.Chain,
+        request: Request,
+        cause: IOException,
+    ): Response? = null
 
     final override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
