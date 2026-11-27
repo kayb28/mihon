@@ -273,6 +273,10 @@ class WebViewFetchFallbackInterceptor(
             if (session.fetchStarted || session.failed != null) return
             val e = engine ?: return
             session.fetchStarted = true
+            // T-10.8 (P1-3): the fetch is starting — the NAV-max-wait timer is moot; cancel
+            // it so it never fires on a session that is already in flight or done.
+            e.navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            e.navTimeoutRunnable = null
             e.sessionRef.set(session)
             try {
                 e.webview.evaluateJavascript(buildFetchScript(request, headersJson, bodyJson, session.key), null)
@@ -347,7 +351,11 @@ class WebViewFetchFallbackInterceptor(
                     e.webview.loadUrl(challengeUrl, loadHeaders)
                     // If no clearance ever shows up (non-Cloudflare WAF) or the challenge takes
                     // too long, run the fetch anyway; its result tells the truth.
-                    mainHandler.postDelayed({ startFetch() }, NAV_MAX_WAIT_MS)
+                    // T-10.8 (P1-3): the Runnable is kept in the Engine and cancelled in
+                    // destroy()/startFetch so it cannot fire on a torn-down fetch.
+                    val navTimeout = Runnable { startFetch() }
+                    e.navTimeoutRunnable = navTimeout
+                    mainHandler.postDelayed(navTimeout, NAV_MAX_WAIT_MS)
                 } else {
                     // Warm pooled WebView on the same origin: skip the page load entirely
                     startFetch()
@@ -706,10 +714,14 @@ class WebViewFetchFallbackInterceptor(
         @Volatile var loadedOrigin: String? = null,
         @Volatile var pooled: Boolean = false,
         @Volatile var lastUsed: Long = 0L,
+        // T-10.8 (P1-3): the pending NAV-max-wait timer, cancellable before it fires
+        @Volatile var navTimeoutRunnable: Runnable? = null,
     ) {
         val inUse = AtomicBoolean(false)
 
         fun destroy() {
+            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            navTimeoutRunnable = null
             try {
                 webview.stopLoading()
             } catch (_: Throwable) {}
