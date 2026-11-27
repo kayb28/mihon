@@ -169,7 +169,4 @@ class GpuTilePlanPolicyTest {
         // Order preserved: tile 0 is the TOP band (bigger NDC y).
         (quads[0].offsetY > quads[1].offsetY) shouldBe true
     }
-
-    // ---------------------------------------------------------------- helpers
-
 }
