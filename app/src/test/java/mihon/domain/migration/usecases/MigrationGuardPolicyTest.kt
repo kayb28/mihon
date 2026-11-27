@@ -49,8 +49,9 @@ class MigrationGuardPolicyTest {
     fun `T-10-4 a migrated track is upserted`() {
         val original = Track(
             id = 1L, mangaId = 7L, trackerId = 3L, remoteId = 11L, libraryId = null,
-            title = "t", totalChapters = 0, chaptersRead = 0, score = 0.0, status = 0,
-            startedReadingDate = 0, finishedReadingDate = 0, private = false,
+            title = "t", lastChapterRead = 0.0, totalChapters = 0, status = 0,
+            score = 0.0, remoteUrl = "", startDate = null, finishDate = null,
+            private = false,
         )
         val migrated = original.copy(mangaId = 42L)
         val outcome = MigrationGuardPolicy.trackMigrationPlan(original, migrated)
@@ -61,8 +62,9 @@ class MigrationGuardPolicyTest {
     fun `T-10-4 a null migration KEEPS the original track, not a silent drop`() {
         val original = Track(
             id = 1L, mangaId = 7L, trackerId = 3L, remoteId = 11L, libraryId = null,
-            title = "t", totalChapters = 0, chaptersRead = 0, score = 0.0, status = 0,
-            startedReadingDate = 0, finishedReadingDate = 0, private = false,
+            title = "t", lastChapterRead = 0.0, totalChapters = 0, status = 0,
+            score = 0.0, remoteUrl = "", startDate = null, finishDate = null,
+            private = false,
         )
         val outcome = MigrationGuardPolicy.trackMigrationPlan(original, migrated = null)
         assertTrue(outcome is MigrationGuardPolicy.TrackOutcome.KeptUnmigrated)
