@@ -633,3 +633,36 @@ Informe: docs/INFORME_FALLO_E_TEXTURA.md.
 verificar en la próxima ronda: los runs de las puntas 410c286f9 (T-B) y 80b025349 (P8)
 — todos los fallos previos quedaron explicados y corregidos (3 de comportamiento P8
 con repro local; el resto formato/compile). NADA se ha mergeado (regla del encargo).
+
+## 2026-11-27 (cierre final del bloque PROMPT 9 + ADD-2 — las 5 ramas en verde)
+
+| Rama | Punta verde | Run(s) | APK INSTALAR (nombre interno) | sha256 | Tamaño | Firma |
+|---|---|---|---|---|---|---|
+| `docs/consolidacion-2026-11-27` (T-D1, PR #19) | `79801c168` | 45997565980 / 45997555071 success | — (encargo documental; sin build nueva) | — | — | — |
+| `fix/fallo-e-textura` (T-E, PR #15) | `abe9ef63e` | 46006906160 / 46006895783 success | `MihonFix-0.21.3-build-abe9ef6-20261127-1332-arm64.apk` | `b471de78f863e4bcd37a21802887d250fb8fbceba6bbe26e4c3b1685e879a48b` | 35 225 030 B | ESTABLE (DE7889F3…D1296AD0) |
+| `feat/p5-reintentar-titulos-error` (T-B, PR #17) | `4b0bcb255` | 46000831712 success | `MihonFix-0.21.3-build-4b0bcb2-20261127-1247-arm64.apk` | `1c3d467103dfeabb3794cd15ee233fca6fb63028fe25e30380c0630bde92c3a9` | 35 226 070 B | ESTABLE |
+| `feat/p8-domain-override` (P8, PR #18) | `2ac269fea` | 45997432722 / 45997423227 success | `MihonFix-0.21.3-build-2ac269f-20261127-1223-arm64.apk` | `45b1c4d19a88bd38a5762f4deeec4f66789a8280a3711a444bd418783ff7563c` | 35 244 398 B | ESTABLE |
+| `docs/rebrand-mihonfix` (T-REB, PR #16) | `f0eb0538a` | 45998427087 / 45998418470 success | `MihonFix-0.21.3-build-de705a9-20261127-0647-arm64.apk` | `475c457f7599e4ff182016e83624205adbb2309a13a2a3c3776523704136dcaf` | 35 225 022 B | ESTABLE |
+
+**Camino a verde de T-E (lección registrada):** spotless ×3 (KDoc duplicado, KDocs
+huérfanos sobre la función equivocada, sección helpers vacía) → compile ×2
+(`device.limits` no existe: `GPUAdapter.getLimits()`; tests: Tile sin width, helper infix
+que rompía `expectedY += t.height`) → **250 tests, 1 fallo**: la aritmética del test E1
+@8192 estaba mal desde el rojo (decía 8 teselas resto 2656; lo correcto, verificado con
+código: 50000 = 6×8192 + 848 → 7 teselas). Corregido → verde completo. El @16384 ya era
+correcto (3×16384 + 848 = 4).
+
+**Camino a verde de T-B:** extensiones `targets`/`isWholeLibrary` a nivel superior,
+nombre de test sin `;`, `beginPass(emptySet())!!`, paréntesis en `!= null shouldBe true`,
+líneas en blanco → verde con los 8 tests 5.1–5.5 pasando.
+
+**Camino a verde de P8:** `@Inject` en DomainOverrideStore (Metro MissingBinding),
+`stringResource` fuera del onClick, y los 3 fixes de comportamiento con repro local
+okhttp (D4 contrabando de esquemas, D6 log no emitido, D7 guard demasiado agresivo) →
+verde con los 15 tests D1–D7 pasando.
+
+**Estado:** 5 PRs abiertos (#15–#19), todos con CI verde en su punta, NINGUNO mergeado
+(regla del encargo). Los informes por tarea viven en docs/INFORME_*.md (FALLO_E_TEXTURA,
+BOTON_REINTENTAR, DOMINIO_EDITABLE, T-D1_CONSOLIDACION en su rama, T-REB_RENAME en su
+rama). Pendiente del usuario: checklist de dispositivo por tarea + logo SVG del rebrand
++ orden explícita de merge.
