@@ -8,6 +8,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.tachiyomi.data.library.UpdateError
+import mihon.domain.source.interactor.UpdateMangaFromRemote
 import eu.kanade.tachiyomi.data.library.UpdateErrorStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,10 +46,42 @@ class UpdateErrorsViewModel(
     private val updateErrorStore: UpdateErrorStore,
     private val getManga: GetManga,
     private val sourceManager: SourceManager,
+    private val updateMangaFromRemote: UpdateMangaFromRemote,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UpdateErrorsState())
     val state: StateFlow<UpdateErrorsState> = _state.asStateFlow()
+
+    // T-B (PROMPT 9): the "Reintentar títulos con error" pass. One batch per press,
+    // scoped to the error IDs snapshotted at press time; the button re-enables when it
+    // ends. Successes leave the list by themselves (UpdateMangaFromRemote calls
+    // removeErrorsForManga on success); failures stay refreshed by errorsFlow.
+    private val _retryPass = MutableStateFlow<RetryErrorsPolicy.Pass?>(null)
+    val retryPass: StateFlow<RetryErrorsPolicy.Pass?> = _retryPass.asStateFlow()
+
+    fun retryButtonVisible(): Boolean =
+        RetryErrorsPolicy.buttonVisible(updateErrorStore.getErrorMangaIds().size)
+
+    fun retryButtonEnabled(): Boolean =
+        RetryErrorsPolicy.buttonEnabled(_retryPass.value)
+
+    fun retryErrorMangas() {
+        val pass = RetryErrorsPolicy.beginPass(updateErrorStore.getErrorMangaIds(), _retryPass.value)
+            ?: return // a pass is already running: one batch per press
+        _retryPass.value = pass
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                for (mangaId in pass.targetIds) {
+                    val manga = getManga.await(mangaId) ?: continue
+                    // Success self-cleans the manga's errors inside UpdateMangaFromRemote;
+                    // a failure leaves a fresh error in the store (errorsFlow refreshes UI).
+                    runCatching { updateMangaFromRemote(manga = manga, manualFetch = true) }
+                }
+            } finally {
+                _retryPass.value = RetryErrorsPolicy.completePass(pass)
+            }
+        }
+    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
