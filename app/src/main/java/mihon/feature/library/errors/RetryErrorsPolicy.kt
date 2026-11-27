@@ -33,8 +33,6 @@ object RetryErrorsPolicy {
         return Pass(targetIds = snapshot, running = true)
     }
 
-
-
     /** A fresh failure for a retried manga (its row stays with the new message). */
     data class FreshError(val message: String)
 
