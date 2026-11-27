@@ -600,3 +600,49 @@ vetable por el usuario hasta la puerta de merge). W3 NO vetado hasta la fecha.
 (checklist W1/W2/W4 observable en `docs/INFORME_MOTOR_WEB_REFORZADO.md`) + OK explícito.
 Sin él, NO merge. Build para instalar: artefacto `INSTALAR-dcba12e2b…`,
 `MihonFix-0.21.3-build-dcba12e-20261127-0245-arm64.apk`, firma ESTABLE.
+### (2026-11-27, T-D1 — PROMPT 9) Consolidación documental — decisiones del usuario
+
+**Cierre de Fallo C (PROBLEMAS.md):** confirmación del usuario (2026-11-27): la
+instalación encima ya está resuelta desde hace tiempo; la causa fue un error del usuario
+al elegir el archivo/APK, no un defecto del fork. Fila cerrada; el diagnóstico forense
+previo se conserva en la propia fila como historia.
+
+**Apertura de Fallo E (PROBLEMAS.md):** ValidationException del visor EXPERIMENTAL
+WebGPU — contenido compuesto en una única textura 800×50000 supera el límite de GPU
+(16384×16384; algunas GPU 8192). Reporte del usuario 2026-11-26/27; disposición = T-E
+(rama `fix/fallo-e-textura`): consultar `device.limits.maxTextureDimension2D` y trocear
+en teselas ordenadas sin escalar. Cierre solo con validación en dispositivo.
+
+**F4 (dos filas abiertas del Reparador):** ambas anotadas con «cierre previsto con la
+validación de dispositivo de P7 (W1/W2/W4) — mismas rutas WebView». Siguen ABIERTAS.
+
+**Decisión W3 (PROMPT 7):** sin veto del usuario hasta el 2026-11-27 → la exención «sin
+conectividad no dispara el fallback» se queda tal cual. Registrada como definitiva salvo
+orden contraria.
+
+**Decisión 1b (auditoría del reparador) = C+:** el informe perdido
+`INFORME_AUDITORIA_REPARADOR_2026-11-26.md` NO se reconstruye y NO se re-audita al
+reparador (decisión del usuario, 2026-11-27). Nota honesta: el informe murió con el
+primer chat. Sus conclusiones viven en evidencia activa: PRs #8–#13, los 35 tests B1–B4
+(`fix/reparador-enlaces-tests`, run verde), `docs/INFORME_REPARADOR_ENLACES_B1-B4.md` y
+las políticas `RepairOutcomePolicy`/`CalmPassPolicy` (tests JVM desde `00f465d`).
+
+**Desviaciones V1–V8 (auditoría del reparador) — decisiones del usuario (2026-11-27):**
+- V1, V4, V6, V7, V8 — RATIFICADAS por el usuario.
+- V2 — corregida dentro de T-D1 (AGENTS.md §2: nombre de APK con timestamp).
+- V3 — corregida con la única excepción autorizada a workflows: commit `ci:` en
+  `docs/consolidacion-2026-11-27` que antepone `NO-INSTALAR-` a los artefactos
+  `test-report-` y `mapping-` de `build.yml` (sin cambio de lógica).
+- V5 — aceptada como limitación conocida (nota en esta entrada; se revisa en el rebase
+  v0.21.4).
+- (Recomendación del auditor: V1–V7 ratificar, V8 nota de proceso — el usuario ratificó
+  V1/V4/V6/V7/V8 y resolvió V2/V3/V5 como arriba; nada queda pendiente de firma.)
+
+**docs/ADOPCIONES_UPSTREAM.md (nuevo):** tabla de 6 filas verificadas (rebase v0.21.4;
+PR #3786 WebP; caché upstream; pins CI setup-java v6.3.0 / setup-gradle v6.4.1 /
+ubuntu-26.04; port de extensiones embebidas MHScans/Emperor Scan al API nuevo; recetas
+comunidad #4309/#3017/#4305/#3882/#4188/#4220/#4272/#4106/#4147/#4310/#4301/#4246/
+#565+#3661) + nota «pendiente de aportaciones del usuario».
+
+**AGENTS.md §3:** tabla de ramas refrescada a la realidad del 2026-11-27 (main punta
+`bd4aa16e`, merge PR #14 de P7; T6 mergeada vía PR #13; ramas vivas P8/T-D1/T-E/T-B).
