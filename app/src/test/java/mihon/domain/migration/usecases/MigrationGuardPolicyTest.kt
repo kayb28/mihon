@@ -1,7 +1,6 @@
 package mihon.domain.migration.usecases
 
 import kotlinx.serialization.json.JsonObject
-import kotlin.time.Instant
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertNull
@@ -9,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.track.model.Track
+import kotlin.time.Instant
 
 /**
  * P0 correctivo (PROMPT 10, T-10.1..T-10.5): the migration decisions extracted from

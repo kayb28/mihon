@@ -131,11 +131,17 @@ class ViewerPageStateMachineTest {
     fun `T-10-13 DECODE with attempt budget spent does NOT retry`() {
         assertEquals(
             ViewerPageStateMachine.RetryDecision.DO_NOT_RETRY,
-            ViewerPageStateMachine.retryDecision(ViewerPageStateMachine.FailureReason.DECODE, attempt = ViewerPageStateMachine.MAX_REUPLOAD_ATTEMPTS),
+            ViewerPageStateMachine.retryDecision(
+                ViewerPageStateMachine.FailureReason.DECODE,
+                attempt = ViewerPageStateMachine.MAX_REUPLOAD_ATTEMPTS,
+            ),
         )
         assertEquals(
             ViewerPageStateMachine.RetryDecision.REUPLOAD,
-            ViewerPageStateMachine.retryDecision(ViewerPageStateMachine.FailureReason.DECODE, attempt = ViewerPageStateMachine.MAX_REUPLOAD_ATTEMPTS - 1),
+            ViewerPageStateMachine.retryDecision(
+                ViewerPageStateMachine.FailureReason.DECODE,
+                attempt = ViewerPageStateMachine.MAX_REUPLOAD_ATTEMPTS - 1,
+            ),
         )
     }
 
