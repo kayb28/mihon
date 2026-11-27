@@ -54,8 +54,11 @@ class SourcesViewModel(
 ) : ViewModel() {
 
     /** D6: the active rule for a host, formatted for display (from -> to) or null. */
+    // Fallo G (T-G, G2): the formatting now comes from DomainRuleUi — the ONE shared
+    // implementation both "Editar dominio" entries call (same store via the injected
+    // domainOverrideStore, same label, same dialog composable).
     fun activeDomainRule(host: String): String? =
-        domainOverrideStore.targetFor(host)?.let { to -> "$host -> $to" }
+        DomainRuleUi.activeRuleLabel(host, domainOverrideStore::targetFor)
 
     /** D6: save (create/edit) the rule for [fromHost]. */
     fun saveDomainRule(fromHost: String, toHost: String) {

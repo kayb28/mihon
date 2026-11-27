@@ -52,6 +52,7 @@ import eu.kanade.presentation.more.settings.widget.TrailingWidgetBuffer
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.ui.browse.extension.details.ExtensionDetailsViewModel
+import eu.kanade.tachiyomi.ui.browse.source.DomainRuleUi
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -74,6 +75,10 @@ fun ExtensionDetailsScreen(
     onClickUninstall: () -> Unit,
     onClickSource: (sourceId: Long) -> Unit,
     onClickIncognito: (Boolean) -> Unit,
+    // Fallo G (T-G, G1): the discoverable "Editar dominio" section, one row per source
+    // with a resolvable host; tapping a row opens the SAME dialog the sources tab uses.
+    domainRows: List<DomainRuleUi.Row>,
+    onClickEditDomain: (DomainRuleUi.Row) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
 
@@ -114,6 +119,8 @@ fun ExtensionDetailsScreen(
                 ?.let { website -> { uriHandler.openUri(website) } },
             sources = state.sources,
             incognitoMode = state.isIncognito,
+            domainRows = domainRows,
+            onClickEditDomain = onClickEditDomain,
             onClickSourcePreferences = onClickSourcePreferences,
             onClickUninstall = onClickUninstall,
             onClickSource = onClickSource,
@@ -133,6 +140,8 @@ private fun ExtensionDetails(
     onClickUninstall: () -> Unit,
     onClickSource: (sourceId: Long) -> Unit,
     onClickIncognito: (Boolean) -> Unit,
+    domainRows: List<DomainRuleUi.Row>,
+    onClickEditDomain: (DomainRuleUi.Row) -> Unit,
 ) {
     val context = LocalContext.current
     var showContentWarning by remember { mutableStateOf(false) }
@@ -165,6 +174,20 @@ private fun ExtensionDetails(
                 },
                 onExtIncognitoChange = onClickIncognito,
             )
+        }
+
+        // Fallo G (T-G, G1): the "Editar dominio" section sits at the top of the
+        // app-hosted extension details screen — a place users look, so a moved site is
+        // fixable within two taps of the extension's own screen (G1). Same dialog and
+        // same store as the sources tab's entry (G2).
+        if (domainRows.isNotEmpty()) {
+            item(key = "edit-domain-section") {
+                EditDomainSection(
+                    rows = domainRows,
+                    onClickRow = onClickEditDomain,
+                    modifier = Modifier.animateItem(),
+                )
+            }
         }
 
         items(
@@ -363,6 +386,31 @@ private fun DetailsHeader(
             },
         )
 
+        HorizontalDivider()
+    }
+}
+
+@Composable
+private fun EditDomainSection(
+    rows: List<DomainRuleUi.Row>,
+    onClickRow: (DomainRuleUi.Row) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = stringResource(MR.strings.source_action_edit_domain),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = MaterialTheme.padding.medium),
+        )
+        rows.forEach { row ->
+            TextPreferenceWidget(
+                title = row.host,
+                subtitle = row.activeRule
+                    ?: stringResource(MR.strings.source_action_edit_domain_hint),
+                onPreferenceClick = { onClickRow(row) },
+                modifier = Modifier.padding(horizontal = MaterialTheme.padding.small),
+            )
+        }
         HorizontalDivider()
     }
 }
