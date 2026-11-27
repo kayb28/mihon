@@ -106,6 +106,11 @@ class DomainOverrideHelper(private val store: DomainOverrideStore) {
         onRewrite: (String) -> Unit = {},
     ): okhttp3.HttpUrl? {
         val target = store.targetFor(url.host) ?: return null
+        // D7: never fight the extension's own preference. If the request already points
+        // at a rule's target host (the extension moved itself via its baseUrl/mirror
+        // preference), the fork rule stays out of the way. This also guarantees the
+        // rewrite is applied exactly once — no ping-pong between chained rules.
+        if (store.targetFor(target) != null) return null
         return url.newBuilder().host(target).build()
     }
 
