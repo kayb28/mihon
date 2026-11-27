@@ -111,20 +111,29 @@ class MigrateMangaUseCase(
             }
 
             // Update track
-            getTracks.await(current.id).mapNotNull { track ->
-                val updatedTrack = track.copy(mangaId = target.id)
+            // P0-4 (T-10.4): a null from migrateTrack is not a silent drop — the ORIGINAL
+            // track survives untouched and one warning line records it.
+            getTracks.await(current.id)
+                .map { track ->
+                    val updatedTrack = track.copy(mangaId = target.id)
 
-                val service = enhancedServices
-                    .firstOrNull { it.isTrackFrom(updatedTrack, current, currentSource) }
+                    val service = enhancedServices
+                        .firstOrNull { it.isTrackFrom(updatedTrack, current, currentSource) }
 
-                if (service != null) {
-                    service.migrateTrack(updatedTrack, target, targetSource)
-                } else {
-                    updatedTrack
+                    // No enhanced service: the plain re-point (copy with the new mangaId)
+                    // is migrated as before. A service that FAILED returns null → kept.
+                    val migrated = service?.migrateTrack(updatedTrack, target, targetSource) ?: updatedTrack
+                    MigrationGuardPolicy.trackMigrationPlan(track, migrated)
                 }
-            }
-                .takeIf { it.isNotEmpty() }
-                ?.let { upsertTrack.awaitAll(it) }
+                .forEach { outcome ->
+                    when (outcome) {
+                        is MigrationGuardPolicy.TrackOutcome.Upsert -> upsertTrack.await(outcome.track)
+                        is MigrationGuardPolicy.TrackOutcome.KeptUnmigrated -> logcat(LogPriority.WARN) {
+                            "Track ${outcome.track.id} (${outcome.track.title}) could not be migrated " +
+                                "to '${target.title}' (${target.id}) — kept on the original manga"
+                        }
+                    }
+                }
 
             // Delete downloaded
             if (MigrationFlag.REMOVE_DOWNLOAD in flags && currentSource != null) {
