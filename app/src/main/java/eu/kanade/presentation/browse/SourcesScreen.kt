@@ -33,8 +33,6 @@ import eu.kanade.tachiyomi.network.DomainOverrideRule
 import eu.kanade.tachiyomi.ui.browse.source.SourcesViewModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
 import eu.kanade.tachiyomi.util.system.LocaleHelper
-import java.text.DateFormat
-import java.util.Date
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.Keep
 import mihon.icons.materialsymbols.roundedfilled.Keep
@@ -51,6 +49,8 @@ import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.presentation.core.theme.header
 import tachiyomi.presentation.core.util.plus
 import tachiyomi.source.local.isLocal
+import java.text.DateFormat
+import java.util.Date
 
 @Composable
 fun SourcesScreen(
