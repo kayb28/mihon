@@ -973,6 +973,12 @@
     <string name="migration_no_eligible_sources">Ninguna fuente de migración coincide con las categorías seleccionadas. Cambia las opciones o elige otra fuente.</string>
     <string name="source_action_update_library">Actualizar la biblioteca de esta fuente</string>
     <string name="source_action_check_health">Comprobar fuente ahora</string>
+    <string name="source_action_edit_domain">Editar dominio</string>
+    <string name="source_action_edit_domain_hint">URL del sitio nuevo (https://…)</string>
+    <string name="source_action_edit_domain_invalid">No es una URL http/https válida</string>
+    <string name="source_action_edit_domain_same_host">Ese ya es el dominio de esta fuente</string>
+    <string name="source_action_edit_domain_saved">Regla guardada: %1$s → %2$s</string>
+    <string name="source_action_edit_domain_removed">Regla de dominio eliminada</string>
     <string name="source_health_unknown">Estado desconocido</string>
     <string name="source_health_available">Disponible en la última comprobación</string>
     <string name="source_health_network_error">Error de red en la última comprobación</string>

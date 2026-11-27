@@ -1221,6 +1221,12 @@
     <string name="migration_no_eligible_sources">No migration sources match the selected source categories. Change the category options or choose another source.</string>
     <string name="source_action_update_library">Update this source’s library</string>
     <string name="source_action_check_health">Check source now</string>
+    <string name="source_action_edit_domain">Edit domain</string>
+    <string name="source_action_edit_domain_hint">New site URL (https://…)</string>
+    <string name="source_action_edit_domain_invalid">That is not a valid http/https URL</string>
+    <string name="source_action_edit_domain_same_host">That is already this source\'s domain</string>
+    <string name="source_action_edit_domain_saved">Domain rule saved: %1$s → %2$s</string>
+    <string name="source_action_edit_domain_removed">Domain rule removed</string>
     <string name="source_health_unknown">Status unknown</string>
     <string name="source_health_available">Available on last check</string>
     <string name="source_health_network_error">Network error on last check</string>

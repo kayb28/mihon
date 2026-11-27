@@ -81,6 +81,7 @@ data class DomainOverrideRule(
     sealed interface Invalid : Validation {
         /** The input is not an http/https URL (or not a URL at all). */
         data class Rejected(val reasonKey: String = "invalid_url") : Invalid
+
         /** The new host equals the current host — nothing would change. */
         data class SameHost(val host: String) : Invalid
     }
