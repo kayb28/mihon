@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.network
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -7,29 +9,39 @@ import tachiyomi.core.common.preference.PreferenceStore
  * PreferenceStore as a JSON map. Rules match by EXACT host, so each extension's site host
  * is naturally scoped per source — no source ID needs to enter the request chain.
  *
- * RED SKELETON: this commit ships the API contract plus tests only; every method is a
- * no-op returning the empty state, so the red tests fail on BEHAVIOR (no rule exists yet).
- * The green commits implement one behavior each (D1 store first).
+ * Persisted through PreferenceStore as a JSON map; nothing else touches the big engine.
  */
-class DomainOverrideStore(private val preferenceStore: PreferenceStore) {
+class DomainOverrideStore(
+    private val preferenceStore: PreferenceStore,
+    private val rulesKey: String = "domain_override_rules",
+) {
 
-    private val preferences = preferenceStore.getString("domain_override_rules", "{}")
+    private val preferences = preferenceStore.getString(rulesKey, "{}")
 
-    /** All active rules, keyed by fromHost (lowercase). Red skeleton: always empty. */
-    fun rules(): Map<String, String> = emptyMap()
+    private val json = Json { ignoreUnknownKeys = true }
 
-    /** Create or edit the rule for [rule.fromHost]. Red skeleton: no-op. */
+    /** All active rules, keyed by fromHost (lowercase). */
+    fun rules(): Map<String, String> = runCatching {
+        json.decodeFromString<Map<String, String>>(preferences.get())
+    }.getOrDefault(emptyMap())
+
+    /**
+     * Create or edit the rule for [rule.fromHost]. Hosts are stored lowercase so the
+     * exact match in [targetFor] is case-insensitive, like HttpUrl host normalization.
+     */
     fun upsert(rule: DomainOverrideRule) {
-        // D1 green commit implements the real persistence
+        val next = rules() + (rule.fromHost.lowercase() to rule.toHost.lowercase())
+        preferences.set(json.encodeToString(next))
     }
 
-    /** Delete the rule for [fromHost] if present. Red skeleton: no-op. */
+    /** Delete the rule for [fromHost] if present. */
     fun delete(fromHost: String) {
-        // D1 green commit implements the real deletion
+        val next = rules() - fromHost.lowercase()
+        preferences.set(json.encodeToString(next))
     }
 
     /** The configured target host for an exact (case-insensitive) [host], or null. */
-    fun targetFor(host: String): String? = null
+    fun targetFor(host: String): String? = rules()[host.lowercase()]
 }
 
 /**
