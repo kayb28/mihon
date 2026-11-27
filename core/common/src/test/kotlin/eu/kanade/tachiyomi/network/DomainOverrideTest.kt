@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.network
 
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
@@ -105,12 +106,12 @@ class DomainOverrideTest {
     @Test
     fun `D4 invalid input is rejected with a visible reason`() {
         // not a URL
-        DomainOverrideRule.validate("esto no es una url") shouldBeInstanceOf
+        DomainOverrideRule.validate("esto no es una url", currentHost = "old.example") shouldBeInstanceOf
             DomainOverrideRule.Invalid.Rejected::class
         // non-http(s) scheme
-        DomainOverrideRule.validate("ftp://new.example") shouldBeInstanceOf
+        DomainOverrideRule.validate("ftp://new.example", currentHost = "old.example") shouldBeInstanceOf
             DomainOverrideRule.Invalid.Rejected::class
-        DomainOverrideRule.validate("file:///sdcard/x") shouldBeInstanceOf
+        DomainOverrideRule.validate("file:///sdcard/x", currentHost = "old.example") shouldBeInstanceOf
             DomainOverrideRule.Invalid.Rejected::class
         // same host as the source of the rule
         DomainOverrideRule.validate("https://old.example", currentHost = "old.example")
