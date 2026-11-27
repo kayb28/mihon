@@ -68,6 +68,17 @@ object MigrationGuardPolicy {
     fun trackMigrationPlan(track: Track, migrated: Track?): TrackOutcome =
         if (migrated != null) TrackOutcome.Upsert(migrated) else TrackOutcome.KeptUnmigrated(track)
 
+    // ---------------------------------------------------------------- R6 (D-B, PR #23)
+
+    /**
+     * R6 (D-B): the EFFECTIVE replace decision. Tracks are migrated BEFORE the destructive
+     * updateManga; if ANY track could not be migrated, the row is NOT replaced — the
+     * original source stays and the caller marks the migration for review with the motivo.
+     * Skeleton (red): passes `replace` through unchanged; the real guard lands in the green
+     * commit.
+     */
+    fun effectiveReplace(replace: Boolean, outcomes: List<TrackOutcome>): Boolean = replace
+
     // ---------------------------------------------------------------- T-10.5 (P0-5)
 
     /**

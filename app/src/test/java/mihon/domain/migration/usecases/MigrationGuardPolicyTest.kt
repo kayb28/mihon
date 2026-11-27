@@ -47,14 +47,16 @@ class MigrationGuardPolicyTest {
 
     // -------------------------------------------------------------- T-10.4 (P0-4)
 
+    private fun track(id: Long, mangaId: Long = 7L) = Track(
+        id = id, mangaId = mangaId, trackerId = 3L, remoteId = 11L, libraryId = null,
+        title = "t$id", lastChapterRead = 0.0, totalChapters = 0, status = 0,
+        score = 0.0, remoteUrl = "", startDate = null, finishDate = null,
+        private = false,
+    )
+
     @Test
     fun `T-10-4 a migrated track is upserted`() {
-        val original = Track(
-            id = 1L, mangaId = 7L, trackerId = 3L, remoteId = 11L, libraryId = null,
-            title = "t", lastChapterRead = 0.0, totalChapters = 0, status = 0,
-            score = 0.0, remoteUrl = "", startDate = null, finishDate = null,
-            private = false,
-        )
+        val original = track(1L)
         val migrated = original.copy(mangaId = 42L)
         val outcome = MigrationGuardPolicy.trackMigrationPlan(original, migrated)
         assertEquals(MigrationGuardPolicy.TrackOutcome.Upsert(migrated), outcome)
@@ -62,15 +64,40 @@ class MigrationGuardPolicyTest {
 
     @Test
     fun `T-10-4 a null migration KEEPS the original track, not a silent drop`() {
-        val original = Track(
-            id = 1L, mangaId = 7L, trackerId = 3L, remoteId = 11L, libraryId = null,
-            title = "t", lastChapterRead = 0.0, totalChapters = 0, status = 0,
-            score = 0.0, remoteUrl = "", startDate = null, finishDate = null,
-            private = false,
-        )
+        val original = track(1L)
         val outcome = MigrationGuardPolicy.trackMigrationPlan(original, migrated = null)
         assertTrue(outcome is MigrationGuardPolicy.TrackOutcome.KeptUnmigrated)
         assertEquals(original, (outcome as MigrationGuardPolicy.TrackOutcome.KeptUnmigrated).track)
+    }
+
+    // -------------------------------------------------------------- R6 (D-B, PR #23)
+
+    @Test
+    fun `R6-D-B replace with every track migrated is effective`() {
+        val outcomes = listOf(
+            MigrationGuardPolicy.TrackOutcome.Upsert(track(1L, mangaId = 42L)),
+            MigrationGuardPolicy.TrackOutcome.Upsert(track(2L, mangaId = 42L)),
+        )
+        assertEquals(true, MigrationGuardPolicy.effectiveReplace(replace = true, outcomes = outcomes))
+    }
+
+    @Test
+    fun `R6-D-B replace with ONE failed track is NOT effective — the row is not replaced`() {
+        val outcomes = listOf(
+            MigrationGuardPolicy.TrackOutcome.Upsert(track(1L, mangaId = 42L)),
+            MigrationGuardPolicy.TrackOutcome.KeptUnmigrated(track(2L)),
+        )
+        assertEquals(false, MigrationGuardPolicy.effectiveReplace(replace = true, outcomes = outcomes))
+    }
+
+    @Test
+    fun `R6-D-B no tracks at all does not block replace`() {
+        assertEquals(true, MigrationGuardPolicy.effectiveReplace(replace = true, outcomes = emptyList()))
+    }
+
+    @Test
+    fun `R6-D-B without replace nothing changes`() {
+        assertEquals(false, MigrationGuardPolicy.effectiveReplace(replace = false, outcomes = emptyList()))
     }
 
     // -------------------------------------------------------------- T-10.2 (P0-3)
