@@ -99,6 +99,17 @@ class LongStripFitPolicyTest {
         assertClose(2f * 50000f * (1080f / 800f) / 2400f, zoomed.scaleY)
     }
 
+    // F2: paged/continuous parity. The continuous EXPERIMENTAL viewer draws each page
+    // at stripPageWidthPx / surfaceWidth; with the default preferences (0% side padding,
+    // 100% strip scale — the stock-parity values) that fraction is exactly 1.0. The
+    // paged policy's tall-page placement must match it, so a long strip reads at the
+    // same scale in both EXPERIMENTAL modes (and like HQ's width windowing).
+    @Test
+    fun `F2 the paged tall-page window matches the continuous strip's default width placement`() {
+        val fit = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, 0f)
+        assertClose(1f, fit.scaleX)
+    }
+
     // F3: the fit change does not regress Fallo E — the tile plan is untouched, and the
     // placed tiles still partition the page quad exactly (top of the first tile at the
     // page top, bottom of the last at the page bottom).
