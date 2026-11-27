@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.network.interceptor
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -45,6 +47,7 @@ import okio.Buffer
 import org.json.JSONObject
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -88,9 +91,6 @@ class WebViewFetchFallbackInterceptor(
     // same host wait for one WebView instead of each opening their own
     private val hostLocks = ConcurrentHashMap<String, ReentrantReadWriteLock>()
 
-    // Hosts where the fallback recently failed; they get a cooldown before trying again
-    private val cooldowns = ConcurrentHashMap<String, Long>()
-
     // Fallback activations per host, used to decide when to keep a warm WebView (level 2)
     private val activations = ConcurrentHashMap<String, ArrayDeque<Long>>()
 
@@ -99,6 +99,10 @@ class WebViewFetchFallbackInterceptor(
     private val poolMutex = Any()
 
     private val firstSuccessShown = AtomicBoolean(false)
+
+    // Pure decision layer (W1-W5): trigger rules and per-host cooldown bookkeeping live in
+    // WebViewFallbackPolicy so they are unit-testable on the JVM. The interceptor only wires it.
+    private val policy = WebViewFallbackPolicy()
 
     init {
         appScope.launch(Dispatchers.Main) {
@@ -111,11 +115,34 @@ class WebViewFetchFallbackInterceptor(
 
     override fun shouldIntercept(response: Response): Boolean {
         if (!preferences.webviewFallbackEnabled.get()) return false
-        if (response.code !in FALLBACK_CODES) return false
+        syncCooldown()
         val request = response.request
-        if (request.method !in SUPPORTED_METHODS) return false
-        val lastFailure = cooldowns[request.url.host] ?: return true
-        return System.currentTimeMillis() - lastFailure > COOLDOWN_MS
+        return policy.shouldAttempt(
+            host = request.url.host,
+            method = request.method,
+            statusCode = response.code,
+            hasConnectivity = hasConnectivity(),
+        )
+    }
+
+    // W2: network exceptions from the first OkHttp try get the same WebView second chance as
+    // HTTP error codes. The policy only triggers for real network I/O failures; if the
+    // WebView attempt also fails, WebViewInterceptor rethrows the ORIGINAL exception.
+    override fun shouldInterceptException(request: Request, cause: IOException): Boolean {
+        if (!preferences.webviewFallbackEnabled.get()) return false
+        syncCooldown()
+        return policy.shouldAttempt(
+            host = request.url.host,
+            method = request.method,
+            cause = cause,
+            hasConnectivity = hasConnectivity(),
+        )
+    }
+
+    override fun interceptException(chain: Interceptor.Chain, request: Request, cause: IOException): Response? {
+        val headersJson = request.toFetchHeadersJson()
+        val bodyJson = request.toFetchBodyJson() ?: return null
+        return attemptFallback(request, headersJson, bodyJson, failureStatusCode = null)
     }
 
     override fun intercept(chain: Interceptor.Chain, request: Request, response: Response): Response {
@@ -124,6 +151,27 @@ class WebViewFetchFallbackInterceptor(
 
         if (bodyJson == null) return response
 
+        val fallback = attemptFallback(request, headersJson, bodyJson, failureStatusCode = response.code)
+
+        return if (fallback != null) {
+            response.close()
+            fallback
+        } else {
+            response
+        }
+    }
+
+    /**
+     * One guarded WebView attempt: per-host lock, exactly one retry per request, failure
+     * recorded on the policy (cooldown). Returns null when the fallback yields nothing —
+     * callers then surface the original response/exception untouched.
+     */
+    private fun attemptFallback(
+        request: Request,
+        headersJson: JSONObject,
+        bodyJson: JSONObject,
+        failureStatusCode: Int?,
+    ): Response? {
         val host = request.url.host
         val lock = hostLocks.computeIfAbsent(host) { ReentrantReadWriteLock() }
         var fallback: Response? = null
@@ -137,18 +185,44 @@ class WebViewFetchFallbackInterceptor(
 
             if (fallback != null) {
                 onFallbackSuccess()
+                policy.recordResult(host, success = true, statusCode = fallback!!.code)
             } else {
-                cooldowns[host] = System.currentTimeMillis()
+                policy.recordResult(host, success = false, statusCode = failureStatusCode)
+            }
+            // W5: per-host "fallback used / outcome" line for problem-source triage; the
+            // aggregated view (usageReport) feeds the source reports.
+            logcat(LogPriority.INFO) {
+                val last = policy.usageReport().firstOrNull { it.host == host }
+                "WebView fallback host=$host ok=${fallback != null} " +
+                    "attempts=${last?.attempts ?: 0} successes=${last?.successes ?: 0} failures=${last?.failures ?: 0}"
             }
         }
 
-        val result = fallback
-        return if (result != null) {
-            response.close()
-            result
-        } else {
-            response
+        return fallback
+    }
+
+    /**
+     * W4: the per-host cooldown is user-configurable (minutes, conservative 10-minute
+     * default). Preferences are cached, so reading this per decision is cheap.
+     */
+    private fun syncCooldown() {
+        val minutes = preferences.webviewFallbackCooldownMinutes.get()
+        if (minutes > 0) {
+            policy.cooldownMs = minutes * 60_000L
         }
+    }
+
+    /**
+     * W3: total-connectivity probe. Without ANY network (airplane mode / radio off) a
+     * WebView load cannot succeed either, so the fallback is not even attempted. This is a
+     * plain "is there a network" check — a captive portal or a down site still reads as
+     * connected and keeps the fallback enabled.
+     */
+    private fun hasConnectivity(): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+        val network = manager.activeNetwork ?: return false
+        val caps = manager.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun onFallbackSuccess() {
@@ -654,8 +728,6 @@ class WebViewFetchFallbackInterceptor(
 }
 
 private const val BRIDGE_NAME = "mihonfix"
-private val FALLBACK_CODES = setOf(403, 503)
-private val SUPPORTED_METHODS = setOf("GET", "POST")
 private const val FALLBACK_HEADER = "X-MihonFix-Webview-Fallback"
 internal const val MAX_RESPONSE_BYTES = 25L * 1024 * 1024
 private const val MAX_REQUEST_BODY_BYTES = 2L * 1024 * 1024
@@ -664,7 +736,6 @@ private const val OP_TIMEOUT_SECONDS = 60L
 // Max time waiting for a challenge to auto-solve before running the fetch anyway
 private const val NAV_MAX_WAIT_MS = 20_000L
 
-private const val COOLDOWN_MS = 10L * 60_000L
 private const val WARM_WINDOW_MS = 10L * 60_000L
 private const val WARM_THRESHOLD = 2
 private const val POOL_TTL_MS = 2L * 60_000L

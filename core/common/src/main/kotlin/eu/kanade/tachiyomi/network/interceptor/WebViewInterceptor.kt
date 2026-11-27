@@ -17,6 +17,7 @@ import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import tachiyomi.i18n.MR
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -50,9 +51,35 @@ abstract class WebViewInterceptor(
 
     abstract fun intercept(chain: Interceptor.Chain, request: Request, response: Response): Response
 
+    /**
+     * W2 hook: decide whether a network exception thrown by the first OkHttp attempt should
+     * get a WebView second try. The base class never triggers on exceptions (historical
+     * behavior); the WebView fetch fallback overrides it to widen the trigger to "all
+     * failures". If the hook says no (or the WebView attempt yields nothing) the ORIGINAL
+     * exception is rethrown — errors are never swallowed.
+     */
+    protected open fun shouldInterceptException(request: Request, cause: IOException): Boolean = false
+
+    /**
+     * W2 hook: run the WebView attempt for a request whose first try threw. Returns null when
+     * the fallback cannot produce a response (the original exception then propagates).
+     */
+    protected open fun interceptException(
+        chain: Interceptor.Chain,
+        request: Request,
+        cause: IOException,
+    ): Response? = null
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val response = chain.proceed(request)
+        val response = try {
+            chain.proceed(request)
+        } catch (e: IOException) {
+            // W2: network exceptions may get a WebView second try before propagating
+            if (!shouldInterceptException(request, e)) throw e
+            if (!prepareWebView()) throw e
+            interceptException(chain, request, e) ?: throw e
+        }
         if (!shouldIntercept(response)) {
             return response
         }
