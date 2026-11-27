@@ -60,8 +60,8 @@ class LongStripFitPolicyTest {
         val scaleY = 50000f * (1080f / 800f) / 2400f
         val maxPanY = (scaleY - 1f) * 2400f / 2f
         val top = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, 0f)
-        val bottom = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, maxPanY)
-        val beyond = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, maxPanY * 10f)
+        val bottom = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, -maxPanY)
+        val beyond = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, -maxPanY * 10f)
         // Bottom: the page's last row sits on the viewport's bottom edge.
         assertClose(-1f, bottom.offsetY - bottom.scaleY)
         // Over-panning clamps: no gap below the page.
