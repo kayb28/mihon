@@ -85,9 +85,11 @@ class WebViewFallbackPolicy(
     companion object {
         // W1 was every 4xx/5xx; P1-5 (T-10.10) narrows it to DETERMINISTIC codes — ones a
         // WebView can actually fix (challenge/WAF walls, bot checks, throttling). A WebView
-        // cannot repair 400 (bad request), 401 (auth), 404/410 (gone — the link repairer's
-        // 3-streak already owns those) or 416 (range).
-        val FALLBACK_CODES: Set<Int> = setOf(403, 405, 406, 409, 425, 429) + (500..599).toSet()
+        // cannot repair 400 (bad request), 401 (auth) or 416 (range). D-A (auditoría
+        // pre-merge PR #23): 404/410 STAY in the set — soft-404 walls serve a PAGE to
+        // browsers, so the WebView can clear them; the link repairer's 3-streak only owns
+        // genuinely gone links.
+        val FALLBACK_CODES: Set<Int> = setOf(403, 404, 405, 406, 409, 410, 425, 429) + (500..599).toSet()
         val SUPPORTED_METHODS = setOf("GET", "POST")
         const val DEFAULT_COOLDOWN_MS = 10L * 60_000L
 
