@@ -600,3 +600,18 @@ vetable por el usuario hasta la puerta de merge). W3 NO vetado hasta la fecha.
 (checklist W1/W2/W4 observable en `docs/INFORME_MOTOR_WEB_REFORZADO.md`) + OK explícito.
 Sin él, NO merge. Build para instalar: artefacto `INSTALAR-dcba12e2b…`,
 `MihonFix-0.21.3-build-dcba12e-20261127-0245-arm64.apk`, firma ESTABLE.
+
+## 2026-11-27 (T-B — PROMPT 9)
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 07:0x | `feat/p5-reintentar-titulos-error` | `d476a2416` | ❌ (comportamiento) | rojo T-B: RetryErrorsPolicy esqueleto (botón no existe) + 8 tests 5.1-5.5 |
+| 07:0x | `feat/p5-reintentar-titulos-error` | `ef16916fb` | ✅ | verde 5.1-5.2: visibilidad (≥1 error) + alcance por snapshot (getErrorMangaIds al pulsar; isWholeLibrary=false) |
+| 07:1x | `feat/p5-reintentar-titulos-error` | `fad775114` | ✅ | verde 5.3-5.5: applyResults (refresco vía store, restantes = fallos frescos), guarda un-lote-por-pulsación + estado vacío, SEAMS auditadas (policy inerte: B3/RepairOutcomePolicy/CalmPass intactos) |
+| 07:2x | `feat/p5-reintentar-titulos-error` | `c55de1e87` | 🟡 | wiring UI: TextButton testTag update_errors_retry_button en AppBar + strings base/es + retryErrorMangas() en el VM (UpdateMangaFromRemote manualFetch por ID del snapshot) |
+
+**Notas T-B:** los éxitos dejan la lista por auto-limpieza
+(removeErrorsForManga dentro de UpdateMangaFromRemote) y errorsFlow refresca la
+pantalla — replaceForManga no hizo falta. No se usa LibraryUpdateWorker (fuera de
+alcance: sería por fuente/categoría). Informe:
+docs/INFORME_BOTON_REINTENTAR.md. Checklist de dispositivo en el informe.
