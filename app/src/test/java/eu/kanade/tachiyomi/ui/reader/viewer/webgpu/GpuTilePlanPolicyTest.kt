@@ -66,7 +66,7 @@ class GpuTilePlanPolicyTest {
             tiles.forEach { t ->
                 t.sourceY shouldBe expectedY
                 t.height shouldBeGreaterThanZero
-                expectedY += t.height
+                    expectedY += t.height
             }
             expectedY shouldBe height
         }
