@@ -338,8 +338,12 @@ class WebViewFetchFallbackInterceptor(
                 e.lastUsed = System.currentTimeMillis()
                 e.sessionRef.set(session)
 
+                // T-10.7 (P1-2): a FRESH client on every fetch, even on a warm reused
+                // engine — the old client's callbacks captured the PREVIOUS session and
+                // request (with it, up to MAX_RESPONSE_BYTES of buffer) and could act on
+                // them when the engine was reused without a navigation.
+                installClient(e)
                 if (e.loadedOrigin != origin) {
-                    installClient(e)
                     e.webview.loadUrl(challengeUrl, loadHeaders)
                     // If no clearance ever shows up (non-Cloudflare WAF) or the challenge takes
                     // too long, run the fetch anyway; its result tells the truth.
