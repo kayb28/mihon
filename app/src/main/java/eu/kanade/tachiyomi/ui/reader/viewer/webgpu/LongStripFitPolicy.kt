@@ -71,14 +71,18 @@ object LongStripFitPolicy {
         }
 
         val maxPanX = (scaleX - 1f).coerceAtLeast(0f)
-        val maxPanY = (scaleY - 1f).coerceAtLeast(0f)
         val offsetX = (panX / sw * 2f).coerceIn(-maxPanX, maxPanX)
-        // Surface px are y down, NDC y up, so the pan's y flips. The tall-page base
-        // offset pins the window to the page's top at pan 0; clamping keeps the
-        // viewport inside the page (no gaps above or below) at every pan position.
-        // Normal pages keep the pre-existing clamp (±maxPanY, which is 0 when the
-        // page fits vertically — exactly the old behavior).
-        val offsetY = (baseOffsetY - panY / sh * 2f).coerceIn(-maxPanY, maxPanY)
+        // Surface px are y down, NDC y up, so the pan's y flips. The tall-page clamp is
+        // ASYMMETRIC around the top-pinned base: the window slides from the page's top
+        // edge (pan 0) to its bottom edge, and the viewport never leaves the page. The
+        // normal page keeps the pre-existing symmetric clamp (±maxPanY, 0 when the page
+        // fits vertically — exactly the old behavior).
+        val offsetY = if (tallPage) {
+            (baseOffsetY - panY / sh * 2f).coerceIn(1f - scaleY, scaleY - 1f)
+        } else {
+            val maxPanY = (scaleY - 1f).coerceAtLeast(0f)
+            (baseOffsetY - panY / sh * 2f).coerceIn(-maxPanY, maxPanY)
+        }
         return Fit(scaleX = scaleX, scaleY = scaleY, offsetX = offsetX, offsetY = offsetY)
     }
 }

@@ -233,6 +233,29 @@ class AndroidxWebGpuViewer(
                 activity.viewModel.getMangaReadingMode(),
             )
             val vertical = mode.direction is eu.kanade.tachiyomi.ui.reader.setting.ReadingMode.Direction.Vertical
+            // Fallo F (T-F): a tall page's window pans at fit — the page is placed at
+            // width-fit (LongStripFitPolicy), so vertical drags slide the window (the
+            // renderer clamps it to the page) and page turns happen only at the window's
+            // edges, the same windowing HQ gives. Normal pages turn as always.
+            val panRange = tallPagePanRange(container.height.toFloat())
+            val edgeTurn = when {
+                panRange == null -> true
+                !vertical -> kotlin.math.abs(pan.x) >= kotlin.math.abs(pan.y)
+                pan.y > 0f -> panY >= -1f
+                else -> panY <= -panRange + 1f
+            }
+            if (!edgeTurn) {
+                panY += pan.y
+                panX = 0f
+                imageBackend.setTransform(zoom, panX, panY)
+                imageBackend.requestRender()
+                swipe.reset()
+                return
+            }
+            if (panRange != null && vertical) {
+                // Snap the window to the edge the turn starts from.
+                panY = if (pan.y > 0f) 0f else -panRange
+            }
             val step = swipe.onDrag(
                 panX = pan.x,
                 panY = pan.y,
@@ -260,6 +283,22 @@ class AndroidxWebGpuViewer(
         }
         imageBackend.setTransform(zoom, panX, panY)
         imageBackend.requestRender()
+    }
+
+    /**
+     * Fallo F (T-F): the tall-page window's pan traversal at fit (zoom 1), in surface px,
+     * or null when the current page is not taller than the viewport at width-fit —
+     * [LongStripFitPolicy] places tall pages at width-fit with a top-pinned window. The
+     * renderer clamps the pan per frame; this only bounds where page turns are allowed.
+     */
+    private fun tallPagePanRange(containerHeight: Float): Float? {
+        val page = current ?: return null
+        val image = synchronized(gpuImages) { gpuImages[page] } ?: return null
+        val sw = imageBackend.surfaceWidthPx.takeIf { it > 0 }?.toFloat() ?: return null
+        val sh = imageBackend.surfaceHeightPx.takeIf { it > 0 }?.toFloat() ?: containerHeight
+        if (image.width <= 0 || image.height <= 0) return null
+        val heightAtFitWidth = image.height * (sw / image.width)
+        return (heightAtFitWidth - sh).takeIf { it > 0f }
     }
 
     /** Toggles between fit and [DOUBLE_TAP_ZOOM], zooming into the tapped point (shared policy). */
