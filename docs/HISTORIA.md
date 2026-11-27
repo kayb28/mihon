@@ -1,4 +1,4 @@
-# Historia consolidada — MihonFix (fork kayb28)
+# Historia consolidada — MihonFix (fork kayb28/mihonfix)
 
 > Última actualización: **2026-11-17 17:10 UTC** · Compilada a partir del histórico de git (151 commits propios + consolidación v4), `docs/REGISTRO.md`, `docs/TRASPASO.md`, `CHANGELOG.md` y los manifiestos de trabajo.
 >

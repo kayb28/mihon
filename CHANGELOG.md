@@ -1100,3 +1100,9 @@ Same as v0.19.6
   dispositivo, sin escalar ni perder calidad, en modo continuo y paginado (rama
   `fix/fallo-e-textura`, T-E del PROMPT 9; informe en
   `docs/INFORME_FALLO_E_TEXTURA.md`).
+
+### Other
+- Rename del repositorio: `kayb28/mihon` → `kayb28/mihonfix` + identidad visual
+  «MihonFix»: app_name «Mihon Fix», icono adaptativo con fondo tinta `#12141A` y glifo
+  ámbar `#E8B54A` (mismos trazados, sin rediseño), banner README. Sin cambios de
+  applicationId/versión/firma (rama `docs/rebrand-mihonfix`, T-REB del PROMPT 9-ADD-2).

@@ -1,6 +1,6 @@
 # AGENTS.md — guía para agentes en este repositorio
 
-_Fork de Mihon («MihonFix»). Última actualización de esta guía: 2026-11-26._
+_Fork de Mihon («MihonFix», repo kayb28/mihonfix). Última actualización de esta guía: 2026-11-27._
 _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGISTRO.md`)._
 
 ## 1. Qué es este proyecto
@@ -26,7 +26,7 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 - Comandos relevantes (los que corre CI):
   - `./gradlew :core:common:compileReleaseKotlin` — compila el módulo del fallback WebView.
   - `./gradlew assembleDebug` / `assembleRelease` — APK (CI entrega arm64 como
-    `MihonFix-0.21.3-build-<sha>-arm64.apk`).
+    `MihonFix-0.21.3-build-<timestamp>-arm64.apk`, donde `<timestamp>` = `<sha>-<yyyymmdd-hhmm UTC>`).
   - `./gradlew :core:common:testDebugUnitTest` — tests JVM de `core:common`.
 - CI (GitHub Actions), dos workflows (verificados el 2026-11-26):
   - **Build APK** (`.github/workflows/build_apk.yml`) — en CADA push a cualquier rama corre
@@ -47,36 +47,33 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 
 ## 3. Ramas
 
-(Estado verificado contra GitHub el 2026-11-26.)
+(Estado verificado contra GitHub el 2026-11-27, tras el merge del PR #14.)
 
-- `main` — rama de distribución. Punta: `00f465d` (merge PR #9: tests B1–B4 del
-  reparador de enlaces; antes `b5a1323`, PR #8 de coherencia documental post-auditoría;
-  antes `152027f`, merge de `fix/migration-guard-fixes`, M1–M4, 2026-11-25 03:50 UTC).
-  La reconciliación con `feature/webgpu-clean` YA ESTÁ
-  RESUELTA: `4f4b79c46` (punta del corte de `feature/webgpu-clean`) es ancestro de
-  `main` (`git merge-base --is-ancestor` exitoso), y la consolidación de las 7 ramas se
-  publicó como Release `v0.21.3-fork.1` (2026-11-19). Las builds de `main` se instalan
-  encima (firma estable, versionCode 40).
-- `feature/webgpu-clean` — línea de trabajo WebGPU del ciclo anterior. Punta `736fa6baa`
-  (= `v0.21.3-fork.1`). Su contenido está consolidado en `main`; los cambios nuevos van
-  en ramas propias cortadas de `main`.
-- `feat/t6-page-state-machine-wiring` — cableado del lector (T6a + fixes R1–R4 del
-  drift), cortada de `main` en `152027f`. **SIN MERGEAR**: pendiente de la checklist de
-  validación en dispositivo del usuario (Ronda 2; build probada `…ce3db2d-arm64.apk`,
-  CI verde). Su predecesora `feat/reader-page-state-wiring` (misma serie de commits,
-  hashes propios) quedó como archivo histórico del mismo trabajo. No tocar sin
-  autorización del usuario.
-- `fix/migration-guard-fixes` — encargo correctivo M1–M4, MERGEADA en `main` (`152027f`).
-- `docs/coherencia-post-auditoria-reparador` — PR #8 (F1/F2/F3 de la auditoría del
-  reparador), MERGEADA en `main` (`b5a1323`, 2026-11-26).
-- `fix/reparador-enlaces-tests` — PR #9 (tests B1–B4, F5 de la auditoría), MERGEADA en
-  `main` (`00f465d`, 2026-11-26).
-- `fix/viewer-refactor-t1-t7` — bloque T1–T7 del visor, squash `c8d2f52` en `main`.
-- `ci/branch-checks` — job «Spotless & Unit Tests» en cada push (C6/C7), mergeada `ca86c55`.
-- Ramas nuevas: prefijos `fix/` (código) o `docs/` (documentación). Córtalas desde la
-  rama base que indique la tarea. Si la tarea no indica base, pregunta antes de decidir.
-- Las ramas obsoletas están archivadas como `archive/*` (ver `docs/HISTORIA.md`;
-  restaurar una con `git checkout -b <rama> <tag>`).
+- `main` — rama de distribución. Punta: `bd4aa16e` (merge PR #14: P7 motor web
+  secundario, W1–W5; antes `7d10926`, merge PR #13 de T6 — Ronda 2 validada y puerta de
+  zoom aprobada por el usuario 26/11; antes PRs #8–#12: docs post-auditoría, tests B1–B4,
+  T1–T7 del visor, guards de migración). La reconciliación con `feature/webgpu-clean`
+  está resuelta desde la Release `v0.21.3-fork.1` (2026-11-19). Las builds de `main` se
+  instalan encima (firma estable, versionCode 40).
+- `feat/p8-domain-override` — PROMPT 8/9 T-P8: regla por fuente «Editar dominio»
+  (from_host→to_host) compartida por OkHttp y el fallback WebView de P7. En curso
+  (D1–D6 con tests JVM); PR pendiente; merge solo con orden explícita del usuario.
+- `docs/consolidacion-2026-11-27` — PROMPT 9 T-D1: consolidación documental
+  (cierre Fallo C, apertura Fallo E, ADOPCIONES_UPSTREAM, decisiones V1–V8/1b, prefijo
+  NO-INSTALAR- en artefactos de `build.yml` — V3). PR pendiente.
+- `fix/fallo-e-textura` — PROMPT 9 T-E: Fallo E (textura 800×50000 > límite GPU en el
+  visor EXPERIMENTAL WebGPU; troceado en teselas). En curso.
+- `feat/p5-reintentar-titulos-error` — PROMPT 9 T-B: botón «Reintentar títulos con
+  error» en UpdateErrorsScreen. En curso.
+- `feature/webgpu-clean` — línea del ciclo anterior; punta `736fa6baa` (= `v0.21.3-fork.1`),
+  consolidada en `main`. Archivo histórico; no tocar.
+- `feat/t6-page-state-machine-wiring` — MERGEADA en `main` (PR #13, `7d10926`).
+  Su predecesora `feat/reader-page-state-wiring` queda como archivo histórico.
+- `fix/migration-guard-fixes` — MERGEADA (`152027f`).
+- `docs/coherencia-post-auditoria-reparador` — PR #8, MERGEADA (`b5a1323`).
+- `fix/reparador-enlaces-tests` — PR #9, MERGEADA (`00f465d`).
+- `fix/viewer-refactor-t1-t7` — T1–T7, squash `c8d2f52` en `main`.
+- `ci/branch-checks` — job «Spotless & Unit Tests» por push (C6/C7), mergeada `ca86c55`.
 
 ## 4. Qué está verificado y qué no (corte: 2026-11-26)
 

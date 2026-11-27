@@ -58,7 +58,7 @@ jobs:
         if: steps.unit_tests.outcome == 'failure'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-report-${{ github.sha }}
+          name: NO-INSTALAR-test-report-${{ github.sha }}
           path: app/build/reports/tests/testDebugUnitTest
 
       - name: Build app
@@ -83,5 +83,5 @@ jobs:
       - name: Upload mapping
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: mapping-${{ github.sha }}
+          name: NO-INSTALAR-mapping-${{ github.sha }}
           path: app/build/outputs/mapping/release
