@@ -292,8 +292,10 @@ class WebViewFetchFallbackInterceptor(
                     e.loadedOrigin = origin
                     if (!e.useIsolatedWorld && !listenerInjected && url == challengeUrl) {
                         listenerInjected = true
-                        // Legacy route: only the mihonfix interface exists in the page
-                        view.evaluateJavascript(legacyChallengeListenerScript, null)
+                        // Legacy route: only the mihonfix interface exists in the page.
+                        // T-10.9 (P1-9): the listener forwards the session key with every
+                        // challenge event — dispatchMessage rejects unkeyed abort events.
+                        view.evaluateJavascript(legacyChallengeListenerScript(session.key), null)
                     }
                     // Fetch right away when the page loaded normally, wait for the clearance
                     // cookie when the loaded page was an auto-solving challenge.
@@ -561,7 +563,16 @@ class WebViewFetchFallbackInterceptor(
         if (data.isNullOrBlank()) return
         val session = engine.sessionRef.get() ?: return
         if (data == "interactiveBegin" || data == "fail") {
-            session.onChallengeAbort(data)
+            // T-10.9 (P1-9): the legacy addJavascriptInterface bridge is injected into ALL
+            // frames and cannot tell main frame from iframe — any frame could post a bare
+            // "fail" and abort the fallback. Challenge events MUST carry the session key.
+            if (engine.useIsolatedWorld) {
+                // Isolated-world bridge: main-frame only and unreachable from page code.
+                session.onChallengeAbort(data)
+            } else if (data.endsWith("|${session.key}")) {
+                session.onChallengeAbort(data.removeSuffix("|${session.key}"))
+            }
+            // No key (or wrong key) on the legacy route: ignored — never aborts.
         } else {
             session.onMessage(data)
         }
@@ -797,11 +808,13 @@ private val challengeListenerScript = """
     })
 """.trimIndent()
 
-// Legacy addJavascriptInterface route: the only native object in the page is mihonfix
-private val legacyChallengeListenerScript = """
+// Legacy addJavascriptInterface route: the only native object in the page is mihonfix.
+// T-10.9 (P1-9): challenge events carry the session key so dispatchMessage can tell a
+// real Cloudflare abort from any iframe shouting "fail" through the shared interface.
+private fun legacyChallengeListenerScript(sessionKey: String) = """
     addEventListener("message", ({data}) => {
         if (data?.source === "cloudflare-challenge") {
-            mihonfix?.postMessage(data.event);
+            mihonfix?.postMessage(data.event + "|" + "$sessionKey");
         }
     })
 """.trimIndent()
