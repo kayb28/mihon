@@ -476,6 +476,7 @@ class WebViewFetchFallbackInterceptor(
             if (pooled != null && !pooled.inUse.get()) {
                 pool.remove(origin)
                 pooled.destroy()
+                pooled.cancelNavTimeout(mainHandler)
             }
         }
         return createEngine(origin, userAgent)
@@ -603,7 +604,10 @@ class WebViewFetchFallbackInterceptor(
                 pool[origin] = engine
             }
         }
-        evicted.forEach { it.destroy() }
+        evicted.forEach {
+            it.destroy()
+            it.cancelNavTimeout(mainHandler)
+        }
     }
 
     private fun evictIdleEngines() {
@@ -619,7 +623,10 @@ class WebViewFetchFallbackInterceptor(
                 }
             }
         }
-        toDestroy.forEach { it.destroy() }
+        toDestroy.forEach {
+            it.destroy()
+            it.cancelNavTimeout(mainHandler)
+        }
     }
 
     private fun destroyEngine(engine: Engine, checkOutdated: Boolean) {
@@ -627,6 +634,7 @@ class WebViewFetchFallbackInterceptor(
             runCatching { context.toast(MR.strings.information_webview_outdated, Toast.LENGTH_LONG) }
         }
         engine.destroy()
+        engine.cancelNavTimeout(mainHandler)
     }
 
     private fun recordActivation(host: String): Boolean {
@@ -731,8 +739,6 @@ class WebViewFetchFallbackInterceptor(
         val inUse = AtomicBoolean(false)
 
         fun destroy() {
-            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-            navTimeoutRunnable = null
             try {
                 webview.stopLoading()
             } catch (_: Throwable) {}
@@ -760,6 +766,12 @@ class WebViewFetchFallbackInterceptor(
             try {
                 webview.destroy()
             } catch (_: Throwable) {}
+        }
+
+        /** T-10.8 (P1-3): cancels the pending NAV-max-wait timer (outer handler). */
+        fun cancelNavTimeout(handler: android.os.Handler) {
+            navTimeoutRunnable?.let { handler.removeCallbacks(it) }
+            navTimeoutRunnable = null
         }
     }
 }
