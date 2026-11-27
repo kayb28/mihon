@@ -71,7 +71,7 @@ class WebViewFallbackPolicy(
         cause: Throwable? = null,
     ) {
         if (!success) cooldowns[host] = clock()
-        tracker.record(host, success, statusCode, cause)
+        tracker.record(host, success, statusCode, cause, usedAt = clock())
     }
 
     /** W5: aggregated per-host view of "fallback used / result", newest state last. */
@@ -122,9 +122,29 @@ class FallbackUsageTracker {
         cause: Throwable?,
         usedAt: Long = System.currentTimeMillis(),
     ) {
-        // Green commit (W5) implements the real recording; the red skeleton stays a no-op so
-        // the red tests fail on behavior (no report exists yet), not on linkage.
+        val entry = entries.computeIfAbsent(host) { Entry() }
+        synchronized(entry) {
+            entry.attempts++
+            if (success) entry.successes++ else entry.failures++
+            entry.lastUsedAt = usedAt
+            entry.lastSuccess = success
+            entry.lastStatusCode = statusCode
+            entry.lastErrorKind = cause?.let { it::class.java.simpleName }
+        }
     }
 
-    fun summary(): List<HostFallbackSummary> = emptyList()
+    fun summary(): List<HostFallbackSummary> = entries.map { (host, entry) ->
+        synchronized(entry) {
+            HostFallbackSummary(
+                host = host,
+                attempts = entry.attempts,
+                successes = entry.successes,
+                failures = entry.failures,
+                lastUsedAt = entry.lastUsedAt,
+                lastSuccess = entry.lastSuccess,
+                lastStatusCode = entry.lastStatusCode,
+                lastErrorKind = entry.lastErrorKind,
+            )
+        }
+    }.sortedBy { it.host }
 }

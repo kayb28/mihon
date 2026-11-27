@@ -189,6 +189,13 @@ class WebViewFetchFallbackInterceptor(
             } else {
                 policy.recordResult(host, success = false, statusCode = failureStatusCode)
             }
+            // W5: per-host "fallback used / outcome" line for problem-source triage; the
+            // aggregated view (usageReport) feeds the source reports.
+            logcat(LogPriority.INFO) {
+                val last = policy.usageReport().firstOrNull { it.host == host }
+                "WebView fallback host=$host ok=${fallback != null} " +
+                    "attempts=${last?.attempts ?: 0} successes=${last?.successes ?: 0} failures=${last?.failures ?: 0}"
+            }
         }
 
         return fallback
