@@ -848,5 +848,22 @@ T-10.0 primero: veredictos V1–V5 en `docs/INFORME_VERIFICACION_P0P1.md` — V2
 | T-10.15 | P1-10 | PARCIAL (V3) — sin parche; validación en dispositivo | registrado en el informe |
 | docs | — | CHANGELOG sección P10 + AGENTS §4 corte 2026-11-28 y §7.3 versionCode 40 + esta entrada | `docs(p10)` |
 
-Estado: **pendiente confirmar** — CI del PR como árbitro; P0 migración (replace=true),
-T-10.7/8/9 y T-10.15 requieren validación en dispositivo antes de pasar a `confirmado`.
+Serie CI (rama `fix/p10-auditoria-p0p1`, PR #23):
+
+| Hora (UTC) | Commit | Resultado | Contenido |
+|---|---|---|---|
+| 20:33 | `7e02474` | ❌ failure (run 46067991040) | spotlessCheck: formato de los tests T-10.6/11 — corregido, no cuenta |
+| 20:42 | `883d25a` | ❌ failure | formato: import order + líneas largas T-10.13 — no cuenta |
+| 20:51 | `5ca8f3c` | ❌ failure | formato: import order en MigrationGuardPolicy — no cuenta |
+| 21:01 | `9198ac5` | ❌ failure | formato: línea larga Track — no cuenta |
+| 21:10 | `74a3516` | ❌ failure | formato: import order + líneas largas T-10.2 — no cuenta |
+| 21:20 | `3b2de92` | ❌ failure (compile) | `Engine.destroy()` tocaba el handler externo desde clase anidada — corregido con `cancelNavTimeout(handler)`, no cuenta |
+| 21:39 | `274df23` | ❌ failure (test) | T-10-5: expectativa errónea (isRecognizedNumber es >= 0, no > 0) — corregida, no cuenta |
+| 21:55 | `e8daee1` | ✅ success (runs 46072589015 / 46072589016) | **verde todo**: Spotless & Unit Tests + Build APK; build `INSTALAR-e8daee1` verificada: `MihonFix-0.21.3-build-e8daee1-20261127-2155-arm64.apk`, 35,245,426 bytes, sha256 `4F4B6445E8605E50D34771400DEA5DEDBD265C36C985160686E2EB8633C736D1`, firma ESTABLE (`DE7889F3…D1296AD0`), log «Keystore secret found. Configuring release signing.» presente, versionCode 40 — instala encima |
+| 21:5x | docs (este commit) | (run en curso al redactar) | evidencia CI + informe final |
+
+Estado: **pendiente confirmar** — CI verde en el PR #23 como árbitro; requieren
+validación en dispositivo antes de `confirmado`: P0 migración con `replace = true`
+(target vacío aborta), T-10.7/8/9 (fallback WebView: cliente fresco, timer cancelado,
+abortos con clave), T-10.15/P1-10 (PARCIAL — sin parche, observación de crash/ruido al
+saltar con muchas texturas).
