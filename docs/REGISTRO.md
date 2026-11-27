@@ -862,3 +862,24 @@ intactas (F3). Informe: `docs/INFORME_FALLO_F.md`.
 Estado: **pendiente confirmar** — espera validación del usuario en dispositivo
 (checklist en el informe). PR al cerrar el encargo; merge solo por orden explícita del
 usuario.
+
+## 2026-11-27 (Consolidación G+F — build única a petición del usuario)
+
+Motivo: el usuario prefiere «probarlo todo de una vez». Se crea la rama
+`consolidacion/g-f` = `main` + `fix/p8-descubribilidad` (G1+G2) + `fix/fallo-f-calidad`
+(F1+F2+F3). Conflicto solo en docs (REGISTRO, PROBLEMAS, INFORME_FALLO_F) — resuelto
+manteniendo ambas entradas y la versión final del lado F; el código de G y F no toca
+los mismos ficheros (SourcesScreen/DomainRuleUi vs LongStripFitPolicy/WebGpuViewer).
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 17:1x | `consolidacion/g-f` | `8ff6f9d` | — | merge(fallo-g): G1+G2 sin conflictos |
+| 17:1x | `consolidacion/g-f` | `26c7553` | — | merge(fallo-f): F1+F2+F3; conflicto docs resuelto |
+| 17:35 | `consolidacion/g-f` | `26c7553` | ✅ success (run 46042097450) | Build APK verde; artefacto `INSTALAR-26c7553`: `MihonFix-0.21.3-build-26c7553-20261127-1735-arm64.apk`, 35,245,426 bytes, sha256 `B84B1C979066CF6195BF9854C6EDADC01B9D30CC8B88CCB913471A6AD712F2EE`, firma ESTABLE (`DE7889F3…D1296AD0` — instala encima, mismo certificado) |
+
+Estado: **build única con Fallo G + Fallo F** — pendiente validación del usuario en
+dispositivo. Checklist combinado: 1) instalar encima (firma ESTABLE); 2) G: «Editar
+dominio» visible al inicio de Detalles de la extensión + sigue funcionando desde el
+long-press de la fuente; 3) F: tira larga en EXPERIMENTAL a fit-ancho sin compresión,
+pan a fit (zoom 1), pase de página solo en el borde, página normal sin cambios (E3),
+sin crash de textura (Fallo E sigue cerrado, F3).
