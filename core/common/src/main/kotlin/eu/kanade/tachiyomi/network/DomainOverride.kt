@@ -76,9 +76,8 @@ data class DomainOverrideRule(
  * D2-D5: the ONE rewrite implementation shared by the OkHttp path and the WebView fallback
  * path (PROMPT 8 audited fact: both share the network layer, so the helper must be single).
  *
- * RED SKELETON: every method is the identity/no-op (today's behavior), so the red tests
- * fail on BEHAVIOR. Green commits implement D2 (rewrite), D3 (shared with the WebView
- * path), D5 (zero rules = identity stays guaranteed by construction) and D6 (log line).
+ * newBuilder().host() keeps scheme, port, path, query and fragment — the request is only
+ * re-pointed at the new host, exactly what a site that moved domains needs.
  */
 class DomainOverrideHelper(private val store: DomainOverrideStore) {
 
@@ -90,11 +89,17 @@ class DomainOverrideHelper(private val store: DomainOverrideStore) {
     fun rewriteUrl(
         url: okhttp3.HttpUrl,
         onRewrite: (String) -> Unit = {},
-    ): okhttp3.HttpUrl? = null
+    ): okhttp3.HttpUrl? {
+        val target = store.targetFor(url.host) ?: return null
+        return url.newBuilder().host(target).build()
+    }
 
     /**
      * D2: request-level rewrite (method, headers and body are preserved untouched);
      * returns the SAME instance when no rule matches (D5).
      */
-    fun rewriteRequest(request: okhttp3.Request): okhttp3.Request = request
+    fun rewriteRequest(request: okhttp3.Request): okhttp3.Request {
+        val rewritten = rewriteUrl(request.url) ?: return request
+        return request.newBuilder().url(rewritten).build()
+    }
 }
