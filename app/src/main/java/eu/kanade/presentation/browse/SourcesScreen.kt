@@ -327,6 +327,9 @@ fun SourceEditDomainDialog(
             }
         },
         confirmButton = {
+            // Resolve the messages in the composable context; the click handler only picks.
+            val invalidMsg = stringResource(MR.strings.source_action_edit_domain_invalid)
+            val sameHostMsg = stringResource(MR.strings.source_action_edit_domain_same_host)
             TextButton(
                 onClick = {
                     when (
@@ -336,10 +339,8 @@ fun SourceEditDomainDialog(
                         )
                     ) {
                         is DomainOverrideRule.Valid -> onSave(verdict.toHost)
-                        is DomainOverrideRule.Invalid.Rejected ->
-                            error = stringResource(MR.strings.source_action_edit_domain_invalid)
-                        is DomainOverrideRule.Invalid.SameHost ->
-                            error = stringResource(MR.strings.source_action_edit_domain_same_host)
+                        is DomainOverrideRule.Invalid.Rejected -> error = invalidMsg
+                        is DomainOverrideRule.Invalid.SameHost -> error = sameHostMsg
                     }
                 },
             ) {
