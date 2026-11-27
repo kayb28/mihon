@@ -124,4 +124,29 @@ class ViewerPageStateMachineTest {
         sm.reset()
         assertFalse(sm.stateOf(page).isFailed)
     }
+
+    // region T-10.13 (P1-8) — DECODE/STORAGE REUPLOAD is capped, a corrupt image cannot loop
+
+    @Test
+    fun `T-10-13 DECODE with attempt budget spent does NOT retry`() {
+        assertEquals(
+            ViewerPageStateMachine.RetryDecision.DO_NOT_RETRY,
+            ViewerPageStateMachine.retryDecision(ViewerPageStateMachine.FailureReason.DECODE, attempt = ViewerPageStateMachine.MAX_REUPLOAD_ATTEMPTS),
+        )
+        assertEquals(
+            ViewerPageStateMachine.RetryDecision.REUPLOAD,
+            ViewerPageStateMachine.retryDecision(ViewerPageStateMachine.FailureReason.DECODE, attempt = ViewerPageStateMachine.MAX_REUPLOAD_ATTEMPTS - 1),
+        )
+    }
+
+    @Test
+    fun `T-10-13 STORAGE with attempt budget spent does NOT retry`() {
+        assertEquals(
+            ViewerPageStateMachine.RetryDecision.DO_NOT_RETRY,
+            ViewerPageStateMachine.retryDecision(ViewerPageStateMachine.FailureReason.STORAGE, attempt = 2),
+        )
+    }
+
+    // endregion
+
 }
