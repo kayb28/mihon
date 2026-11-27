@@ -64,14 +64,26 @@ class MigrateMangaUseCase(
         try {
             updateMangaFromRemote(target, fetchChapters = true).getOrThrow()
 
+            // P0-2 (T-10.1): the target must actually have chapters BEFORE anything
+            // destructive happens — with `replace = true` the old manga leaves the library
+            // and an empty target would strand the user's read state.
+            MigrationGuardPolicy.requireTargetChapters(
+                currentTitle = current.title,
+                currentId = current.id,
+                targetId = target.id,
+                targetSource = target.source,
+                chapterCount = getChaptersByMangaId.await(target.id).size,
+            )
+
             // Update chapters read, bookmark and dateFetch
             if (MigrationFlag.CHAPTER in flags) {
                 val prevMangaChapters = getChaptersByMangaId.await(current.id)
                 val mangaChapters = getChaptersByMangaId.await(target.id)
 
-                val maxChapterRead = prevMangaChapters
-                    .filter { it.read }
-                    .maxOfOrNull { it.chapterNumber }
+                // P0-5 (T-10.5): only recognized numbers among READ chapters — a read
+                // chapter with chapterNumber <= 0 would clamp the max at <= 0 and mark
+                // every <= 0 target chapter as read in one stroke.
+                val maxChapterRead = MigrationGuardPolicy.maxChapterRead(prevMangaChapters)
 
                 val chapterUpdates = mangaChapters
                     .filter { it.isRecognizedNumber }
@@ -100,31 +112,76 @@ class MigrateMangaUseCase(
             }
 
             // Update track
-            getTracks.await(current.id).mapNotNull { track ->
-                val updatedTrack = track.copy(mangaId = target.id)
+            // P0-4 (T-10.4): a null from migrateTrack is not a silent drop — the ORIGINAL
+            // track survives untouched and one warning line records it.
+            // R6 (D-B, auditoría pre-merge PR #23): explicit map (no mapNotNull); tracks
+            // migrate BEFORE the destructive updateManga, and the outcomes decide whether
+            // replace is effective at all.
+            val trackOutcomes = getTracks.await(current.id)
+                .map { track ->
+                    val updatedTrack = track.copy(mangaId = target.id)
 
-                val service = enhancedServices
-                    .firstOrNull { it.isTrackFrom(updatedTrack, current, currentSource) }
+                    val service = enhancedServices
+                        .firstOrNull { it.isTrackFrom(updatedTrack, current, currentSource) }
 
-                if (service != null) {
-                    service.migrateTrack(updatedTrack, target, targetSource)
-                } else {
-                    updatedTrack
+                    // No enhanced service: the plain re-point (copy with the new mangaId)
+                    // is migrated as before. A service that FAILED returns null → kept.
+                    val migrated = service?.migrateTrack(updatedTrack, target, targetSource) ?: updatedTrack
+                    MigrationGuardPolicy.trackMigrationPlan(track, migrated)
+                }
+            trackOutcomes.forEach { outcome ->
+                when (outcome) {
+                    is MigrationGuardPolicy.TrackOutcome.Upsert -> upsertTrack.await(outcome.track)
+                    is MigrationGuardPolicy.TrackOutcome.KeptUnmigrated -> logcat(LogPriority.WARN) {
+                        "Track ${outcome.track.id} (${outcome.track.title}) could not be migrated " +
+                            "to '${target.title}' (${target.id}) — kept on the original manga"
+                    }
                 }
             }
-                .takeIf { it.isNotEmpty() }
-                ?.let { upsertTrack.awaitAll(it) }
+
+            // R6 (D-B): replace is only effective when EVERY track migrated. One failed
+            // track aborts BEFORE the destructive step: the row is not replaced, the
+            // original source stays, and the thrown motivo makes the caller mark the
+            // migration for review (bulk list / link repairer surface the message).
+            val replaceEfectivo = MigrationGuardPolicy.effectiveReplace(replace, trackOutcomes)
+            if (replace && !replaceEfectivo) {
+                val motivos = trackOutcomes
+                    .filterIsInstance<MigrationGuardPolicy.TrackOutcome.KeptUnmigrated>()
+                    .joinToString("; ") { "'${it.track.title}' (track ${it.track.id})" }
+                throw IllegalStateException(
+                    "Migration of '${current.title}' (${current.id}) to '${target.title}' " +
+                        "(${target.id}) left unmigrated track(s): $motivos — row NOT replaced, " +
+                        "marked for review",
+                )
+            }
 
             // Delete downloaded
             if (MigrationFlag.REMOVE_DOWNLOAD in flags && currentSource != null) {
-                // Not awaited, so a slow storage delete doesn't hold up the migration
-                scope.launch { downloadManager.deleteManga(current, currentSource) }
+                // Not awaited, so a slow storage delete doesn't hold up the migration.
+                // P0-1 (T-10.3): this runs fire-and-forget on AppScope — an uncaught
+                // IOException would hit the scope's handler, so it is contained here.
+                scope.launch {
+                    runCatching { downloadManager.deleteManga(current, currentSource) }
+                        .onFailure { e ->
+                            logcat(LogPriority.WARN, e) {
+                                "Could not delete downloads of '${current.title}' (${current.id}) after migration"
+                            }
+                        }
+                }
             }
 
             // Update custom cover (recheck if custom cover exists)
             if (MigrationFlag.CUSTOM_COVER in flags && current.hasCustomCover()) {
-                coverCache.getCustomCoverFile(current.id).inputStream().use {
-                    coverCache.setCustomCoverToCache(target, it)
+                // P0-1 (T-10.3): a missing/corrupt cover file (FileNotFoundException from
+                // inputStream()) must not fail the whole migration — the cover is cosmetic.
+                runCatching {
+                    coverCache.getCustomCoverFile(current.id).inputStream().use {
+                        coverCache.setCustomCoverToCache(target, it)
+                    }
+                }.onFailure { e ->
+                    logcat(LogPriority.WARN, e) {
+                        "Could not carry the custom cover of '${current.title}' (${current.id}) over to the target"
+                    }
                 }
             }
 
@@ -133,7 +190,14 @@ class MigrateMangaUseCase(
             }
                 .takeIf { replace }
             val targetMangaUpdate = MangaUpdate(target.id) {
-                favoriteAt = current.favoriteAt?.takeIf { replace } ?: Clock.System.now()
+                // P0-3 (T-10.2): with `replace = false` the target's own date survives —
+                // falling through to now() re-dated the entry and reordered the library.
+                favoriteAt = MigrationGuardPolicy.resolveFavoriteAt(
+                    replace = replace,
+                    currentFavoriteAt = current.favoriteAt,
+                    targetFavoriteAt = target.favoriteAt,
+                    now = Clock.System.now(),
+                )
                 chapterFlags = current.chapterFlags
                 viewerFlags = current.viewerFlags
                 if (MigrationFlag.NOTES in flags) notes = current.notes

@@ -47,12 +47,14 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 
 ## 3. Ramas
 
-(Estado verificado contra GitHub el 2026-11-27, tras el merge del PR #14.)
+(Estado verificado contra GitHub el 2026-11-27, auditoría viva del PR #23 incluida:
+`git merge-base --is-ancestor c196c91 origin/main` → 0; `bd4aa16e` es ancestro, no punta.)
 
-- `main` — rama de distribución. Punta: `bd4aa16e` (merge PR #14: P7 motor web
-  secundario, W1–W5; antes `7d10926`, merge PR #13 de T6 — Ronda 2 validada y puerta de
-  zoom aprobada por el usuario 26/11; antes PRs #8–#12: docs post-auditoría, tests B1–B4,
-  T1–T7 del visor, guards de migración). La reconciliación con `feature/webgpu-clean`
+- `main` — rama de distribución. Punta real: `c196c91` (consolidación documental de los
+  5 PRs del bloque PROMPT 9; antes `2f4e0b8d`, merge PR #18 de P8; antes `bd4aa16e`,
+  merge PR #14 de P7 — motor web secundario, W1–W5 — que EXISTE como ancestro, verificado
+  con `git branch --contains bd4aa16e`). La punta `bd4aa16e` citada en auditorías
+  anteriores NO es la punta actual. La reconciliación con `feature/webgpu-clean`
   está resuelta desde la Release `v0.21.3-fork.1` (2026-11-19). Las builds de `main` se
   instalan encima (firma estable, versionCode 40).
 - `feat/p8-domain-override` — PROMPT 8/9 T-P8: regla por fuente «Editar dominio»
@@ -75,7 +77,7 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 - `fix/viewer-refactor-t1-t7` — T1–T7, squash `c8d2f52` en `main`.
 - `ci/branch-checks` — job «Spotless & Unit Tests» por push (C6/C7), mergeada `ca86c55`.
 
-## 4. Qué está verificado y qué no (corte: 2026-11-26)
+## 4. Qué está verificado y qué no (corte: 2026-11-27)
 
 Verificado:
 - PR #1 **mergeeado en `main`** el 2026-11-17 18:16 UTC, incluido el fix de compilación
@@ -100,6 +102,9 @@ No verificado o pendiente:
   su teléfono.
 - Cableado del lector T6a + fixes R1–R4 (`feat/t6-page-state-machine-wiring`): CI verde
   y 205 tests, pero **pendiente de validación en dispositivo** (checklist Ronda 2).
+- Correctivo de auditoría P0/P1 (`fix/p10-auditoria-p0p1`, PROMPT 10): CI verde en el PR;
+  P0 migración (replace=true) y fallback WebView (T-10.7/8/9) **pendientes de validación
+  en dispositivo**; T-10.15 (P1-10) PARCIAL sin parche — ver `docs/INFORME_VERIFICACION_P0P1.md`.
 
 ## 5. Reglas obligatorias
 
@@ -149,7 +154,7 @@ Desde `ef0ece3` (06/11/2026) cada build se instala encima de la anterior en el t
 
 ### 3. versionCode nunca baja
 
-- `versionCode` (hoy 39) debe ser siempre **≥** al de cualquier build que el usuario tenga instalada. Al subir `versionName`, no reducir `versionCode`.
+- `versionCode` (hoy **40**, corregido el 2026-11-27 — la build consolidada ya es 40) debe ser siempre **≥** al de cualquier build que el usuario tenga instalada. Al subir `versionName`, no reducir `versionCode`.
 
 ### Verificación antes de entregar una build
 

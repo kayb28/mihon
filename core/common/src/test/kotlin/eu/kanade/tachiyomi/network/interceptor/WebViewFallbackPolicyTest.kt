@@ -28,13 +28,34 @@ class WebViewFallbackPolicyTest {
     private fun policy(clock: ControlledClock) = WebViewFallbackPolicy(clock = { clock.now })
 
     // region W1 — any HTTP error code triggers the WebView attempt
+    // (T-10.10 / P1-5: narrowed to DETERMINISTIC codes. D-A ratifies the narrowing but
+    // keeps 404/410 in the set: soft-404 walls serve a PAGE to browsers, so a WebView CAN
+    // clear them; the link repairer's 3-streak only owns genuinely gone links)
 
     @Test
-    fun `W1 any 4xx code triggers the fallback`() {
+    fun `W1 deterministic 4xx codes still trigger the fallback`() {
         val c = ControlledClock()
         val p = policy(c)
-        for (code in listOf(400, 401, 403, 404, 410, 418, 429)) {
+        for (code in listOf(403, 405, 406, 409, 425, 429)) {
             p.shouldAttempt("host.example", "GET", statusCode = code) shouldBe true
+        }
+    }
+
+    @Test
+    fun `D-A soft-404 walls (404 and 410) trigger the fallback`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        for (code in listOf(404, 410)) {
+            p.shouldAttempt("host.example", "GET", statusCode = code) shouldBe true
+        }
+    }
+
+    @Test
+    fun `T-10-10 non-deterministic 4xx codes do NOT trigger the fallback`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        for (code in listOf(400, 401, 416, 418)) {
+            p.shouldAttempt("host.example", "GET", statusCode = code) shouldBe false
         }
     }
 
@@ -98,7 +119,7 @@ class WebViewFallbackPolicyTest {
     fun `W3 an HTTP error without connectivity does not trigger`() {
         val c = ControlledClock()
         val p = policy(c)
-        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = false) shouldBe false
+        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = { false }) shouldBe false
     }
 
     @Test
@@ -109,7 +130,7 @@ class WebViewFallbackPolicyTest {
             "host.example",
             "GET",
             cause = IOException("airplane mode"),
-            hasConnectivity = false,
+            hasConnectivity = { false },
         ) shouldBe false
     }
 
@@ -117,7 +138,48 @@ class WebViewFallbackPolicyTest {
     fun `W3 with connectivity the attempt is still allowed`() {
         val c = ControlledClock()
         val p = policy(c)
-        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = true) shouldBe true
+        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = { true }) shouldBe true
+    }
+
+    // endregion
+
+    // region T-10.6 (P1-1) — the connectivity probe is LAZY: no IPC on the happy path
+
+    @Test
+    fun `T-10-6 a success or redirect response never queries connectivity`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        var probes = 0
+        val countingProbe = {
+            probes++
+            true
+        }
+        for (code in listOf(200, 204, 301, 304)) {
+            p.shouldAttempt("host.example", "GET", statusCode = code, hasConnectivity = countingProbe) shouldBe false
+        }
+        for (method in listOf("DELETE", "HEAD", "PUT")) {
+            p.shouldAttempt("host.example", method, statusCode = 403, hasConnectivity = countingProbe) shouldBe false
+        }
+        p.shouldAttempt(
+            "host.example",
+            "GET",
+            cause = IllegalStateException("bug"),
+            hasConnectivity = countingProbe,
+        ) shouldBe false
+        probes shouldBe 0 // regression: the probe used to run on EVERY response
+    }
+
+    @Test
+    fun `T-10-6 a real failure still consults connectivity`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        var probes = 0
+        val countingProbe = {
+            probes++
+            true
+        }
+        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = countingProbe) shouldBe true
+        probes shouldBe 1
     }
 
     // endregion
@@ -225,6 +287,38 @@ class WebViewFallbackPolicyTest {
         val p = WebViewFallbackPolicy()
         p.shouldAttempt("never-tried.example", "GET", statusCode = 403)
         p.usageReport().shouldHaveSize(0)
+    }
+
+    // endregion
+
+    // region T-10.11 (P1-6) — per-host maps are LRU-bounded, they never grow without limit
+
+    @Test
+    fun `T-10-11 the tracker never exceeds the host cap`() {
+        val p = WebViewFallbackPolicy()
+        repeat(200) { i -> p.recordResult("host-$i.example", success = true, statusCode = 403) }
+        (p.usageReport().size <= WebViewFallbackPolicy.MAX_HOST_ENTRIES) shouldBe true
+    }
+
+    @Test
+    fun `T-10-11 the tracker evicts the LEAST recently used hosts`() {
+        val p = WebViewFallbackPolicy()
+        repeat(WebViewFallbackPolicy.MAX_HOST_ENTRIES) { i ->
+            p.recordResult("host-$i.example", success = true, statusCode = 403)
+        }
+        // the oldest host is still there; one more host evicts it
+        p.usageReport().first { it.host == "host-0.example" }
+        p.recordResult("host-new.example", success = true, statusCode = 403)
+        p.usageReport().none { it.host == "host-0.example" } shouldBe true
+        p.usageReport().any { it.host == "host-new.example" } shouldBe true
+    }
+
+    @Test
+    fun `T-10-11 the cooldown map is bounded too`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        repeat(200) { i -> p.recordResult("host-$i.example", success = false, statusCode = 500) }
+        p.usageReport().size shouldBe WebViewFallbackPolicy.MAX_HOST_ENTRIES
     }
 
     // endregion

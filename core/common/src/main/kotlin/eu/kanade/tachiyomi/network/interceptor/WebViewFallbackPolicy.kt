@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.network.interceptor
 
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Pure (Android-free) decision layer of the WebView fetch fallback, extracted verbatim from
@@ -10,7 +9,8 @@ import java.util.concurrent.ConcurrentHashMap
  * only decides WHEN a WebView attempt may happen and keeps the per-host cooldown bookkeeping.
  *
  * Behavior preserved at extraction time (the audited state, PROMPT 7 baseline):
- *  - fallback triggered only by the HTTP-code whitelist {403, 503} + method whitelist GET/POST
+ *  - fallback triggered by the deterministic HTTP-code whitelist (P1-5/T-10.10:
+ *    {403,405,406,409,425,429} + 5xx) + method whitelist GET/POST
  *  - network exceptions never trigger the fallback (they propagate in the interceptor)
  *  - one WebView attempt per request (structural, in the interceptor), per-host lock,
  *    2-minute warm pool (interceptor-side), 10-minute per-host cooldown after a failure
@@ -28,36 +28,40 @@ class WebViewFallbackPolicy(
     @Volatile
     var cooldownMs: Long = DEFAULT_COOLDOWN_MS
 
-    private val cooldowns = ConcurrentHashMap<String, Long>()
+    private val cooldowns = LruHostRegistry<String, Long>(MAX_HOST_ENTRIES)
 
     // W5: per-host "fallback used / result" record feeding the problem-source reports.
     // Declared here from the start (API contract of the red commit); it records no-ops
     // until its green commit.
-    private val tracker = FallbackUsageTracker()
+    private val tracker = FallbackUsageTracker(MAX_HOST_ENTRIES)
 
     /**
      * Whether a failed request (an HTTP error status code or a network exception) is allowed
      * to attempt the WebView fallback for [host] right now.
+     *
+     * P1-1 (T-10.6): [hasConnectivity] is LAZY — the probe only runs once method and the
+     * failure criteria already pass, so a stream of healthy 200 responses never pays the
+     * ConnectivityManager IPC.
      */
     fun shouldAttempt(
         host: String,
         method: String,
         statusCode: Int? = null,
         cause: Throwable? = null,
-        hasConnectivity: Boolean = true,
+        hasConnectivity: () -> Boolean = { true },
     ): Boolean {
         if (method !in SUPPORTED_METHODS) return false
-        // W3 (technical exemption, user-vetoable until the merge gate): with no connectivity
-        // at all (airplane mode / no network) a WebView cannot load anything either, so the
-        // attempt is skipped to save battery. If the user vetoes W3 this check goes away and
-        // every failure triggers again.
-        if (!hasConnectivity) return false
         // W2: a network failure (IOException and its subtypes) is as much a "first try
         // failed" as an HTTP error code — it gets the WebView second try too. Anything that
         // is not an HTTP error and not a network exception (2xx/3xx codes, non-I/O bugs)
         // never triggers.
         val failure = (statusCode != null && statusCode in FALLBACK_CODES) || cause is IOException
         if (!failure) return false
+        // W3 (technical exemption, user-vetoable until the merge gate): with no connectivity
+        // at all (airplane mode / no network) a WebView cannot load anything either, so the
+        // attempt is skipped to save battery. If the user vetoes W3 this check goes away and
+        // every failure triggers again. Lazy (T-10.6): only evaluated on real failures.
+        if (!hasConnectivity()) return false
         val lastFailure = cooldowns[host] ?: return true
         return clock() - lastFailure > cooldownMs
     }
@@ -79,10 +83,18 @@ class WebViewFallbackPolicy(
     fun usageReport(): List<HostFallbackSummary> = tracker.summary()
 
     companion object {
-        // W1: every 4xx/5xx triggers the WebView attempt (was {403, 503})
-        val FALLBACK_CODES: IntRange = 400..599
+        // W1 was every 4xx/5xx; P1-5 (T-10.10) narrows it to DETERMINISTIC codes — ones a
+        // WebView can actually fix (challenge/WAF walls, bot checks, throttling). A WebView
+        // cannot repair 400 (bad request), 401 (auth) or 416 (range). D-A (auditoría
+        // pre-merge PR #23): 404/410 STAY in the set — soft-404 walls serve a PAGE to
+        // browsers, so the WebView can clear them; the link repairer's 3-streak only owns
+        // genuinely gone links.
+        val FALLBACK_CODES: Set<Int> = setOf(403, 404, 405, 406, 409, 410, 425, 429) + (500..599).toSet()
         val SUPPORTED_METHODS = setOf("GET", "POST")
         const val DEFAULT_COOLDOWN_MS = 10L * 60_000L
+
+        /** P1-6 (T-10.11): every per-host map is LRU-bounded to this many entries. */
+        const val MAX_HOST_ENTRIES = 128
     }
 }
 
@@ -103,7 +115,7 @@ data class HostFallbackSummary(
  * interceptor feeds it after every WebView attempt so the existing problem-source reports
  * can state whether the fallback was tried for a host and how it ended.
  */
-class FallbackUsageTracker {
+class FallbackUsageTracker(private val maxEntries: Int = WebViewFallbackPolicy.MAX_HOST_ENTRIES) {
     private data class Entry(
         var attempts: Int = 0,
         var successes: Int = 0,
@@ -114,7 +126,8 @@ class FallbackUsageTracker {
         var lastErrorKind: String? = null,
     )
 
-    private val entries = ConcurrentHashMap<String, Entry>()
+    // P1-6 (T-10.11): bounded — a browsing session can touch hundreds of hosts
+    private val entries = LruHostRegistry<String, Entry>(maxEntries)
 
     fun record(
         host: String,
@@ -123,7 +136,7 @@ class FallbackUsageTracker {
         cause: Throwable?,
         usedAt: Long = System.currentTimeMillis(),
     ) {
-        val entry = entries.computeIfAbsent(host) { Entry() }
+        val entry = entries.getOrPut(host) { Entry() }
         synchronized(entry) {
             entry.attempts++
             if (success) entry.successes++ else entry.failures++
@@ -134,7 +147,7 @@ class FallbackUsageTracker {
         }
     }
 
-    fun summary(): List<HostFallbackSummary> = entries.map { (host, entry) ->
+    fun summary(): List<HostFallbackSummary> = entries.entriesSnapshot().map { (host, entry) ->
         synchronized(entry) {
             HostFallbackSummary(
                 host = host,
@@ -148,4 +161,41 @@ class FallbackUsageTracker {
             )
         }
     }.sortedBy { it.host }
+}
+
+/**
+ * P1-6 (T-10.11): a thread-safe LRU map for per-host bookkeeping. Access-ordered
+ * LinkedHashMap under one lock; the least recently used host is evicted once
+ * [maxEntries] is exceeded. Replaces the unbounded ConcurrentHashMaps that used to
+ * grow for the whole process lifetime.
+ */
+class LruHostRegistry<K : Any, V : Any>(private val maxEntries: Int) {
+
+    init {
+        require(maxEntries > 0) { "maxEntries must be positive" }
+    }
+
+    private val map = object : LinkedHashMap<K, V>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>): Boolean = size > maxEntries
+    }
+
+    @Synchronized
+    operator fun get(key: K): V? = map[key]
+
+    @Synchronized
+    operator fun set(key: K, value: V) {
+        map[key] = value
+    }
+
+    @Synchronized
+    fun getOrPut(key: K, compute: () -> V): V = map.getOrPut(key, compute)
+
+    @Synchronized
+    fun remove(key: K): V? = map.remove(key)
+
+    @Synchronized
+    fun size(): Int = map.size
+
+    @Synchronized
+    fun entriesSnapshot(): List<Pair<K, V>> = map.entries.map { it.key to it.value }
 }

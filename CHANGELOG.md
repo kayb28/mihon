@@ -1,5 +1,33 @@
 # Changelog
 
+## [Mihon Fix — P10: correctivo de auditoría P0/P1] - 2026-11-27
+
+### Fixed
+- Migración (P0): el destino sin capítulos aborta ANTES del paso destructivo (P0-2);
+  `favoriteAt` del target ya en biblioteca ya no se pisa con `now()` cuando
+  `replace = false` (P0-3); portada y borrado de descargas contenidos con
+  `runCatching` (P0-1); un track que `migrateTrack` no puede migrar se conserva con
+  aviso en el log, sin borrado silencioso (P0-4); `maxChapterRead` solo con números
+  de capítulo reconocidos (P0-5).
+- Fallback WebView (P1): la sonda de conectividad solo corre en fallos reales, ya no
+  por cada respuesta 200 (P1-1); un engine reutilizado ya no retiene el `WebViewClient`
+  con la sesión anterior (P1-2); el temporizador `postDelayed(NAV_MAX_WAIT)` se cancela
+  (P1-3); los abortos del desafío por la ruta legacy exigen la clave de sesión — un
+  iframe ya no puede abortar el fallback (P1-4); `FALLBACK_CODES` reducido a códigos
+  deterministas 403/405/406/409/425/429 + 5xx (P1-5); mapas por host con tope LRU de
+  128 entradas (P1-6).
+- Visor (P1): REUPLOAD de DECODE/STORAGE con tope de 2 intentos — una imagen corrupta
+  ya no entra en bucle (P1-8); el Retry manual arranca con presupuesto de intentos
+  nuevo (`resetAttempts`) (P1-9).
+
+### Other
+- Verificación previa V1–V5 con veredictos documentados (`docs/INFORME_VERIFICACION_P0P1.md`):
+  P1-11 NO-CONFIRMADO (las descargas no son children del job del lector), T-10.15 PARCIAL
+  sin parche (AAR binario, no demostrable; validación en dispositivo), P1-7 CONFIRMADO
+  app-level → solo KDoc.
+- AGENTS.md §7.3: `versionCode` corregido a 40 (doc).
+
+
 All notable changes to this project will be documented in this file.
 
 The format is a modified version of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

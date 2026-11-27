@@ -86,6 +86,10 @@ internal class ViewerPagePresentationController(
         presentation: SnapshotStateMap<ReaderPage, PagePresentation>? = null,
     ) {
         if (machine.stateOf(page).isFailed) {
+            // P1-9 (T-10.14): the user's Retry gets a fresh attempt budget — otherwise a
+            // page that exhausted MAX_RELOAD/REUPLOAD attempts automatically is stuck on
+            // DO_NOT_RETRY even for the explicit Retry.
+            machine.resetAttempts(page)
             machine.start(page)
             if (page is ReaderPage) {
                 presentation?.put(page, PagePresentation.Loading(-1))

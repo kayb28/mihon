@@ -819,3 +819,82 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-27 (fix/p10-auditoria-p0p1 — PROMPT 10: correctivo de auditoría P0/P1)
+
+Motivo: auditoría de los 10 ficheros de las Tandas 1–3 (red, migración, visor). Puerta
+T-10.0 primero: veredictos V1–V5 en `docs/INFORME_VERIFICACION_P0P1.md` — V2 NO-CONFIRMADO
+(sin parche), V3 PARCIAL sin parche (T-10.15 no implementado), V4 confirma app-level
+(T-10.12 = KDoc), V5 PARCIAL → guard dentro del use case. Base real `main`=`c196c91`
+— VEREDICTO DE AUDITORÍA VIVA (PROMPT 10-R2, `git branch --contains bd4aa16e` literal):
+`bd4aa16e` EXISTE (merge del PR #14, ancestro de la punta real `c196c91`); la frase
+«la punta `bd4aa16e` citada no existe en el repo» de la nota original era drift de
+clon parcial y queda sustituida por este veredicto. P2 omitidas (opcionales, no bloquean).
+
+| Tarea | Hallazgo | Cambio | Commit |
+|---|---|---|---|
+| T-10.0 | — | informe de veredictos, solo docs | `docs(p10.0)` |
+| T-10.1 | P0-2 | guard: target sin capítulos aborta antes del paso destructivo (política pura `MigrationGuardPolicy`) | test rojo → `fix(p10.1)` verde |
+| T-10.2 | P0-3 | `resolveFavoriteAt`: sin replace, la fecha del target sobrevive | test rojo → `fix(p10.2)` verde |
+| T-10.3 | P0-1 | portada y borrado de descargas en `runCatching` con log; paso destructivo último | `fix(p10.3)` |
+| T-10.4 | P0-4 | plan de tracks: null conserva el track original con aviso; re-point plano intacto | test rojo → `fix(p10.4)` verde |
+| T-10.5 | P0-5 | `maxChapterRead` solo con números reconocidos | test rojo → `fix(p10.5)` verde |
+| T-10.6 | P1-1 | sonda de conectividad LAZY (lambda) — 200/redirects/métodos no la consultan | test rojo → `fix(p10.6)` verde |
+| T-10.7 | P1-2 | cliente WebView fresco en cada fetch (engine reutilizado no retiene sesión) | `fix(p10.7)` (inspección) |
+| T-10.8 | P1-3 | `postDelayed(NAV_MAX_WAIT)` guardado en Engine, cancelado en startFetch y destroy() | `fix(p10.8)` (inspección) |
+| T-10.9 | P1-4 | abortos de desafío con clave de sesión en la ruta legacy; iframes no abortan | `fix(p10.9)` (inspección) |
+| T-10.10 | P1-5 | FALLBACK_CODES = {403,405,406,409,425,429} + 5xx | test rojo → `fix(p10.10)` verde |
+| T-10.11 | P1-6 | `LruHostRegistry` tope 128 en hostLocks/activations/cooldowns/tracker | test rojo → `fix(p10.11)` verde |
+| T-10.12 | P1-7 | KDoc: una reescritura por call, redirects no re-entran (app-level, V4) | `docs(p10.12)` |
+| T-10.13 | P1-8 | REUPLOAD con tope MAX_REUPLOAD_ATTEMPTS (2) | test rojo → `fix(p10.13)` verde |
+| T-10.14 | P1-9 | `resetAttempts` + manualRetry con presupuesto nuevo | test rojo → `fix(p10.14)` verde |
+| T-10.15 | P1-10 | PARCIAL (V3) — sin parche; validación en dispositivo | registrado en el informe |
+| docs | — | CHANGELOG sección P10 + AGENTS §4 corte 2026-11-28 y §7.3 versionCode 40 + esta entrada | `docs(p10)` |
+
+Serie CI (rama `fix/p10-auditoria-p0p1`, PR #23):
+
+| Hora (UTC) | Commit | Resultado | Contenido |
+|---|---|---|---|
+| 20:33 | `7e02474` | ❌ failure (run 46067991040) | spotlessCheck: formato de los tests T-10.6/11 — corregido, no cuenta |
+| 20:42 | `883d25a` | ❌ failure | formato: import order + líneas largas T-10.13 — no cuenta |
+| 20:51 | `5ca8f3c` | ❌ failure | formato: import order en MigrationGuardPolicy — no cuenta |
+| 21:01 | `9198ac5` | ❌ failure | formato: línea larga Track — no cuenta |
+| 21:10 | `74a3516` | ❌ failure | formato: import order + líneas largas T-10.2 — no cuenta |
+| 21:20 | `3b2de92` | ❌ failure (compile) | `Engine.destroy()` tocaba el handler externo desde clase anidada — corregido con `cancelNavTimeout(handler)`, no cuenta |
+| 21:39 | `274df23` | ❌ failure (test) | T-10-5: expectativa errónea (isRecognizedNumber es >= 0, no > 0) — corregida, no cuenta |
+| 21:55 | `e8daee1` | ✅ success (runs 46072589015 / 46072589016) | **verde todo**: Spotless & Unit Tests + Build APK; build `INSTALAR-e8daee1` verificada: `MihonFix-0.21.3-build-e8daee1-20261127-2155-arm64.apk`, 35,245,426 bytes, sha256 `4F4B6445E8605E50D34771400DEA5DEDBD265C36C985160686E2EB8633C736D1`, firma ESTABLE (`DE7889F3…D1296AD0`), log «Keystore secret found. Configuring release signing.» presente, versionCode 40 — instala encima |
+| 21:5x | docs (este commit) | (run en curso al redactar) | evidencia CI + informe final |
+
+**Recuento de rojos corregido (PROMPT 10-R2, E7-a):** la serie anterior de reintentos
+suma **7** — 5 de formato/ktlint (`7e02474`, `883d25a`, `5ca8f3c`, `9198ac5`,
+`74a3516`) + 1 de compilación (`3b2de92`) + 1 de expectativa de test (`274df23`) —
+no 6. Contado fila a fila sobre la tabla literal de arriba.
+
+Estado: **pendiente confirmar** — CI verde en el PR #23 como árbitro; requieren
+validación en dispositivo antes de `confirmado`: P0 migración con `replace = true`
+(target vacío aborta), T-10.7/8/9 (fallback WebView: cliente fresco, timer cancelado,
+abortos con clave), T-10.15/P1-10 (PARCIAL — sin parche, observación de crash/ruido al
+saltar con muchas texturas).
+
+## 2026-11-27 (fix/p10-auditoria-p0p1 — PROMPT 10-R2: cierre pre-merge PR #23, evidencia + 3 riesgos)
+
+Motivo: la auditoría externa pide evidencia literal (FICHERO FINAL, no diffs) de 3 riesgos
+creados por los propios parches, más D-A y D-B firmados. Decisiones intactas (D-A = (iii)
+con 404/410 conservados; D-B = tracks antes del updateManga destructivo, replaceEfectivo
+= replace && allTracksOk). Un commit por tarea; rojo-verde donde hubo arreglo.
+
+| Tarea | Resultado | Commit(s) | CI |
+|---|---|---|---|
+| E1 dispatchMessage | SIN regresión: el check de clave de sesión `k` vive SOLO en la ruta legacy (`data.endsWith("\|${session.key}")`); el bridge aislado publica `data.event` como STRING sin `k` y aborta el reto interactivo sin esperar NAV_MAX_WAIT_MS (20 s). Evidencia: fichero final `WebViewFetchFallbackInterceptor.kt`, `dispatchMessage` + `challengeListenerScript` + `legacyChallengeListenerScript` | — | — |
+| E2 hostLocks | REGRESIÓN confirmada y corregida: estaba DENTRO del LRU-128 (desalojar una cerradura sostenida = dos fallbacks en paralelo al host caído). Fix: `ConcurrentHashMap` puro; el tope LRU queda en activations/cooldowns/tracker (sin invariantes de sincronización). `git grep -n hostLocks` literal en el informe | `fix(p10-r2)` `6faed829` | runs 46078297329 / 46078292336 ✅ |
+| E3 postDelayed | SIN arreglo: cancelación presente en los TRES — `startFetch()` (removeCallbacks + null), rama else de `obtainEngine()` (pooled.destroy() + cancelNavTimeout) y `destroyEngine()`; `evictIdleEngines` y `maybePool` pasan por destroyEngine/mismo par | — | — |
+| E4 T-10.7/8/9 | Los tres commits presentes y no-op verificado: `d7da00349` (P1-2 cliente fresco: installClient en cada fetch), `e09a11124`+`70b1ec193` (P1-3 navTimeoutRunnable en Engine), `7ccb6a37a` (P1-9 clave en ruta legacy) — `git show --stat` literal en el informe | — | — |
+| E5 FALLBACK_CODES | D-A rojo-verde: rojo `3dfea567` (test `D-A soft-404 walls (404 and 410) trigger the fallback()` FAILED POR COMPORTAMIENTO, run 46079426482) → verde `45476edf` (FALLBACK_CODES = {403,404,405,406,409,410,425,429} + 5xx; T-10.10 estrechado ratificado) | `test(p10-r2)` `3dfea567` / `fix(p10-r2)` `45476edf` | rojo 46079426482 ❌ / verde 46080138856 / 46080132529 ✅ |
+| E6 estado repo | Literales en el informe: origin/main punta `c196c91`; `git branch -a --contains bd4aa16e` LISTA main (bd4aa16e EXISTE, ancestro); `--contains 2f4e0b8d` lista main; `merge-base --is-ancestor c196c91 origin/main` → exit 0 | — | — |
+| E7 docs | Recuento de rojos corregido a 7 (5 ktlint + 1 compile + 1 expectativa); veredicto bd4aa16e sustituido según auditoría viva; fechas 2026-11-28 → 2026-11-27 (REGISTRO/CHANGELOG/AGENTS §4/§7.3/INFORME); AGENTS §3: main = c196c91, bd4aa16e ancestro no punta | `docs(p10-r2)` | run del push |
+| E8 P1-11 | NOTA DE CIERRE: `loadPage()` DEDUPLICA — `launchLoadOnce` (HttpPageLoader.kt:139) devuelve el job activo de `downloadJobs` y no lanza otro; el re-encolado tras CancellationException es coherente con la deduplicación (el job cancelado deja de estar activo). No hay doble descarga; comentario de resetQueues no miente | — | — |
+| E9 R6 (D-B) | rojo-verde: esqueleto no-op `effectiveReplace` + 4 tests (rojo POR COMPORTAMIENTO: `replace with ONE failed track is NOT effective` FAILED, run 46081383274) → verde: tracks migrados ANTES del updateManga destructivo, mapa explícito sin mapNotNull, `replaceEfectivo = replace && allTracksOk`; un track sin migrar lanza IllegalStateException con el motivo ANTES del paso destructivo — la fila no se reemplaza, la fuente se queda, el caller marca para revisión | `test(p10-r2)` `da74702f` / `fix(p10-r2)` `1367d288` | rojo 46081383274 ❌ / verde 46082127877 / 46082122672 ✅ |
+| E10 | Protocolo de dispositivo P1-10 escrito en el informe final (tira larga, scroll rápido, saltos de capítulo, dual page, 10 repeticiones; logcat ValidationException / SIGSEGV libca.mpreg) | — | — |
+| E11 | Artefacto INSTALAR-<sha> del run del head final: nombre exacto, sha256sum, tamaño, verify_apk_signature.py literal — bloque 📲 del informe | — | — |
+
+Estado: **pendiente confirmar** — sin merge (solo con orden explícita del usuario).

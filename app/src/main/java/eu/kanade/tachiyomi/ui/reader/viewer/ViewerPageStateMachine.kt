@@ -64,6 +64,9 @@ class ViewerPageStateMachine {
     companion object {
         const val MAX_RELOAD_ATTEMPTS = 2
 
+        /** P1-8 (T-10.13): a held stream may be re-uploaded at most this many times. */
+        const val MAX_REUPLOAD_ATTEMPTS = 2
+
         fun classify(error: Throwable?): FailureReason = when {
             error == null -> FailureReason.UNKNOWN
             error is java.util.concurrent.CancellationException -> FailureReason.CANCELLED
@@ -88,7 +91,10 @@ class ViewerPageStateMachine {
             null -> RetryDecision.RELOAD_FROM_LOADER
             FailureReason.HTTP, FailureReason.NETWORK, FailureReason.UNKNOWN ->
                 if (attempt < MAX_RELOAD_ATTEMPTS) RetryDecision.RELOAD_FROM_LOADER else RetryDecision.DO_NOT_RETRY
-            FailureReason.DECODE, FailureReason.STORAGE -> RetryDecision.REUPLOAD
+            // P1-8 (T-10.13): REUPLOAD is capped — an unfixable image (corrupt data, broken
+            // storage stream) must reach DO_NOT_RETRY, not loop on the same stream forever.
+            FailureReason.DECODE, FailureReason.STORAGE ->
+                if (attempt < MAX_REUPLOAD_ATTEMPTS) RetryDecision.REUPLOAD else RetryDecision.DO_NOT_RETRY
             FailureReason.CANCELLED -> RetryDecision.DO_NOT_RETRY
         }
     }
@@ -117,6 +123,16 @@ class ViewerPageStateMachine {
     fun failed(page: Any, reason: FailureReason) {
         val s = stateOf(page)
         states[page] = State(Phase.FAILED, reason = reason, attempt = s.attempt + 1)
+    }
+
+    /**
+     * P1-9 (T-10.14): the user's explicit Retry starts from a clean attempt budget —
+     * a page that spent MAX_RELOAD/REUPLOAD attempts automatically must still be
+     * manually retryable.
+     */
+    fun resetAttempts(page: Any) {
+        val s = stateOf(page)
+        states[page] = s.copy(attempt = 0)
     }
 
     /** Clears one page (viewer rebuilt, page evicted). */

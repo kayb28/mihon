@@ -18,6 +18,11 @@ import tachiyomi.core.common.util.system.logcat
  *
  * D6: each actual rewrite emits one log line ("domain override a.example -> b.example")
  * feeding the problem-source reports.
+ *
+ * P1-7 (T-10.12, verificación V4): this interceptor is registered at APP level
+ * (`NetworkHelper.addInterceptor`), so it runs exactly ONCE per call — a rewritten
+ * request's redirects are followed INSIDE the chain call and never re-enter here.
+ * One rewrite per call; no ping-pong, no depth guard needed.
  */
 class DomainOverrideInterceptor(
     private val helper: DomainOverrideHelper,

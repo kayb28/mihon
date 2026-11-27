@@ -93,10 +93,16 @@ class WebViewFetchFallbackInterceptor(
 
     // Requests to a host share its lock while the fallback runs, so concurrent requests to the
     // same host wait for one WebView instead of each opening their own
+    // E2 (auditoría pre-merge PR #23): NOT in the LRU — evicting a lock entry while a request
+    // holds it would let a second request create a fresh lock and run a SECOND fallback for
+    // the same downed host in parallel. An unbounded ReentrantReadWriteLock per touched host
+    // is tiny (bounded in practice by unique hosts with in-flight fallbacks); the LRU cap
+    // stays on activations/cooldowns/tracker, which hold no synchronization invariant.
     private val hostLocks = ConcurrentHashMap<String, ReentrantReadWriteLock>()
 
-    // Fallback activations per host, used to decide when to keep a warm WebView (level 2)
-    private val activations = ConcurrentHashMap<String, ArrayDeque<Long>>()
+    // Fallback activations per host, used to decide when to keep a warm WebView (level 2).
+    // P1-6 (T-10.11): bounded like every per-host map.
+    private val activations = LruHostRegistry<String, ArrayDeque<Long>>(WebViewFallbackPolicy.MAX_HOST_ENTRIES)
 
     // Warm WebView pool keyed by origin (level 2)
     private val pool = ConcurrentHashMap<String, Engine>()
@@ -125,7 +131,8 @@ class WebViewFetchFallbackInterceptor(
             host = request.url.host,
             method = request.method,
             statusCode = response.code,
-            hasConnectivity = hasConnectivity(),
+            // P1-1 (T-10.6): lazy — the ConnectivityManager IPC only fires for real failures
+            hasConnectivity = ::hasConnectivity,
         )
     }
 
@@ -139,7 +146,7 @@ class WebViewFetchFallbackInterceptor(
             host = request.url.host,
             method = request.method,
             cause = cause,
-            hasConnectivity = hasConnectivity(),
+            hasConnectivity = ::hasConnectivity,
         )
     }
 
@@ -180,7 +187,7 @@ class WebViewFetchFallbackInterceptor(
         // helper is the single implementation, so both callers rewrite identically.
         val request = domainOverride.rewriteRequest(request)
         val host = request.url.host
-        val lock = hostLocks.computeIfAbsent(host) { ReentrantReadWriteLock() }
+        val lock = hostLocks.getOrPut(host) { ReentrantReadWriteLock() }
         var fallback: Response? = null
 
         lock.write {
@@ -270,6 +277,10 @@ class WebViewFetchFallbackInterceptor(
             if (session.fetchStarted || session.failed != null) return
             val e = engine ?: return
             session.fetchStarted = true
+            // T-10.8 (P1-3): the fetch is starting — the NAV-max-wait timer is moot; cancel
+            // it so it never fires on a session that is already in flight or done.
+            e.navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            e.navTimeoutRunnable = null
             e.sessionRef.set(session)
             try {
                 e.webview.evaluateJavascript(buildFetchScript(request, headersJson, bodyJson, session.key), null)
@@ -285,8 +296,10 @@ class WebViewFetchFallbackInterceptor(
                     e.loadedOrigin = origin
                     if (!e.useIsolatedWorld && !listenerInjected && url == challengeUrl) {
                         listenerInjected = true
-                        // Legacy route: only the mihonfix interface exists in the page
-                        view.evaluateJavascript(legacyChallengeListenerScript, null)
+                        // Legacy route: only the mihonfix interface exists in the page.
+                        // T-10.9 (P1-9): the listener forwards the session key with every
+                        // challenge event — dispatchMessage rejects unkeyed abort events.
+                        view.evaluateJavascript(legacyChallengeListenerScript(session.key), null)
                     }
                     // Fetch right away when the page loaded normally, wait for the clearance
                     // cookie when the loaded page was an auto-solving challenge.
@@ -335,12 +348,20 @@ class WebViewFetchFallbackInterceptor(
                 e.lastUsed = System.currentTimeMillis()
                 e.sessionRef.set(session)
 
+                // T-10.7 (P1-2): a FRESH client on every fetch, even on a warm reused
+                // engine — the old client's callbacks captured the PREVIOUS session and
+                // request (with it, up to MAX_RESPONSE_BYTES of buffer) and could act on
+                // them when the engine was reused without a navigation.
+                installClient(e)
                 if (e.loadedOrigin != origin) {
-                    installClient(e)
                     e.webview.loadUrl(challengeUrl, loadHeaders)
                     // If no clearance ever shows up (non-Cloudflare WAF) or the challenge takes
                     // too long, run the fetch anyway; its result tells the truth.
-                    mainHandler.postDelayed({ startFetch() }, NAV_MAX_WAIT_MS)
+                    // T-10.8 (P1-3): the Runnable is kept in the Engine and cancelled in
+                    // destroy()/startFetch so it cannot fire on a torn-down fetch.
+                    val navTimeout = Runnable { startFetch() }
+                    e.navTimeoutRunnable = navTimeout
+                    mainHandler.postDelayed(navTimeout, NAV_MAX_WAIT_MS)
                 } else {
                     // Warm pooled WebView on the same origin: skip the page load entirely
                     startFetch()
@@ -459,6 +480,7 @@ class WebViewFetchFallbackInterceptor(
             if (pooled != null && !pooled.inUse.get()) {
                 pool.remove(origin)
                 pooled.destroy()
+                pooled.cancelNavTimeout(mainHandler)
             }
         }
         return createEngine(origin, userAgent)
@@ -546,7 +568,16 @@ class WebViewFetchFallbackInterceptor(
         if (data.isNullOrBlank()) return
         val session = engine.sessionRef.get() ?: return
         if (data == "interactiveBegin" || data == "fail") {
-            session.onChallengeAbort(data)
+            // T-10.9 (P1-9): the legacy addJavascriptInterface bridge is injected into ALL
+            // frames and cannot tell main frame from iframe — any frame could post a bare
+            // "fail" and abort the fallback. Challenge events MUST carry the session key.
+            if (engine.useIsolatedWorld) {
+                // Isolated-world bridge: main-frame only and unreachable from page code.
+                session.onChallengeAbort(data)
+            } else if (data.endsWith("|${session.key}")) {
+                session.onChallengeAbort(data.removeSuffix("|${session.key}"))
+            }
+            // No key (or wrong key) on the legacy route: ignored — never aborts.
         } else {
             session.onMessage(data)
         }
@@ -577,7 +608,10 @@ class WebViewFetchFallbackInterceptor(
                 pool[origin] = engine
             }
         }
-        evicted.forEach { it.destroy() }
+        evicted.forEach {
+            it.destroy()
+            it.cancelNavTimeout(mainHandler)
+        }
     }
 
     private fun evictIdleEngines() {
@@ -593,7 +627,10 @@ class WebViewFetchFallbackInterceptor(
                 }
             }
         }
-        toDestroy.forEach { it.destroy() }
+        toDestroy.forEach {
+            it.destroy()
+            it.cancelNavTimeout(mainHandler)
+        }
     }
 
     private fun destroyEngine(engine: Engine, checkOutdated: Boolean) {
@@ -601,11 +638,12 @@ class WebViewFetchFallbackInterceptor(
             runCatching { context.toast(MR.strings.information_webview_outdated, Toast.LENGTH_LONG) }
         }
         engine.destroy()
+        engine.cancelNavTimeout(mainHandler)
     }
 
     private fun recordActivation(host: String): Boolean {
         val now = System.currentTimeMillis()
-        val queue = activations.computeIfAbsent(host) { ArrayDeque() }
+        val queue = activations.getOrPut(host) { ArrayDeque() }
         synchronized(queue) {
             while (queue.isNotEmpty() && now - queue.first() > WARM_WINDOW_MS) queue.removeFirst()
             queue.addLast(now)
@@ -699,6 +737,8 @@ class WebViewFetchFallbackInterceptor(
         @Volatile var loadedOrigin: String? = null,
         @Volatile var pooled: Boolean = false,
         @Volatile var lastUsed: Long = 0L,
+        // T-10.8 (P1-3): the pending NAV-max-wait timer, cancellable before it fires
+        @Volatile var navTimeoutRunnable: Runnable? = null,
     ) {
         val inUse = AtomicBoolean(false)
 
@@ -730,6 +770,12 @@ class WebViewFetchFallbackInterceptor(
             try {
                 webview.destroy()
             } catch (_: Throwable) {}
+        }
+
+        /** T-10.8 (P1-3): cancels the pending NAV-max-wait timer (outer handler). */
+        fun cancelNavTimeout(handler: android.os.Handler) {
+            navTimeoutRunnable?.let { handler.removeCallbacks(it) }
+            navTimeoutRunnable = null
         }
     }
 }
@@ -778,11 +824,13 @@ private val challengeListenerScript = """
     })
 """.trimIndent()
 
-// Legacy addJavascriptInterface route: the only native object in the page is mihonfix
-private val legacyChallengeListenerScript = """
+// Legacy addJavascriptInterface route: the only native object in the page is mihonfix.
+// T-10.9 (P1-9): challenge events carry the session key so dispatchMessage can tell a
+// real Cloudflare abort from any iframe shouting "fail" through the shared interface.
+private fun legacyChallengeListenerScript(sessionKey: String) = """
     addEventListener("message", ({data}) => {
         if (data?.source === "cloudflare-challenge") {
-            mihonfix?.postMessage(data.event);
+            mihonfix?.postMessage(data.event + "|" + "$sessionKey");
         }
     })
 """.trimIndent()
