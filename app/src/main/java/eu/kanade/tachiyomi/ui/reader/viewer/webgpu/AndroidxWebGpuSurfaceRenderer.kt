@@ -991,13 +991,14 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         return environment.execute {
             if (stopped) throw IllegalStateException("WebGPU renderer stopped during upload")
             val device = environment.device
-            // Fallo E (T-E): the device's real texture ceiling decides the tiling. The
-            // adapter reports maxTextureDimension2D; devices created with the 16384
+            // Fallo E (T-E): the adapter's real texture ceiling decides the tiling.
+            // GPUAdapter.getLimits() reports maxTextureDimension2D (GPUDevice exposes no
+            // limits accessor in androidx.webgpu); devices created with the 16384
             // descriptor honor it, the adapter-default fallback reports its own (8192 on
             // some GPUs). Any texture requested below never exceeds the limit, so
             // createTexture cannot throw ValidationException for oversized pages anymore.
             val maxDimension = runCatching {
-                device.limits.maxTextureDimension2D
+                environment.adapter.getLimits().maxTextureDimension2D
             }.getOrDefault(MAX_TEXTURE_DIMENSION_2D)
             val plan = GpuTilePlanPolicy.planTiles(width = width, height = height, maxDimension = maxDimension)
             if (plan.isEmpty()) {
