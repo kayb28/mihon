@@ -93,8 +93,12 @@ class WebViewFetchFallbackInterceptor(
 
     // Requests to a host share its lock while the fallback runs, so concurrent requests to the
     // same host wait for one WebView instead of each opening their own
-    // P1-6 (T-10.11): bounded — a session can touch hundreds of hosts
-    private val hostLocks = LruHostRegistry<String, ReentrantReadWriteLock>(WebViewFallbackPolicy.MAX_HOST_ENTRIES)
+    // E2 (auditoría pre-merge PR #23): NOT in the LRU — evicting a lock entry while a request
+    // holds it would let a second request create a fresh lock and run a SECOND fallback for
+    // the same downed host in parallel. An unbounded ReentrantReadWriteLock per touched host
+    // is tiny (bounded in practice by unique hosts with in-flight fallbacks); the LRU cap
+    // stays on activations/cooldowns/tracker, which hold no synchronization invariant.
+    private val hostLocks = ConcurrentHashMap<String, ReentrantReadWriteLock>()
 
     // Fallback activations per host, used to decide when to keep a warm WebView (level 2).
     // P1-6 (T-10.11): bounded like every per-host map.
