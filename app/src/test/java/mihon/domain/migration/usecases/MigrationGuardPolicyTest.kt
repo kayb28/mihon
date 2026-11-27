@@ -1,10 +1,13 @@
 package mihon.domain.migration.usecases
 
+import kotlinx.serialization.json.JsonObject
 import kotlin.time.Instant
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.track.model.Track
 
 /**
@@ -14,6 +17,31 @@ import tachiyomi.domain.track.model.Track
  * yet — the module does not compile without it.
  */
 class MigrationGuardPolicyTest {
+
+    // -------------------------------------------------------------- T-10.5 (P0-5)
+
+    private fun chapter(id: Long, number: Double, read: Boolean) = Chapter(
+        id = id, mangaId = 7L, read = read, bookmark = false, lastPageRead = 0,
+        dateFetch = Instant.fromEpochMilliseconds(0), sourceOrder = id,
+        url = "u$id", name = "c$id", dateUpload = null, chapterNumber = number,
+        scanlator = null, memo = JsonObject(emptyMap()),
+    )
+
+    @Test
+    fun `T-10-5 maxChapterRead counts only recognized numbers among read chapters`() {
+        val chapters = listOf(
+            chapter(1, 5.0, read = true),
+            chapter(2, -1.0, read = true), // unrecognized number, read: must be ignored
+            chapter(3, 0.0, read = false),
+        )
+        assertEquals(5.0, MigrationGuardPolicy.maxChapterRead(chapters))
+    }
+
+    @Test
+    fun `T-10-5 only unrecognized read chapters yield null, not a negative clamp`() {
+        val chapters = listOf(chapter(1, -1.0, read = true), chapter(2, 0.0, read = true))
+        assertNull(MigrationGuardPolicy.maxChapterRead(chapters))
+    }
 
     // -------------------------------------------------------------- T-10.4 (P0-4)
 
