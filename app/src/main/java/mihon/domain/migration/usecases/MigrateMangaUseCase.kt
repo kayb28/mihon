@@ -80,9 +80,10 @@ class MigrateMangaUseCase(
                 val prevMangaChapters = getChaptersByMangaId.await(current.id)
                 val mangaChapters = getChaptersByMangaId.await(target.id)
 
-                val maxChapterRead = prevMangaChapters
-                    .filter { it.read }
-                    .maxOfOrNull { it.chapterNumber }
+                // P0-5 (T-10.5): only recognized numbers among READ chapters — a read
+                // chapter with chapterNumber <= 0 would clamp the max at <= 0 and mark
+                // every <= 0 target chapter as read in one stroke.
+                val maxChapterRead = MigrationGuardPolicy.maxChapterRead(prevMangaChapters)
 
                 val chapterUpdates = mangaChapters
                     .filter { it.isRecognizedNumber }
