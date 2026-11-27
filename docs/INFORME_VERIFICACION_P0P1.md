@@ -1,10 +1,13 @@
 # Informe de verificación T-10.0 — auditoría P0/P1 (PROMPT 10)
 
-Fecha: 2026-11-28 (UTC). Rama base: `main` = `c196c91`.
+Fecha: 2026-11-27 (UTC). Rama base: `main` = `c196c91`.
 
-**Nota sobre la base:** la auditoría cita punta `bd4aa16e`; esa punta NO existe en el
-repo (`main` real = `c196c91`, verificado con `ls-remote`). Los veredictos siguientes se
-emiten contra el árbol real; todo hallazgo se leyó en el fichero completo, no en extractos.
+**Nota sobre la base (corregida por el veredicto de la auditoría viva, PROMPT 10-R2):**
+la auditoría cita punta `bd4aa16e`; `git branch --contains bd4aa16e` demuestra que
+ESA PUNTA SÍ EXISTE en el repo (merge del PR #14, ancestro de la punta real
+`main` = `c196c91`). La frase anterior «esa punta NO existe» era drift de clon parcial.
+Los veredictos siguientes se emiten contra el árbol real; todo hallazgo se leyó en el
+fichero completo, no en extractos.
 
 Regla de oro aplicada: hallazgos que no se sostienen se registran `NO-CONFIRMADO` con
 evidencia; nada se parchea por aplaudir al auditor.

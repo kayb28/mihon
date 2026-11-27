@@ -1,6 +1,6 @@
 # Changelog
 
-## [Mihon Fix — P10: correctivo de auditoría P0/P1] - 2026-11-28
+## [Mihon Fix — P10: correctivo de auditoría P0/P1] - 2026-11-27
 
 ### Fixed
 - Migración (P0): el destino sin capítulos aborta ANTES del paso destructivo (P0-2);
