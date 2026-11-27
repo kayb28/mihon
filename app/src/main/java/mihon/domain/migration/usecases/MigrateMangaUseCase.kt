@@ -64,6 +64,17 @@ class MigrateMangaUseCase(
         try {
             updateMangaFromRemote(target, fetchChapters = true).getOrThrow()
 
+            // P0-2 (T-10.1): the target must actually have chapters BEFORE anything
+            // destructive happens — with `replace = true` the old manga leaves the library
+            // and an empty target would strand the user's read state.
+            MigrationGuardPolicy.requireTargetChapters(
+                currentTitle = current.title,
+                currentId = current.id,
+                targetId = target.id,
+                targetSource = target.source,
+                chapterCount = getChaptersByMangaId.await(target.id).size,
+            )
+
             // Update chapters read, bookmark and dateFetch
             if (MigrationFlag.CHAPTER in flags) {
                 val prevMangaChapters = getChaptersByMangaId.await(current.id)
