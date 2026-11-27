@@ -12,10 +12,14 @@ package mihon.feature.library.errors
 object RetryErrorsPolicy {
 
     /** The store seams this feature is allowed to use (audited facts, T-B). */
-    val SEAMS: List<String> = emptyList()
+    val SEAMS: List<String> = listOf(
+        "getErrorMangaIds", // snapshot at press time
+        "UpdateMangaFromRemote", // one call per id (success self-cleans via removeErrorsForManga)
+        "errorsFlow", // the screen refreshes from the store flow, not from ad-hoc state
+    )
 
     /** 5.1: the button is visible only when the error list has at least one row. */
-    fun buttonVisible(errorCount: Int): Boolean = false
+    fun buttonVisible(errorCount: Int): Boolean = errorCount > 0
 
     /** One retry pass: the snapshot of error manga IDs fixed at press time. */
     data class Pass(
@@ -26,10 +30,13 @@ object RetryErrorsPolicy {
     val Pass.isWholeLibrary: Boolean get() = false
 
     /** 5.2: begin a pass from the pressed snapshot; null if a pass already runs (5.4). */
-    fun beginPass(snapshot: Set<Long>, pass: Pass? = null): Pass? = null
+    fun beginPass(snapshot: Set<Long>, pass: Pass? = null): Pass? {
+        if (pass?.running == true) return null
+        return Pass(targetIds = snapshot, running = true)
+    }
 
     /** Whether [id] belongs to this pass's fixed scope. */
-    fun Pass.targets(id: Long): Boolean = false
+    fun Pass.targets(id: Long): Boolean = id in targetIds
 
     /** A fresh failure for a retried manga (its row stays with the new message). */
     data class FreshError(val message: String)
