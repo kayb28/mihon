@@ -33,11 +33,12 @@ class GpuTilePlanPolicyTest {
         val tiles = GpuTilePlanPolicy.planTiles(width = 800, height = 50000, maxDimension = 8192)
         // 50000 = 7 * 8192 = 57344 covered, remainder 2656 -> 8 tiles
         tiles shouldHaveSize 8
-        tiles.forEach { it.height shouldBe 8192 }
+        // first 7 bands are full-height, the 8th carries the remainder
+        tiles.dropLast(1).forEach { it.height shouldBe 8192 }
         tiles[7].height shouldBe 2656
         tiles.forEachIndexed { i, t -> t.sourceY shouldBe i * 8192 }
         // every tile respects the GPU ceiling
-        tiles.forEach { it.height shouldBe 8192 }
+        tiles.forEach { it.height shouldBeAtMost 8192 }
     }
 
     @Test
