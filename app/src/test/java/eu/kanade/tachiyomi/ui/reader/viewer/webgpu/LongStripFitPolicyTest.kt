@@ -123,14 +123,22 @@ class LongStripFitPolicyTest {
         }
         val fit = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, 0f)
         val first = GpuTilePlanPolicy.tileQuad(
-            frameWidth = 800, frameHeight = 50000, tile = plan.first(),
-            pageScaleX = fit.scaleX, pageScaleY = fit.scaleY,
-            pageOffsetX = fit.offsetX, pageOffsetY = fit.offsetY,
+            frameWidth = 800,
+            frameHeight = 50000,
+            tile = plan.first(),
+            pageScaleX = fit.scaleX,
+            pageScaleY = fit.scaleY,
+            pageOffsetX = fit.offsetX,
+            pageOffsetY = fit.offsetY,
         )
         val last = GpuTilePlanPolicy.tileQuad(
-            frameWidth = 800, frameHeight = 50000, tile = plan.last(),
-            pageScaleX = fit.scaleX, pageScaleY = fit.scaleY,
-            pageOffsetX = fit.offsetX, pageOffsetY = fit.offsetY,
+            frameWidth = 800,
+            frameHeight = 50000,
+            tile = plan.last(),
+            pageScaleX = fit.scaleX,
+            pageScaleY = fit.scaleY,
+            pageOffsetX = fit.offsetX,
+            pageOffsetY = fit.offsetY,
         )
         assertClose(fit.offsetY + fit.scaleY, first.offsetY + first.scaleY)
         assertClose(fit.offsetY - fit.scaleY, last.offsetY - last.scaleY)
