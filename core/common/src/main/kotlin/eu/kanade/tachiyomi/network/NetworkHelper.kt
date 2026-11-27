@@ -14,7 +14,6 @@ import mihon.core.metro.AppCoroutineScope
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import tachiyomi.core.common.preference.PreferenceStore
 import java.io.File
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -25,14 +24,14 @@ class NetworkHelper(
     @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val preferences: NetworkPreferences,
-    preferenceStore: PreferenceStore,
+    private val domainOverrideStore: DomainOverrideStore,
 ) {
 
     val cookieJar = AndroidCookieJar()
 
     // D3: the ONE domain-override helper, shared by the OkHttp interceptor and the
     // WebView fallback path (both callers get the same rules and the same rewrite).
-    private val domainOverride = DomainOverrideHelper(DomainOverrideStore(preferenceStore))
+    private val domainOverride = DomainOverrideHelper(domainOverrideStore)
 
     private fun clientBuilder(): OkHttpClient.Builder = run {
         val builder = OkHttpClient.Builder()

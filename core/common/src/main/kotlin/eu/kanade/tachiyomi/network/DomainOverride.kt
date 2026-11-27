@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.network
 
+import dev.zacsweers.metro.Inject
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -12,12 +13,11 @@ import tachiyomi.core.common.preference.PreferenceStore
  *
  * Persisted through PreferenceStore as a JSON map; nothing else touches the big engine.
  */
-class DomainOverrideStore(
+class DomainOverrideStore @Inject constructor(
     private val preferenceStore: PreferenceStore,
-    private val rulesKey: String = "domain_override_rules",
 ) {
 
-    private val preferences = preferenceStore.getString(rulesKey, "{}")
+    private val preferences = preferenceStore.getString("domain_override_rules", "{}")
 
     private val json = Json { ignoreUnknownKeys = true }
 
