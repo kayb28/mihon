@@ -69,7 +69,9 @@ fun Screen.sourcesTab(): TabContent {
                     source = source,
                     healthRecord = state.healthRecords.firstOrNull { it.sourceId == source.id },
                     // D6 (PROMPT 8): per-source "Editar dominio"; stub/local sources excluded
-                    onClickEditDomain = if (source.isStub) null else {
+                    onClickEditDomain = if (source.isStub) {
+                        null
+                    } else {
                         { viewModel.showEditDomainDialog(source) }
                     },
                     onClickPin = {

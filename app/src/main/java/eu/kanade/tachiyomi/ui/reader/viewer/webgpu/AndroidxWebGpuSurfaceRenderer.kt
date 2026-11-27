@@ -206,15 +206,31 @@ private val VIEWER_WGSL = """
  */
 class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRenderer.PageImage> {
 
-    /** A page image living in GPU memory; [destroyed] flips when [destroy] releases the texture. */
+    /**
+     * A page image living in GPU memory; [destroyed] flips when [destroy] releases the tiles.
+     *
+     * Fallo E (T-E): frames taller/wider than the device's `maxTextureDimension2D` are
+     * stored as several tiles (one texture each, ordered top-to-bottom, left-to-right);
+     * [tiles] has exactly one entry for normal pages, so the single-tile path is the same
+     * as before. [width]/[height] stay the FULL frame size: placement math never changes.
+     */
     class PageImage internal constructor(
-        internal val texture: GPUTexture,
+        internal val tiles: List<PageTile>,
         val width: Int,
         val height: Int,
     ) {
         @Volatile
         internal var destroyed = false
     }
+
+    /** One GPU texture covering the [sourceY, sourceY+height) band (and X band) of a frame. */
+    class PageTile internal constructor(
+        internal val texture: GPUTexture,
+        internal val sourceX: Int,
+        internal val sourceY: Int,
+        internal val width: Int,
+        internal val height: Int,
+    )
 
     /**
      * One page quad the next frame draws, placed by the viewer: NDC half-extents and center
@@ -550,7 +566,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         }
         runBlocking {
             environment.execute {
-                toRelease.forEach { image -> runCatching { image.texture.close() } }
+                toRelease.forEach { image -> image.tiles.forEach { runCatching { it.texture.close() } } }
                 releaseResources()
             }
         }
@@ -648,7 +664,10 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         backbuffer: GPUTextureView,
         placed: List<PageDraw>,
     ) {
-        writePlacedParams(environment.device, params, placed)
+        // Fallo E (T-E): every page expands to one quad per tile, NDC-fit to the tile's
+        // source rectangle; single-tile pages produce exactly the same quad as before.
+        val quads = expandToTileQuads(placed, PARAMS_SLOTS)
+        writePlacedParams(environment.device, params, quads)
         val encoder: GPUCommandEncoder = environment.device.createCommandEncoder()
         var commands: GPUCommandBuffer? = null
         val views = ArrayList<GPUTextureView>(placed.size)
@@ -667,8 +686,8 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                 ),
             )
             try {
-                placed.forEachIndexed { index, draw ->
-                    val view = draw.image.texture.createView()
+                quads.forEachIndexed { index, quad ->
+                    val view = quad.texture.createView()
                     views.add(view)
                     val group = environment.device.createBindGroup(
                         GPUBindGroupDescriptor(
@@ -705,14 +724,14 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         }
     }
 
-    /** Writes one 256-byte uniform slot per placed page (the struct lives at the slot's start). */
-    private fun writePlacedParams(device: GPUDevice, params: GPUBuffer, placed: List<PageDraw>) {
-        val data = scratch(placed.size * PARAMS_SLOT)
-        placed.forEach { draw ->
-            data.putFloat(draw.scaleX)
-            data.putFloat(draw.scaleY)
-            data.putFloat(draw.offsetX)
-            data.putFloat(draw.offsetY)
+    /** Writes one 256-byte uniform slot per drawn quad (the struct lives at the slot's start). */
+    private fun writePlacedParams(device: GPUDevice, params: GPUBuffer, quads: List<TileQuad>) {
+        val data = scratch(quads.size * PARAMS_SLOT)
+        quads.forEach { quad ->
+            data.putFloat(quad.scaleX)
+            data.putFloat(quad.scaleY)
+            data.putFloat(quad.offsetX)
+            data.putFloat(quad.offsetY)
             data.putFloat(colorGrayscale)
             data.putFloat(colorInvert)
             data.putFloat(0f)
@@ -725,6 +744,52 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
     }
 
+    /**
+     * One drawable quad: the tile's texture plus the NDC transform that places the tile's
+     * source rectangle exactly where the page's full-frame quad would have put it.
+     */
+    private class TileQuad(
+        internal val texture: GPUTexture,
+        internal val scaleX: Float,
+        internal val scaleY: Float,
+        internal val offsetX: Float,
+        internal val offsetY: Float,
+    )
+
+    /**
+     * Fallo E (T-E): expands each placed page into one quad per tile. The page's NDC quad
+     * is (offsetX ± scaleX, offsetY ± scaleY); a tile covering source rectangle
+     * [sourceX, sourceX+width) x [sourceY, sourceY+height) occupies the proportional
+     * sub-rectangle, which in NDC terms is a scaled quad with a shifted center:
+     * scale' = scale * (tileSize / frameSize), center' = pageCenter + (tileCenter -
+     * frameCenter) mapped through the page scale. Single-tile pages (every normal page)
+     * reduce to the page's own quad bit-for-bit, so E3 holds by construction.
+     */
+    private fun expandToTileQuads(placed: List<PageDraw>, maxQuads: Int): List<TileQuad> {
+        val quads = ArrayList<TileQuad>(placed.size)
+        placed@ for (draw in placed) {
+            if (draw.image.destroyed) continue
+            val frameW = draw.image.width.toFloat()
+            val frameH = draw.image.height.toFloat()
+            draw.image.tiles.forEach { tile ->
+                if (quads.size >= maxQuads) break@placed
+                // Tile center relative to the frame center, in [-1, 1] of each axis.
+                val cx = (tile.sourceX + tile.width / 2f) / frameW * 2f - 1f
+                val cy = 1f - (tile.sourceY + tile.height / 2f) / frameH * 2f
+                quads.add(
+                    TileQuad(
+                        texture = tile.texture,
+                        scaleX = draw.scaleX * tile.width / frameW,
+                        scaleY = draw.scaleY * tile.height / frameH,
+                        offsetX = draw.offsetX + draw.scaleX * cx,
+                        offsetY = draw.offsetY + draw.scaleY * cy,
+                    ),
+                )
+            }
+        }
+        return quads
+    }
+
     /** Draws the paged viewer's single [currentPage] with its zoom/pan transform. */
     private fun drawSinglePage(
         environment: WebGpu,
@@ -735,21 +800,14 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         backbuffer: GPUTextureView,
     ) {
         val page = currentPage?.takeIf { !it.destroyed }
-        val pageView = page?.texture?.createView()
-        val bindGroup: GPUBindGroup? = pageView?.let { view ->
-            environment.device.createBindGroup(
-                GPUBindGroupDescriptor(
-                    layout = groupLayout,
-                    entries = arrayOf(
-                        GPUBindGroupEntry(binding = 0, buffer = params),
-                        GPUBindGroupEntry(binding = 1, sampler = pageSampler),
-                        GPUBindGroupEntry(binding = 2, textureView = view),
-                    ),
-                ),
-            )
-        }
+        // Fallo E (T-E): the single-page path also expands to one quad per tile, reusing
+        // the same aspect-fit transform writeParams computes for the whole page. A
+        // single-tile page keeps exactly one quad — today's behavior (E3).
+        val quads = page?.let { pageToTileQuads(it, PARAMS_SLOTS) } ?: emptyList()
+        val views = ArrayList<GPUTextureView>(quads.size)
+        val groups = ArrayList<GPUBindGroup>(quads.size)
         try {
-            writeParams(environment.device, params, page)
+            writeQuadsParams(environment.device, params, quads)
             val encoder: GPUCommandEncoder = environment.device.createCommandEncoder()
             var commands: GPUCommandBuffer? = null
             try {
@@ -766,10 +824,27 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                     ),
                 )
                 try {
-                    // bindGroup is only non-null when page is, so it gates both.
-                    if (bindGroup != null) {
+                    quads.forEachIndexed { index, quad ->
+                        val view = quad.texture.createView()
+                        views.add(view)
+                        val group = environment.device.createBindGroup(
+                            GPUBindGroupDescriptor(
+                                layout = groupLayout,
+                                entries = arrayOf(
+                                    GPUBindGroupEntry(
+                                        binding = 0,
+                                        buffer = params,
+                                        offset = (index * PARAMS_SLOT).toLong(),
+                                        size = PARAMS_SLOT.toLong(),
+                                    ),
+                                    GPUBindGroupEntry(binding = 1, sampler = pageSampler),
+                                    GPUBindGroupEntry(binding = 2, textureView = view),
+                                ),
+                            ),
+                        )
+                        groups.add(group)
                         pass.setPipeline(pipe)
-                        pass.setBindGroup(0, bindGroup)
+                        pass.setBindGroup(0, group)
                         pass.draw(6)
                     }
                     pass.end()
@@ -784,40 +859,59 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
             }
             environment.webgpuSurface.present()
         } finally {
-            bindGroup?.close()
-            pageView?.close()
+            groups.forEach { runCatching { it.close() } }
+            views.forEach { runCatching { it.close() } }
         }
     }
 
-    /** Writes the aspect-fit quad transform (NDC half-extents, centered) for [page]. */
-    private fun writeParams(device: GPUDevice, params: GPUBuffer, page: PageImage?) {
-        var scaleX = 0f
-        var scaleY = 0f
-        var offsetX = 0f
-        var offsetY = 0f
-        if (page != null) {
-            val zoom = pageZoom.coerceAtLeast(1f)
-            val fit = min(surfaceWidth.toFloat() / page.width, surfaceHeight.toFloat() / page.height)
-            // Zoom about the page center, then pan: NDC scale grows, the pan follows in NDC units
-            // (surface px are y down, NDC y up, so the pan's y flips).
-            scaleX = page.width * fit / surfaceWidth * zoom
-            scaleY = page.height * fit / surfaceHeight * zoom
-            val maxPanX = (scaleX - 1f).coerceAtLeast(0f)
-            val maxPanY = (scaleY - 1f).coerceAtLeast(0f)
-            offsetX = (pagePanX / surfaceWidth * 2f).coerceIn(-maxPanX, maxPanX)
-            offsetY = (-pagePanY / surfaceHeight * 2f).coerceIn(-maxPanY, maxPanY)
+    /** Writes the aspect-fit quad transforms (NDC half-extents, centered) for [quads]. */
+    private fun writeQuadsParams(device: GPUDevice, params: GPUBuffer, quads: List<TileQuad>) {
+        if (quads.isEmpty()) {
+            // Keep the legacy clear-quad write so an empty frame still clears deterministically.
+            writeEmptyParams(device, params)
+            return
         }
-        val data = scratch(PARAMS_STRUCT_SIZE.toInt())
-        data.putFloat(scaleX)
-        data.putFloat(scaleY)
-        data.putFloat(offsetX)
-        data.putFloat(offsetY)
-        data.putFloat(colorGrayscale)
-        data.putFloat(colorInvert)
-        data.putFloat(0f)
-        data.putFloat(0f)
+        val data = scratch(quads.size * PARAMS_SLOT)
+        quads.forEach { quad ->
+            data.putFloat(quad.scaleX)
+            data.putFloat(quad.scaleY)
+            data.putFloat(quad.offsetX)
+            data.putFloat(quad.offsetY)
+            data.putFloat(colorGrayscale)
+            data.putFloat(colorInvert)
+            data.putFloat(0f)
+            data.putFloat(0f)
+            data.position(data.position() + PARAMS_SLOT - PARAMS_STRUCT_SIZE.toInt())
+        }
         data.flip()
         device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
+    }
+
+    private fun writeEmptyParams(device: GPUDevice, params: GPUBuffer) {
+        val data = scratch(PARAMS_STRUCT_SIZE.toInt())
+        repeat(8) { data.putFloat(0f) }
+        data.flip()
+        device.queue.writeBuffer(params, 0, AndroidxWebGpuBufferOps.confine(data))
+    }
+
+    /**
+     * The single-page path's tile expansion: computes the page's aspect-fit + zoom/pan
+     * transform exactly as the pre-tiling code did, then maps each tile's source
+     * rectangle through it (same math as [expandToTileQuads]).
+     */
+    private fun pageToTileQuads(page: PageImage, maxQuads: Int): List<TileQuad> {
+        val zoom = pageZoom.coerceAtLeast(1f)
+        val fit = min(surfaceWidth.toFloat() / page.width, surfaceHeight.toFloat() / page.height)
+        // Zoom about the page center, then pan: NDC scale grows, the pan follows in NDC units
+        // (surface px are y down, NDC y up, so the pan's y flips).
+        val scaleX = page.width * fit / surfaceWidth * zoom
+        val scaleY = page.height * fit / surfaceHeight * zoom
+        val maxPanX = (scaleX - 1f).coerceAtLeast(0f)
+        val maxPanY = (scaleY - 1f).coerceAtLeast(0f)
+        val offsetX = (pagePanX / surfaceWidth * 2f).coerceIn(-maxPanX, maxPanX)
+        val offsetY = (-pagePanY / surfaceHeight * 2f).coerceIn(-maxPanY, maxPanY)
+        val draw = PageDraw(page, scaleX, scaleY, offsetX, offsetY)
+        return expandToTileQuads(listOf(draw), maxQuads)
     }
 
     /** The clear colour every render pass starts from: the reader's background, opaque. */
@@ -858,7 +952,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         // synchronous drain required by surfaceDestroyed; start failure path is unchanged.
         renderScope.launch {
             environment.execute {
-                runCatching { image.texture.close() }
+                image.tiles.forEach { runCatching { it.texture.close() } }
             }
         }
     }
@@ -888,15 +982,44 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         return environment.execute {
             if (stopped) throw IllegalStateException("WebGPU renderer stopped during upload")
             val device = environment.device
-            val texture = device.createTexture(
-                GPUTextureDescriptor(
-                    usage = TextureUsage.TextureBinding or TextureUsage.CopyDst,
-                    size = GPUExtent3D(width = width, height = height),
-                    format = TextureFormat.RGBA8Unorm,
-                ),
-            )
-            uploadPixels(device, texture, image, width, height)
-            val page = PageImage(texture, width, height)
+            // Fallo E (T-E): the device's real texture ceiling decides the tiling. The
+            // adapter reports maxTextureDimension2D; devices created with the 16384
+            // descriptor honor it, the adapter-default fallback reports its own (8192 on
+            // some GPUs). Any texture requested below never exceeds the limit, so
+            // createTexture cannot throw ValidationException for oversized pages anymore.
+            val maxDimension = runCatching {
+                device.limits.maxTextureDimension2D
+            }.getOrDefault(MAX_TEXTURE_DIMENSION_2D)
+            val plan = GpuTilePlanPolicy.planTiles(width = width, height = height, maxDimension = maxDimension)
+            if (plan.isEmpty()) {
+                throw IllegalArgumentException("Invalid frame size ${width}x$height")
+            }
+            val created = ArrayList<PageTile>(plan.size)
+            try {
+                plan.forEach { tile ->
+                    val texture = device.createTexture(
+                        GPUTextureDescriptor(
+                            usage = TextureUsage.TextureBinding or TextureUsage.CopyDst,
+                            size = GPUExtent3D(width = tile.width, height = tile.height),
+                            format = TextureFormat.RGBA8Unorm,
+                        ),
+                    )
+                    uploadTilePixels(device, texture, image, width, height, tile)
+                    created.add(
+                        PageTile(
+                            texture = texture,
+                            sourceX = tile.sourceX,
+                            sourceY = tile.sourceY,
+                            width = tile.width,
+                            height = tile.height,
+                        ),
+                    )
+                }
+            } catch (e: Throwable) {
+                created.forEach { runCatching { it.texture.close() } }
+                throw e
+            }
+            val page = PageImage(created, width, height)
             val accepted = synchronized(lock) {
                 if (stopped) {
                     false
@@ -906,7 +1029,7 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
                 }
             }
             if (!accepted) {
-                texture.close()
+                created.forEach { runCatching { it.texture.close() } }
                 throw IllegalStateException("WebGPU renderer stopped during upload")
             }
             page
@@ -917,52 +1040,43 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
      * Uploads tightly packed RGBA8 [pixels] into [texture]. Dawn enforces WebGPU's 256-byte copy
      * stride, so rows are re-packed into a padded staging buffer when the natural stride misses it.
      */
-    private fun uploadPixels(
+    private fun uploadTilePixels(
         device: GPUDevice,
         texture: GPUTexture,
         pixels: ByteBuffer,
-        width: Int,
-        height: Int,
+        frameWidth: Int,
+        frameHeight: Int,
+        tile: GpuTilePlanPolicy.Tile,
     ) {
-        val rowBytes = width * BYTES_PER_PIXEL
-        val writeSize = GPUExtent3D(width = width, height = height)
+        val rowBytes = tile.width * BYTES_PER_PIXEL
+        val writeSize = GPUExtent3D(width = tile.width, height = tile.height)
         val source = pixels.duplicate().order(ByteOrder.nativeOrder())
-        if (source.remaining() < rowBytes * height) {
+        val frameRowBytes = frameWidth * BYTES_PER_PIXEL
+        if (source.remaining() < frameRowBytes * frameHeight) {
             // Some decoder buffers arrive positioned at 0 without remaining() set.
             source.rewind()
         }
-        require(source.remaining() >= rowBytes * height) {
-            "Pixel buffer holds ${source.remaining()} bytes, need ${rowBytes * height} for ${width}x$height"
+        require(source.remaining() >= frameRowBytes * frameHeight) {
+            "Pixel buffer holds ${source.remaining()} bytes, need ${frameRowBytes * frameHeight} for ${frameWidth}x$frameHeight"
         }
-        // The buffer's meaningful end: limit() is restored to it after every row below —
-        // capacity is not the data end for every decoder buffer.
         val sourceEnd = source.limit()
-        if (rowBytes % TEXTURE_COPY_ALIGNMENT == 0) {
-            device.queue.writeTexture(
-                destination = GPUTexelCopyTextureInfo(texture = texture),
-                data = AndroidxWebGpuBufferOps.confine(source),
-                writeSize = writeSize,
-                dataLayout = GPUTexelCopyBufferLayout(bytesPerRow = rowBytes, rowsPerImage = height),
-            )
-            return
-        }
-        val paddedRowBytes = (rowBytes + TEXTURE_COPY_ALIGNMENT - 1) / TEXTURE_COPY_ALIGNMENT *
-            TEXTURE_COPY_ALIGNMENT
-        val staging = scratch(paddedRowBytes * height)
-        repeat(height) {
+        // Point at the tile's first row; every row copies only the tile's X band and
+        // skips the rest of the frame row afterwards (no scaling: exact source pixels).
+        source.position(source.position() + tile.sourceY * frameRowBytes)
+        val staging = scratch(rowBytes * tile.height)
+        repeat(tile.height) {
+            source.position(source.position() + tile.sourceX * BYTES_PER_PIXEL)
             source.limit(source.position() + rowBytes)
             staging.put(source)
             source.limit(sourceEnd)
-            // Rows must land on the padded stride: put() advances by rowBytes only, so skip to
-            // the next row's aligned start (the same slot-stride trick the uniform writes use).
-            staging.position(staging.position() + paddedRowBytes - rowBytes)
+            source.position(source.position() + (frameWidth - tile.sourceX - tile.width) * BYTES_PER_PIXEL)
         }
         staging.flip()
         device.queue.writeTexture(
             destination = GPUTexelCopyTextureInfo(texture = texture),
             data = AndroidxWebGpuBufferOps.confine(staging),
             writeSize = writeSize,
-            dataLayout = GPUTexelCopyBufferLayout(bytesPerRow = paddedRowBytes, rowsPerImage = height),
+            dataLayout = GPUTexelCopyBufferLayout(bytesPerRow = rowBytes, rowsPerImage = tile.height),
         )
     }
 }
