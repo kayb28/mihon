@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.network
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import tachiyomi.core.common.preference.PreferenceStore
 
 /**
@@ -56,9 +57,22 @@ data class DomainOverrideRule(
         /**
          * D4: validate the URL the user pasted in the "Editar dominio" dialog against the
          * source's current host. Accepted input is reduced to its host (the rule rewrites
-         * hosts, not paths). Rejected input carries a visible reason for the dialog.
+         * hosts, not paths). Rejected input carries a visible reason for the dialog;
+         * nothing ever reaches the request pipeline unvalidated.
          */
-        fun validate(input: String, currentHost: String): Validation = Invalid.Rejected
+        fun validate(input: String, currentHost: String): Validation {
+            val trimmed = input.trim()
+            val url = runCatching { trimmed.toHttpUrl() }.getOrNull()
+                // tolerate a bare host ("new.example") by assuming https, like browsers do
+                ?: runCatching { "https://$trimmed".toHttpUrl() }.getOrNull()
+                ?: return Invalid.Rejected()
+            if (url.scheme != "https" && url.scheme != "http") return Invalid.Rejected()
+            val host = url.host.lowercase()
+            if (host == currentHost.lowercase() || host == "www.${'$'}{currentHost.lowercase()}") {
+                return Invalid.SameHost(host)
+            }
+            return Valid(toHost = host)
+        }
     }
 
     /** D4 verdict: either a valid rule target, or a rejection with a user-visible reason. */
