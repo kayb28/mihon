@@ -89,7 +89,7 @@ class LongStripFitPolicyTest {
     // F2: HQ equivalence — same readability as HQ's windowed tall page: width filled,
     // content at native placement scale (>= width-fit), never compressed.
     @Test
-    fun `F2 a tall page reads like HQ: width filled, scale at least width-fit`() {
+    fun `F2 a tall page reads like HQ - width filled, scale at least width-fit`() {
         val fit = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, 0f)
         assertClose(1f, fit.scaleX)
         assertClose(1f * 50000f * (1080f / 800f) / 2400f, fit.scaleY)
