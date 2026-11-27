@@ -54,16 +54,20 @@ class LongStripFitPolicyTest {
         assertClose(1f, fit.offsetY + fit.scaleY)
     }
 
-    // F1: panning walks the whole page; the viewport never leaves the page.
+    // F1: panning walks the whole page (pan y flips: negative panY = hacia el final);
+    // the viewport never leaves the page.
     @Test
     fun `F1 panning reaches the bottom of the tall page without gaps`() {
         val scaleY = 50000f * (1080f / 800f) / 2400f
-        val maxPanY = (scaleY - 1f) * 2400f / 2f
+        // Full traversal: the pan distance that slides the window from the page's top
+        // edge to its bottom edge is (scaleY - 1) * surfaceHeight surface px.
+        val panRange = (scaleY - 1f) * 2400f
         val top = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, 0f)
-        val bottom = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, -maxPanY)
-        val beyond = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, -maxPanY * 10f)
+        val bottom = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, -panRange)
+        val beyond = LongStripFitPolicy.place(800, 50000, 1080, 2400, 1f, 0f, -panRange * 10f)
         // Bottom: the page's last row sits on the viewport's bottom edge.
         assertClose(-1f, bottom.offsetY - bottom.scaleY)
+        assertClose(scaleY - 1f, bottom.offsetY)
         // Over-panning clamps: no gap below the page.
         assertClose(bottom.offsetY, beyond.offsetY)
         // Top: pinned at pan 0.
