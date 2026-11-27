@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
 
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeAtMost
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
@@ -35,7 +37,7 @@ class GpuTilePlanPolicyTest {
         tiles[7].height shouldBe 2656
         tiles.forEachIndexed { i, t -> t.sourceY shouldBe i * 8192 }
         // every tile respects the GPU ceiling
-        tiles.forEach { it.height shouldBeAtMostDimension 8192 }
+        tiles.forEach { it.height shouldBe 8192 }
     }
 
     @Test
@@ -65,7 +67,7 @@ class GpuTilePlanPolicyTest {
             var expectedY = 0
             for (t in tiles) {
                 t.sourceY shouldBe expectedY
-                t.height shouldBeGreaterThanZero()
+                t.height shouldBeGreaterThan 0
                 expectedY += t.height
             }
             expectedY shouldBe height
@@ -92,8 +94,8 @@ class GpuTilePlanPolicyTest {
         for (w in intArrayOf(800, 8192, 8193, 16384, 20000)) {
             for (h in intArrayOf(1000, 8193, 16384, 50000, 65536)) {
                 GpuTilePlanPolicy.planTiles(width = w, height = h, maxDimension = 8192).forEach { t ->
-                    t.width shouldBeAtMostDimension 8192
-                    t.height shouldBeAtMostDimension 8192
+                    t.width shouldBeAtMost 8192
+                    t.height shouldBeAtMost 8192
                 }
             }
         }
@@ -170,11 +172,4 @@ class GpuTilePlanPolicyTest {
 
     // ---------------------------------------------------------------- helpers
 
-    private infix fun Int.shouldBeAtMostDimension(max: Int) {
-        if (this > max) throw AssertionError("expected <= $max but was $this")
-    }
-
-    private fun Int.shouldBeGreaterThanZero() {
-        if (this <= 0) throw AssertionError("expected > 0 but was $this")
-    }
 }
