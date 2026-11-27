@@ -616,3 +616,20 @@ E1+E3 en JVM + checklist de dispositivo. Condición STOP descartada con evidenci
 del usuario es ValidationException de CreateTexture por dimensión > límite, solo visor
 EXPERIMENTAL (STOCK/HQ no usan WebGPU). Alcance: solo archivos del visor WebGPU.
 Informe: docs/INFORME_FALLO_E_TEXTURA.md.
+
+## 2026-11-27 (cierre de ronda — fixes de CI de las series P8/T-B)
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 07:0x | `feat/p8-domain-override` | `56c727ffd` | 🔧 | tests D4 alineados con la firma validate(input, currentHost) + import shouldHaveSize |
+| 07:1x | `feat/p5-reintentar-titulos-error` | `a2c9d38a2`/`ffb22f78f`/`4163e7da8` | 🔧 | spotless: testTag tras LocalContext; UpdateMangaFromRemote en su sección; KDoc duplicado |
+| 07:1x | `feat/p8-domain-override` | `63efa81e2` | ✅ (por reproducir) | fix de 3 comportamientos detectados por CI (run 45954918862: 69 tests, 3 failed) y reproducidos LOCALMENTE con okhttp 4.12 real: D4 fallback https:// aceptaba 'ftp://x'/'file:///x' como hosts 'ftp'/'file' (ahora solo host pelado); D6 onRewrite nunca invocado (ahora emite la línea); D7 guard bloqueaba old→new cuando new tenía regla (aplicación única corregida) |
+| 07:2x | `feat/p5-reintentar-titulos-error` | `410c286f9` | 🔧 | compile fix tests: beginPass es nullable (aserción !!) |
+| 07:2x | `feat/p8-domain-override` | `80b025349` | 🔧 | compile fix: stringResource se resuelve en el cuerpo @Composable, no dentro del onClick |
+
+**Estado al cierre de esta ronda (07:2x UTC):** PRs abiertos #15 (T-E), #16 (T-REB),
+#17 (T-B), #18 (P8), #19 (T-D1). CI verde confirmada: docs/consolidacion-2026-11-27
+(df424a5ee, run 45954074642) y fix/fallo-e-textura rojo/verdes previos. Pendiente de
+verificar en la próxima ronda: los runs de las puntas 410c286f9 (T-B) y 80b025349 (P8)
+— todos los fallos previos quedaron explicados y corregidos (3 de comportamiento P8
+con repro local; el resto formato/compile). NADA se ha mergeado (regla del encargo).
