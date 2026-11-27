@@ -29,20 +29,56 @@ class DomainOverrideStore @Inject constructor(
     /**
      * Create or edit the rule for [rule.fromHost]. Hosts are stored lowercase so the
      * exact match in [targetFor] is case-insensitive, like HttpUrl host normalization.
+     *
+     * P8-fix2 (auditoría PR #18): every rule is stored as a PAIR — the exact hosts the
+     * user gave plus their automatic www. twin, because most sites serve the same
+     * content with and without "www." and asking the user to hand-craft a second rule
+     * they don't know they need is a trap. Exactly two entries per upsert, no recursion.
      */
     fun upsert(rule: DomainOverrideRule) {
-        val next = rules() + (rule.fromHost.lowercase() to rule.toHost.lowercase())
+        val from = rule.fromHost.lowercase().trim()
+        val to = rule.toHost.lowercase().trim()
+        val next = rules() + (from to to) + wwwTwin(from, to)
         preferences.set(json.encodeToString(next))
     }
 
-    /** Delete the rule for [fromHost] if present. */
+    /**
+     * P8-fix2: the www. twin of one rule. Both directions are symmetric:
+     * - bare from -> (www.from -> www.to, keeping to when it already carries www.);
+     * - www. from -> (bare from -> bare to).
+     */
+    private fun wwwTwin(from: String, to: String): Pair<String, String> {
+        val bareFrom = from.removePrefix(WWW_PREFIX)
+        val bareTo = to.removePrefix(WWW_PREFIX)
+        return if (from.startsWith(WWW_PREFIX) && bareFrom.isNotEmpty()) {
+            // www.from -> bare.from twin (symmetric), never a "www.www." loop
+            bareFrom to bareTo
+        } else {
+            WWW_PREFIX + from to (if (to.startsWith(WWW_PREFIX)) to else WWW_PREFIX + to)
+        }
+    }
+
+    /**
+     * Delete the rule for [fromHost] if present, together with its www. twin
+     * (P8-fix2: one user action removes the whole pair).
+     */
     fun delete(fromHost: String) {
-        val next = rules() - fromHost.lowercase()
+        val from = fromHost.lowercase().trim()
+        val twin = if (from.startsWith(WWW_PREFIX)) {
+            from.removePrefix(WWW_PREFIX)
+        } else {
+            WWW_PREFIX + from
+        }
+        val next = rules() - from - twin
         preferences.set(json.encodeToString(next))
     }
 
     /** The configured target host for an exact (case-insensitive) [host], or null. */
     fun targetFor(host: String): String? = rules()[host.lowercase()]
+
+    private companion object {
+        const val WWW_PREFIX = "www."
+    }
 }
 
 /**

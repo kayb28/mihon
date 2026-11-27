@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.FilterList
 import mihon.icons.materialsymbols.rounded.TravelExplore
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -37,6 +38,7 @@ fun Screen.sourcesTab(): TabContent {
     val updateAlreadyRunningText = stringResource(MR.strings.update_already_running)
     val sourceCheckCompleteText = stringResource(MR.strings.source_health_check_complete)
     val sourceCheckFailedText = stringResource(MR.strings.source_health_check_failed)
+    val editDomainUnavailableText = stringResource(MR.strings.source_action_edit_domain_unavailable)
 
     return TabContent(
         titleRes = MR.strings.label_sources,
@@ -106,10 +108,22 @@ fun Screen.sourcesTab(): TabContent {
                     onSave = { toHost ->
                         viewModel.saveDomainRule(host, toHost)
                         viewModel.closeEditDomainDialog()
+                        // P8-fix1 (auditoría PR #18): confirmación visible — el string existía
+                        // pero nunca se mostraba. Mismo patrón que onClickUpdateLibrary arriba.
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                context.stringResource(MR.strings.source_action_edit_domain_saved, host, toHost),
+                            )
+                        }
                     },
                     onDelete = {
                         viewModel.deleteDomainRule(host)
                         viewModel.closeEditDomainDialog()
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                context.stringResource(MR.strings.source_action_edit_domain_removed),
+                            )
+                        }
                     },
                 )
             }
@@ -126,6 +140,10 @@ fun Screen.sourcesTab(): TabContent {
                         }
                         SourcesViewModel.Event.SourceCheckFailed -> {
                             launch { snackbarHostState.showSnackbar(sourceCheckFailedText) }
+                        }
+                        // P8-fix3: host no resoluble — el diálogo ya se cerró solo; avisamos.
+                        SourcesViewModel.Event.EditDomainUnavailable -> {
+                            launch { snackbarHostState.showSnackbar(editDomainUnavailableText) }
                         }
                     }
                 }

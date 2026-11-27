@@ -153,6 +153,14 @@ class SourcesViewModel(
             val installed = sourceManager.get(source.id)
             val host = (installed as? HttpSource)?.baseUrl?.toHttpUrlOrNull()?.host
             editDomain.update { it?.copy(host = host) }
+            // P8-fix3 (auditoría PR #18): a source whose host cannot be resolved (not an
+            // HttpSource, baseUrl missing/unparseable, or missing from SourceManager) must
+            // NOT leave the dialog state dangling forever — close it and surface one
+            // error event so the UI shows a snackbar instead of a silent blank.
+            if (host == null) {
+                editDomain.update { null }
+                _events.send(Event.EditDomainUnavailable)
+            }
         }
     }
 
@@ -187,6 +195,9 @@ class SourcesViewModel(
         data object FailedFetchingSources : Event
         data object SourceCheckCompleted : Event
         data object SourceCheckFailed : Event
+
+        /** P8-fix3: "Editar dominio" was opened on a source whose host cannot be resolved. */
+        data object EditDomainUnavailable : Event
     }
 
     data class Dialog(val source: Source)

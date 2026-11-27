@@ -819,3 +819,23 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-28 (feat/p8-fixes — auditoría externa del PR #18: tres bordes de «Editar dominio»)
+
+Motivo: auditoría externa del PR #18 detectó tres bordes sin pulir (ninguno rompía hoy).
+Rama `feat/p8-fixes` desde `main`, un commit verde por comportamiento: P8-fix1 (snackbars
+saved/removed que existían sin uso), P8-fix2 (variante www. automática del par en
+`DomainOverrideStore`, delete borra ambas, sin bucles; 5 tests nuevos + D1 actualizado),
+P8-fix3 (host no resoluble cierra el diálogo y emite `Event.EditDomainUnavailable` con
+snackbar; sin test JVM viable — caso de checklist). Informe: `docs/INFORME_DOMINIO_EDITABLE.md`
+(ampliación) + esta entrada.
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 19:05 | `feat/p8-fixes` | `80c9600` | ❌ failure (run 46054115017) | spotlessCheck: el snackbar removed en una línea >120 cols — corregido en `3df210c` |
+| 19:15 | `feat/p8-fixes` | `3df210c` | ❌ failure (run 46055150592) | `shouldHaveSize` no aplica a Map (compileDebugUnitTestKotlin FAILED) — no cuenta; corregido a `.size shouldBe` en `6642eb7` |
+| 19:29 | `feat/p8-fixes` | `6642eb7` | ✅ success (run 46056327294, run 46056327294 Build APK) | verde: Build & Test + Build APK; build `INSTALAR-6642eb7` verificada: `MihonFix-0.21.3-build-6642eb7-20261127-1929-arm64.apk`, 35,246,282 bytes, sha256 `B271B8427F0E7855ACE1AEDE5223DFCD68BD4157CCCAA307BCF152710EABC2C5`, firma ESTABLE (`DE7889F3…D1296AD0` — instala encima) |
+| 19:3x | `feat/p8-fixes` | docs (este commit) | (run en curso al redactar) | evidencia CI + PR #22 abierto contra main |
+
+Estado: **pendiente confirmar** — checklist en el informe (P8-fix1/2/3). PR #22 contra
+main; merge solo por orden explícita del usuario.
