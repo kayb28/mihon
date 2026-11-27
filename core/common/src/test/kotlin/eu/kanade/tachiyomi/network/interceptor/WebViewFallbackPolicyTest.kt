@@ -28,13 +28,24 @@ class WebViewFallbackPolicyTest {
     private fun policy(clock: ControlledClock) = WebViewFallbackPolicy(clock = { clock.now })
 
     // region W1 — any HTTP error code triggers the WebView attempt
+    // (T-10.10 / P1-5: narrowed to DETERMINISTIC codes — a WebView cannot fix 400/401/404/
+    // 410/416, and 404/410 duplicate the link repairer's 3-streak work)
 
     @Test
-    fun `W1 any 4xx code triggers the fallback`() {
+    fun `W1 deterministic 4xx codes still trigger the fallback`() {
         val c = ControlledClock()
         val p = policy(c)
-        for (code in listOf(400, 401, 403, 404, 410, 418, 429)) {
+        for (code in listOf(403, 405, 406, 409, 425, 429)) {
             p.shouldAttempt("host.example", "GET", statusCode = code) shouldBe true
+        }
+    }
+
+    @Test
+    fun `T-10-10 non-deterministic 4xx codes do NOT trigger the fallback`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        for (code in listOf(400, 401, 404, 410, 416, 418)) {
+            p.shouldAttempt("host.example", "GET", statusCode = code) shouldBe false
         }
     }
 
