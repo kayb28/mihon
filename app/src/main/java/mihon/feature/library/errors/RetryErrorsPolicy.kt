@@ -27,16 +27,13 @@ object RetryErrorsPolicy {
         val running: Boolean,
     )
 
-    val Pass.isWholeLibrary: Boolean get() = false
-
     /** 5.2: begin a pass from the pressed snapshot; null if a pass already runs (5.4). */
     fun beginPass(snapshot: Set<Long>, pass: Pass? = null): Pass? {
         if (pass?.running == true) return null
         return Pass(targetIds = snapshot, running = true)
     }
 
-    /** Whether [id] belongs to this pass's fixed scope. */
-    fun Pass.targets(id: Long): Boolean = id in targetIds
+
 
     /** A fresh failure for a retried manga (its row stays with the new message). */
     data class FreshError(val message: String)
@@ -64,3 +61,9 @@ object RetryErrorsPolicy {
     /** 5.4: a finished pass frees the button for the next press. */
     fun completePass(pass: Pass): Pass? = pass.copy(running = false)
 }
+
+/** Whether [id] belongs to this pass's fixed scope. */
+fun RetryErrorsPolicy.Pass.targets(id: Long): Boolean = id in targetIds
+
+/** The pass never covers the whole library or a category — only its snapshot. */
+val RetryErrorsPolicy.Pass.isWholeLibrary: Boolean get() = false

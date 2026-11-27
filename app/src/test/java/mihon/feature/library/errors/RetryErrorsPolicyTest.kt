@@ -79,7 +79,7 @@ class RetryErrorsPolicyTest {
     // ---------------------------------------------------------------- 5.4
 
     @Test
-    fun `5_4 the button is disabled while a pass runs; one batch per press`() {
+    fun `5_4 the button is disabled while a pass runs - one batch per press`() {
         val pass = RetryErrorsPolicy.beginPass(setOf(5L))!!
         // While the pass is in flight the button must be disabled...
         RetryErrorsPolicy.buttonEnabled(pass = pass) shouldBe false
