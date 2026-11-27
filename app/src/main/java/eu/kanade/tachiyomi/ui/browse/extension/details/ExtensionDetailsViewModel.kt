@@ -20,8 +20,10 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.ui.browse.source.DomainRuleUi
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.WhileSubscribed
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import logcat.LogPriority
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import tachiyomi.core.common.util.system.logcat
@@ -47,6 +50,9 @@ class ExtensionDetailsViewModel(
     private val toggleSource: ToggleSource,
     private val toggleIncognito: ToggleIncognito,
     private val preferences: SourcePreferences,
+    // Fallo G (T-G): the SAME per-source domain rule store the sources tab's
+    // "Editar dominio" entry uses — one store, no duplicate implementation (G2).
+    private val domainOverrideStore: eu.kanade.tachiyomi.network.DomainOverrideStore,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -126,6 +132,43 @@ class ExtensionDetailsViewModel(
         successState?.extension?.sources
             ?.map { it.id }
             ?.let { toggleSource.await(it, enable) }
+    }
+
+    // Fallo G (T-G, G1): the "Editar dominio" section's rows — one per installed
+    // source of this extension whose baseUrl resolves to an http(s) host, with the
+    // active rule from the shared store. Computed per state emission; the store has
+    // no change flow, so re-entering the screen refreshes what the section lists.
+    fun domainRows(sources: List<ExtensionSourceItem>): List<DomainRuleUi.Row> =
+        DomainRuleUi.rows(
+            sources = sources.map { DomainRuleUi.SourceInput(it.source.id, (it.source as? HttpSource)?.baseUrl) },
+            targetFor = domainOverrideStore::targetFor,
+        )
+
+    fun activeDomainRule(host: String): String? =
+        DomainRuleUi.activeRuleLabel(host, domainOverrideStore::targetFor)
+
+    fun saveDomainRule(fromHost: String, toHost: String) {
+        domainOverrideStore.upsert(eu.kanade.tachiyomi.network.DomainOverrideRule(fromHost = fromHost, toHost = toHost))
+    }
+
+    fun deleteDomainRule(fromHost: String) {
+        domainOverrideStore.delete(fromHost)
+    }
+
+    // Fallo G (T-G, G1): the host is resolved synchronously from the installed source's
+    // baseUrl — unlike the sources tab, this screen always holds the real sources.
+    data class EditDomainState(val sourceId: Long, val host: String)
+
+    private val editDomain = MutableStateFlow<EditDomainState?>(null)
+    val editDomainState: StateFlow<EditDomainState?> = editDomain.asStateFlow()
+
+    fun showEditDomainDialog(source: ExtensionSourceItem) {
+        val host = DomainRuleUi.hostOf((source.source as? HttpSource)?.baseUrl) ?: return
+        editDomain.update { EditDomainState(sourceId = source.source.id, host = host) }
+    }
+
+    fun closeEditDomainDialog() {
+        editDomain.update { null }
     }
 
     fun toggleIncognito(enable: Boolean) {

@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.browse.extension.details
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -34,6 +35,10 @@ data class ExtensionDetailsScreen(
                 EmptyScreen(MR.strings.empty_screen)
             }
             is ExtensionDetailsViewModel.State.Success -> {
+                // Fallo G (T-G, G1): the section's rows, from the SAME store as the
+                // sources tab's "Editar dominio" entry (G2). Re-computed per state
+                // emission; re-entering the screen refreshes the listed rules.
+                val domainRows = remember(state) { viewModel.domainRows(state.sources) }
                 ExtensionDetailsScreen(
                     navigateUp = navigator::pop,
                     state = state,
@@ -44,8 +49,29 @@ data class ExtensionDetailsScreen(
                     onClickUninstall = viewModel::uninstallExtension,
                     onClickSource = viewModel::toggleSource,
                     onClickIncognito = viewModel::toggleIncognito,
+                    domainRows = domainRows,
+                    onClickEditDomain = viewModel::showEditDomainDialog,
                 )
             }
+        }
+
+        // Fallo G (T-G, G1): the SAME "Editar dominio" dialog the sources tab uses
+        // (SourceEditDomainDialog), backed by the same store (G2: no duplicate impl).
+        val editDomainState by viewModel.editDomainState.collectAsStateWithLifecycle()
+        editDomainState?.host?.let { host ->
+            eu.kanade.presentation.browse.SourceEditDomainDialog(
+                currentHost = host,
+                activeRule = viewModel.activeDomainRule(host),
+                onDismissRequest = viewModel::closeEditDomainDialog,
+                onSave = { toHost ->
+                    viewModel.saveDomainRule(host, toHost)
+                    viewModel.closeEditDomainDialog()
+                },
+                onDelete = {
+                    viewModel.deleteDomainRule(host)
+                    viewModel.closeEditDomainDialog()
+                },
+            )
         }
     }
 }
