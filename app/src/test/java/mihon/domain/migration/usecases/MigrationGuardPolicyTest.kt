@@ -39,7 +39,9 @@ class MigrationGuardPolicyTest {
 
     @Test
     fun `T-10-5 only unrecognized read chapters yield null, not a negative clamp`() {
-        val chapters = listOf(chapter(1, -1.0, read = true), chapter(2, 0.0, read = true))
+        // isRecognizedNumber is >= 0, so -1/-2 are unrecognized: before the fix these two
+        // read chapters clamped maxChapterRead at -1.0
+        val chapters = listOf(chapter(1, -1.0, read = true), chapter(2, -2.0, read = true))
         assertNull(MigrationGuardPolicy.maxChapterRead(chapters))
     }
 
