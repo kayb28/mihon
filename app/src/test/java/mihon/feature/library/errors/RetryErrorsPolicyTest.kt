@@ -52,7 +52,7 @@ class RetryErrorsPolicyTest {
     @Test
     fun `5_2 the pass never retries the whole library or a category`() {
         // The policy only ever exposes the pressed snapshot; there is no "all" mode.
-        val pass = RetryErrorsPolicy.beginPass(emptySet())
+        val pass = RetryErrorsPolicy.beginPass(emptySet())!!
         pass.targetIds shouldHaveSize 0
         pass.isWholeLibrary shouldBe false
     }
@@ -88,7 +88,7 @@ class RetryErrorsPolicyTest {
         // When the pass finishes the button recovers.
         val done = RetryErrorsPolicy.completePass(pass)
         RetryErrorsPolicy.buttonEnabled(pass = done) shouldBe true
-        RetryErrorsPolicy.beginPass(setOf(6L), pass = done) != null shouldBe true
+        (RetryErrorsPolicy.beginPass(setOf(6L), pass = done) != null) shouldBe true
     }
 
     @Test
