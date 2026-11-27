@@ -8,9 +8,8 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webgpu
  * some). This policy splits oversized content into ordered tiles; the wiring uploads one
  * texture per tile and draws one quad per tile — no scaling, no quality loss, correct
  * order (same pattern as ContinuousPageReportPolicy: pure decisions, JVM-testable).
-
+ *
  * Bands run top-to-bottom; tiles within a band left-to-right: reading order.
- */
  */
 object GpuTilePlanPolicy {
 
