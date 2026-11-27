@@ -68,7 +68,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.min
 
 /** vec2f scale + vec2f offset + vec4f color ops, all NDC/flag units; size stays 16-byte aligned. */
 private const val PARAMS_STRUCT_SIZE = 32L
@@ -909,17 +908,21 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
      * rectangle through it (same math as [expandToTileQuads]).
      */
     private fun pageToTileQuads(page: PageImage, maxQuads: Int): List<TileQuad> {
-        val zoom = pageZoom.coerceAtLeast(1f)
-        val fit = min(surfaceWidth.toFloat() / page.width, surfaceHeight.toFloat() / page.height)
-        // Zoom about the page center, then pan: NDC scale grows, the pan follows in NDC units
-        // (surface px are y down, NDC y up, so the pan's y flips).
-        val scaleX = page.width * fit / surfaceWidth * zoom
-        val scaleY = page.height * fit / surfaceHeight * zoom
-        val maxPanX = (scaleX - 1f).coerceAtLeast(0f)
-        val maxPanY = (scaleY - 1f).coerceAtLeast(0f)
-        val offsetX = (pagePanX / surfaceWidth * 2f).coerceIn(-maxPanX, maxPanX)
-        val offsetY = (-pagePanY / surfaceHeight * 2f).coerceIn(-maxPanY, maxPanY)
-        val draw = PageDraw(page, scaleX, scaleY, offsetX, offsetY)
+        // Fallo F (T-F, F1): the placement comes from LongStripFitPolicy — a page taller
+        // than the viewport is placed at width-fit with a top-pinned pannable window
+        // (HQ's readability), never squeezed whole-page into the viewport; pages that
+        // fit keep the pre-existing aspect-fit math bit-for-bit (E3). The pan signs and
+        // clamps are the same math the inline code used.
+        val fit = LongStripFitPolicy.place(
+            frameWidth = page.width,
+            frameHeight = page.height,
+            surfaceWidth = surfaceWidth,
+            surfaceHeight = surfaceHeight,
+            zoom = pageZoom.coerceAtLeast(1f),
+            panX = pagePanX,
+            panY = pagePanY,
+        )
+        val draw = PageDraw(page, fit.scaleX, fit.scaleY, fit.offsetX, fit.offsetY)
         return expandToTileQuads(listOf(draw), maxQuads)
     }
 
