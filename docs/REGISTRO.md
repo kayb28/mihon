@@ -600,3 +600,19 @@ vetable por el usuario hasta la puerta de merge). W3 NO vetado hasta la fecha.
 (checklist W1/W2/W4 observable en `docs/INFORME_MOTOR_WEB_REFORZADO.md`) + OK explícito.
 Sin él, NO merge. Build para instalar: artefacto `INSTALAR-dcba12e2b…`,
 `MihonFix-0.21.3-build-dcba12e-20261127-0245-arm64.apk`, firma ESTABLE.
+
+## 2026-11-27 (T-E — PROMPT 9)
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 05:37 | `fix/fallo-e-textura` | `40382a0e5` | ❌ (comportamiento) | rojo T-E: GpuTilePlanPolicy esqueleto no-op + 10 tests E1-E3 (run 45946738209; Spotless & Unit Tests failure POR TESTS, luego cancelado por el push siguiente; la única queja de formato era la indentación del test) |
+| 05:44 | `fix/fallo-e-textura` | `353313c81` | 🟡 | verde E1: plan de teselas ordenado, ≤ límite, sin huecos/solapes, sin escalado (run 45946758382; jobs de build fallan solo por la indentación del test aún sin corregir) |
+| 06:40 | `fix/fallo-e-textura` | `7a87c2c0d` | ✅ | style: ktlint indentación del test (spotless fix; no cuenta como rojo/verde) |
+| 06:41 | `fix/fallo-e-textura` | `0ecafd2cf` | 🟡→ | verde E2: wiring — device.limits.maxTextureDimension2D real, una textura por tesela, uploadTilePixels copia banda exacta, un quad por tesela en continuo Y paginado (zoom/pan), destroy/stop cierran todas (run 45952813399 en curso) |
+| 06:47 | `fix/fallo-e-textura` | `53c7c69d1` | 🟡→ | verde E3: tileQuad extraído a la policy (una implementación) + tests de regresión (single-tile = quad de página bit a bit; partición exacta 2 teselas; degenerado) (run 45952895809 en curso) |
+
+**Notas T-E:** el wiring GPU no es ejecutable en JVM (regla del encargo): E2 se valida por
+E1+E3 en JVM + checklist de dispositivo. Condición STOP descartada con evidencia: el crash
+del usuario es ValidationException de CreateTexture por dimensión > límite, solo visor
+EXPERIMENTAL (STOCK/HQ no usan WebGPU). Alcance: solo archivos del visor WebGPU.
+Informe: docs/INFORME_FALLO_E_TEXTURA.md.
