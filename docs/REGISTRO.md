@@ -819,23 +819,3 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
-
-## 2026-11-27 (T-G — Fallo G, PROMPT 27: descubribilidad «Editar dominio»)
-
-Motivo: el usuario no encuentra la entrada «Editar dominio» (D6) — solo vive tras el
-long-press de la fuente en la pestaña Fuentes. Encargo: sección «Editar dominio» al
-inicio de la pantalla de detalles de la extensión (app-hosted), reutilizando el mismo
-diálogo y el mismo `DomainOverrideStore` (sin tocar extensiones). Informe:
-`docs/INFORME_FALLO_G.md`.
-
-| Hora (UTC) | Rama | Commit | Resultado | Contenido |
-|---|---|---|---|---|
-| 15:53 | `fix/p8-descubribilidad` | `b6b3242` | ⬜ cancelled (run 46028933795) | test(fallo-g) G1/G2 rojo — el push siguiente del mismo actor lo canceló antes de que el job de tests fallara |
-| 15:56 | `fix/p8-descubribilidad` | `233a2fd3` | ❌ failure (run 46029298463) | verde G1+G2 arrastrados por un push doble del agente; falla SOLO compile (import `asStateFlow` faltante + callback de fila) — no acredita nada |
-| 16:01 | `evidence/p8-red` | `b6b3242` | ❌ failure (run 46029998514) | rojo POR COMPORTAMIENTO re-creado en rama de evidencia: `Unresolved reference 'DomainRuleUi'` — el módulo app no compila sin la implementación |
-| 16:00 | `fix/p8-descubribilidad` | `2876513` | ✅ success (run 46029820276) | verde G1+G2 + fix de compile; Spotless & Unit Tests verde con los 6 tests nuevos (`DomainRuleUiTest`); build `INSTALAR-2876513` con firma ESTABLE verificada (`MihonFix-0.21.3-build-2876513-20261127-1607-arm64.apk`, 35,245,426 bytes, sha256 `D07918C2…BF783`) |
-| 16:14 | `fix/p8-descubribilidad` | docs (este commit) | (run en curso al redactar) | docs(fallo-g): informe + esta entrada; el resultado de la run queda anotado al cerrar |
-
-Estado: **pendiente confirmar** — la sección «Editar dominio» espera validación del
-usuario en dispositivo (checklist en el informe). Los PRs se abren al final del encargo;
-el merge solo por orden explícita del usuario.
