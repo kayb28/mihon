@@ -149,4 +149,22 @@ class ViewerPageStateMachineTest {
 
     // endregion
 
+    // region T-10.14 (P1-9) — resetAttempts rehabilitates the user's manual Retry
+
+    @Test
+    fun `T-10-14 resetAttempts makes the manual Retry work again after the budget is spent`() {
+        val sm = ViewerPageStateMachine()
+        val page = Any()
+        repeat(ViewerPageStateMachine.MAX_RELOAD_ATTEMPTS + 1) {
+            sm.start(page)
+            sm.failed(page, ViewerPageStateMachine.FailureReason.HTTP)
+        }
+        assertEquals(ViewerPageStateMachine.RetryDecision.DO_NOT_RETRY, sm.routeForRetry(page))
+        sm.resetAttempts(page)
+        sm.start(page)
+        sm.failed(page, ViewerPageStateMachine.FailureReason.HTTP)
+        assertEquals(ViewerPageStateMachine.RetryDecision.RELOAD_FROM_LOADER, sm.routeForRetry(page))
+    }
+
+    // endregion
 }
