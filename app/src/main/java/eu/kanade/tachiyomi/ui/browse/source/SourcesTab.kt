@@ -120,7 +120,9 @@ fun Screen.sourcesTab(): TabContent {
                         viewModel.deleteDomainRule(host)
                         viewModel.closeEditDomainDialog()
                         scope.launch {
-                            snackbarHostState.showSnackbar(context.stringResource(MR.strings.source_action_edit_domain_removed))
+                            snackbarHostState.showSnackbar(
+                                context.stringResource(MR.strings.source_action_edit_domain_removed),
+                            )
                         }
                     },
                 )
