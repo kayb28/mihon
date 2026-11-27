@@ -125,6 +125,16 @@ class ViewerPageStateMachine {
         states[page] = State(Phase.FAILED, reason = reason, attempt = s.attempt + 1)
     }
 
+    /**
+     * P1-9 (T-10.14): the user's explicit Retry starts from a clean attempt budget —
+     * a page that spent MAX_RELOAD/REUPLOAD attempts automatically must still be
+     * manually retryable.
+     */
+    fun resetAttempts(page: Any) {
+        val s = stateOf(page)
+        states[page] = s.copy(attempt = 0)
+    }
+
     /** Clears one page (viewer rebuilt, page evicted). */
     fun clear(page: Any) {
         states.remove(page)
