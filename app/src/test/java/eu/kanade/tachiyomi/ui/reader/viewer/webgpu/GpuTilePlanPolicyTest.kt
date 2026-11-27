@@ -22,7 +22,7 @@ class GpuTilePlanPolicyTest {
     fun `E1 content under the limit is a single tile`() {
         val tiles = GpuTilePlanPolicy.planTiles(width = 800, height = 4000, maxDimension = 8192)
         tiles shouldHaveSize 1
-        tiles[0] shouldBe GpuTilePlanPolicy.Tile(sourceY = 0, height = 4000)
+        tiles[0] shouldBe GpuTilePlanPolicy.Tile(sourceX = 0, sourceY = 0, width = 800, height = 4000)
     }
 
     @Test
@@ -65,8 +65,8 @@ class GpuTilePlanPolicyTest {
             var expectedY = 0
             tiles.forEach { t ->
                 t.sourceY shouldBe expectedY
-                t.height shouldBeGreaterThanZero
-                    expectedY += t.height
+                t.height shouldBeGreaterThanZero()
+                expectedY += t.height
             }
             expectedY shouldBe height
         }
@@ -174,7 +174,7 @@ class GpuTilePlanPolicyTest {
         if (this > max) throw AssertionError("expected <= $max but was $this")
     }
 
-    private infix fun Int.shouldBeGreaterThanZero() {
+    private fun Int.shouldBeGreaterThanZero() {
         if (this <= 0) throw AssertionError("expected > 0 but was $this")
     }
 }
