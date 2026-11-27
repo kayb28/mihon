@@ -10,7 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
  * only decides WHEN a WebView attempt may happen and keeps the per-host cooldown bookkeeping.
  *
  * Behavior preserved at extraction time (the audited state, PROMPT 7 baseline):
- *  - fallback triggered only by the HTTP-code whitelist {403, 503} + method whitelist GET/POST
+ *  - fallback triggered by the deterministic HTTP-code whitelist (P1-5/T-10.10:
+ *    {403,405,406,409,425,429} + 5xx) + method whitelist GET/POST
  *  - network exceptions never trigger the fallback (they propagate in the interceptor)
  *  - one WebView attempt per request (structural, in the interceptor), per-host lock,
  *    2-minute warm pool (interceptor-side), 10-minute per-host cooldown after a failure
@@ -83,8 +84,11 @@ class WebViewFallbackPolicy(
     fun usageReport(): List<HostFallbackSummary> = tracker.summary()
 
     companion object {
-        // W1: every 4xx/5xx triggers the WebView attempt (was {403, 503})
-        val FALLBACK_CODES: IntRange = 400..599
+        // W1 was every 4xx/5xx; P1-5 (T-10.10) narrows it to DETERMINISTIC codes — ones a
+        // WebView can actually fix (challenge/WAF walls, bot checks, throttling). A WebView
+        // cannot repair 400 (bad request), 401 (auth), 404/410 (gone — the link repairer's
+        // 3-streak already owns those) or 416 (range).
+        val FALLBACK_CODES: Set<Int> = setOf(403, 405, 406, 409, 425, 429) + (500..599).toSet()
         val SUPPORTED_METHODS = setOf("GET", "POST")
         const val DEFAULT_COOLDOWN_MS = 10L * 60_000L
     }
