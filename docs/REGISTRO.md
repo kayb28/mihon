@@ -837,7 +837,7 @@ intactas (F3). Informe: `docs/INFORME_FALLO_F.md`.
 | 16:28 | `evidence/f-red` | `7d15af7` | ❌ failure (run 46033850235) | rojo POR COMPORTAMIENTO (rama de evidencia): `compileDebugUnitTestKotlin` FAILED, `LongStripFitPolicy` inexistente |
 | 16:29 | `fix/fallo-f-calidad` | `a74870b` | ❌ failure (run 46033944514) | clamp simétrico de la policy no recorre la página completa — corregido a rango asimétrico (`7c3119e`) |
 | 16:43 | `fix/fallo-f-calidad` | `d027834` | ❌ failure (run 46035775303) | el commit del wiring no arrastró el test con la nueva expectativa — corregido en `833e642` |
-| 16:52 | `fix/fallo-f-calidad` | `833e642` | ✅ success (run 46036928747) | verde F1+F2+F3: Spotless & Unit Tests con los 9 tests de la policy + wiring del pan a fit (`d027834`); build `INSTALAR-833e642` — firma verificada al cerrar |
+| 16:52 | `fix/fallo-f-calidad` | `833e642` | ✅ success (run 46036928747) | verde F1+F2+F3: Spotless & Unit Tests con los 9 tests de la policy + wiring del pan a fit (`d027834`); build `INSTALAR-833e642` verificada: `MihonFix-0.21.3-build-833e642-20261127-1657-arm64.apk`, 35,245,426 bytes, sha256 `F6FC107B983457179D0A9FF4483E126769DFDF42A6A9A67F5F781D1F45D550A9`, firma ESTABLE |
 | 17:00 | `fix/fallo-f-calidad` | docs (este commit) | (run en curso al redactar) | docs(fallo-f): informe + PROBLEMAS (nota Fallo E + fila Fallo F) + esta entrada |
 
 Estado: **pendiente confirmar** — espera validación del usuario en dispositivo

@@ -111,9 +111,8 @@ igual que siempre.
 - Branch: `fix/fallo-f-calidad`
 - Commit: `833e642` (punta al cerrar el código; el commit de docs no cambia la app)
 - Run CI: 46036928747 (job «Build Release APK», artefacto `INSTALAR-833e642…`)
-- APK: `MihonFix-0.21.3-build-833e642-<yyyymmdd-hhmm UTC>-arm64.apk`
-- Firma: verificar con `python3 scripts/verify_apk_signature.py <apk>` → ESTABLE
-  (`DE7889F3…D1296AD0`) — el agente descarga y verifica el artefacto; resultado
-  definitivo (sha256 + tamaño) anotado en `docs/REGISTRO.md`.
+- APK: `MihonFix-0.21.3-build-833e642-20261127-1657-arm64.apk` (35,245,426 bytes)
+- Firma: verificada con `verify_apk_signature.py` → ESTABLE (`DE7889F3…D1296AD0`)
+- sha256: `F6FC107B983457179D0A9FF4483E126769DFDF42A6A9A67F5F781D1F45D550A9`
 - Si la run no produce artefacto: «Ninguna — encargo sin build nueva» + motivo en
   REGISTRO.
