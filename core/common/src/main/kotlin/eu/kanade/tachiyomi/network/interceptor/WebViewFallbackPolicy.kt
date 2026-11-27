@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.network.interceptor
 
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Pure (Android-free) decision layer of the WebView fetch fallback, extracted verbatim from
@@ -29,12 +28,12 @@ class WebViewFallbackPolicy(
     @Volatile
     var cooldownMs: Long = DEFAULT_COOLDOWN_MS
 
-    private val cooldowns = ConcurrentHashMap<String, Long>()
+    private val cooldowns = LruHostRegistry<String, Long>(MAX_HOST_ENTRIES)
 
     // W5: per-host "fallback used / result" record feeding the problem-source reports.
     // Declared here from the start (API contract of the red commit); it records no-ops
     // until its green commit.
-    private val tracker = FallbackUsageTracker()
+    private val tracker = FallbackUsageTracker(MAX_HOST_ENTRIES)
 
     /**
      * Whether a failed request (an HTTP error status code or a network exception) is allowed
@@ -91,6 +90,9 @@ class WebViewFallbackPolicy(
         val FALLBACK_CODES: Set<Int> = setOf(403, 405, 406, 409, 425, 429) + (500..599).toSet()
         val SUPPORTED_METHODS = setOf("GET", "POST")
         const val DEFAULT_COOLDOWN_MS = 10L * 60_000L
+
+        /** P1-6 (T-10.11): every per-host map is LRU-bounded to this many entries. */
+        const val MAX_HOST_ENTRIES = 128
     }
 }
 
@@ -111,7 +113,7 @@ data class HostFallbackSummary(
  * interceptor feeds it after every WebView attempt so the existing problem-source reports
  * can state whether the fallback was tried for a host and how it ended.
  */
-class FallbackUsageTracker {
+class FallbackUsageTracker(private val maxEntries: Int = WebViewFallbackPolicy.MAX_HOST_ENTRIES) {
     private data class Entry(
         var attempts: Int = 0,
         var successes: Int = 0,
@@ -122,7 +124,8 @@ class FallbackUsageTracker {
         var lastErrorKind: String? = null,
     )
 
-    private val entries = ConcurrentHashMap<String, Entry>()
+    // P1-6 (T-10.11): bounded — a browsing session can touch hundreds of hosts
+    private val entries = LruHostRegistry<String, Entry>(maxEntries)
 
     fun record(
         host: String,
@@ -131,7 +134,7 @@ class FallbackUsageTracker {
         cause: Throwable?,
         usedAt: Long = System.currentTimeMillis(),
     ) {
-        val entry = entries.computeIfAbsent(host) { Entry() }
+        val entry = entries.getOrPut(host) { Entry() }
         synchronized(entry) {
             entry.attempts++
             if (success) entry.successes++ else entry.failures++
@@ -142,7 +145,7 @@ class FallbackUsageTracker {
         }
     }
 
-    fun summary(): List<HostFallbackSummary> = entries.map { (host, entry) ->
+    fun summary(): List<HostFallbackSummary> = entries.entriesSnapshot().map { (host, entry) ->
         synchronized(entry) {
             HostFallbackSummary(
                 host = host,
@@ -156,4 +159,41 @@ class FallbackUsageTracker {
             )
         }
     }.sortedBy { it.host }
+}
+
+/**
+ * P1-6 (T-10.11): a thread-safe LRU map for per-host bookkeeping. Access-ordered
+ * LinkedHashMap under one lock; the least recently used host is evicted once
+ * [maxEntries] is exceeded. Replaces the unbounded ConcurrentHashMaps that used to
+ * grow for the whole process lifetime.
+ */
+class LruHostRegistry<K : Any, V : Any>(private val maxEntries: Int) {
+
+    init {
+        require(maxEntries > 0) { "maxEntries must be positive" }
+    }
+
+    private val map = object : LinkedHashMap<K, V>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>): Boolean = size > maxEntries
+    }
+
+    @Synchronized
+    operator fun get(key: K): V? = map[key]
+
+    @Synchronized
+    operator fun set(key: K, value: V) {
+        map[key] = value
+    }
+
+    @Synchronized
+    fun getOrPut(key: K, compute: () -> V): V = map.getOrPut(key, compute)
+
+    @Synchronized
+    fun remove(key: K): V? = map.remove(key)
+
+    @Synchronized
+    fun size(): Int = map.size
+
+    @Synchronized
+    fun entriesSnapshot(): List<Pair<K, V>> = map.entries.map { it.key to it.value }
 }

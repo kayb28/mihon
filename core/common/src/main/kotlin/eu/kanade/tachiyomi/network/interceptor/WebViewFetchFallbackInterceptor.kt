@@ -93,10 +93,12 @@ class WebViewFetchFallbackInterceptor(
 
     // Requests to a host share its lock while the fallback runs, so concurrent requests to the
     // same host wait for one WebView instead of each opening their own
-    private val hostLocks = ConcurrentHashMap<String, ReentrantReadWriteLock>()
+    // P1-6 (T-10.11): bounded — a session can touch hundreds of hosts
+    private val hostLocks = LruHostRegistry<String, ReentrantReadWriteLock>(WebViewFallbackPolicy.MAX_HOST_ENTRIES)
 
-    // Fallback activations per host, used to decide when to keep a warm WebView (level 2)
-    private val activations = ConcurrentHashMap<String, ArrayDeque<Long>>()
+    // Fallback activations per host, used to decide when to keep a warm WebView (level 2).
+    // P1-6 (T-10.11): bounded like every per-host map.
+    private val activations = LruHostRegistry<String, ArrayDeque<Long>>(WebViewFallbackPolicy.MAX_HOST_ENTRIES)
 
     // Warm WebView pool keyed by origin (level 2)
     private val pool = ConcurrentHashMap<String, Engine>()
@@ -181,7 +183,7 @@ class WebViewFetchFallbackInterceptor(
         // helper is the single implementation, so both callers rewrite identically.
         val request = domainOverride.rewriteRequest(request)
         val host = request.url.host
-        val lock = hostLocks.computeIfAbsent(host) { ReentrantReadWriteLock() }
+        val lock = hostLocks.getOrPut(host) { ReentrantReadWriteLock() }
         var fallback: Response? = null
 
         lock.write {
@@ -606,7 +608,7 @@ class WebViewFetchFallbackInterceptor(
 
     private fun recordActivation(host: String): Boolean {
         val now = System.currentTimeMillis()
-        val queue = activations.computeIfAbsent(host) { ArrayDeque() }
+        val queue = activations.getOrPut(host) { ArrayDeque() }
         synchronized(queue) {
             while (queue.isNotEmpty() && now - queue.first() > WARM_WINDOW_MS) queue.removeFirst()
             queue.addLast(now)
