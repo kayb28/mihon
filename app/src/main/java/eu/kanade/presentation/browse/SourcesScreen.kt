@@ -329,10 +329,12 @@ fun SourceEditDomainDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    when (val verdict = DomainOverrideRule.validate(
-                        state.text.toString(),
-                        currentHost = currentHost,
-                    )) {
+                    when (
+                        val verdict = DomainOverrideRule.validate(
+                            state.text.toString(),
+                            currentHost = currentHost,
+                        )
+                    ) {
                         is DomainOverrideRule.Valid -> onSave(verdict.toHost)
                         is DomainOverrideRule.Invalid.Rejected ->
                             error = stringResource(MR.strings.source_action_edit_domain_invalid)
