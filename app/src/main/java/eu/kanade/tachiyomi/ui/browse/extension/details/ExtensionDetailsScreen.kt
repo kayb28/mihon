@@ -50,7 +50,12 @@ data class ExtensionDetailsScreen(
                     onClickSource = viewModel::toggleSource,
                     onClickIncognito = viewModel::toggleIncognito,
                     domainRows = domainRows,
-                    onClickEditDomain = viewModel::showEditDomainDialog,
+                    // A row carries the source id; resolve it back to the extension's
+                    // source item the dialog state expects.
+                    onClickEditDomain = { row ->
+                        state.sources.firstOrNull { it.source.id == row.sourceId }
+                            ?.let(viewModel::showEditDomainDialog)
+                    },
                 )
             }
         }
