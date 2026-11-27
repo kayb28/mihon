@@ -573,3 +573,30 @@ _2026-10-29: 3 runs, 3 exitosas._
   - Estado: `sin build` nueva de APK para el usuario en este commit (cambio de naming de CI; la primera build con los nombres nuevos será la del merge de esta rama si CI es verde).
 
 - **(2026-11-26, 21:34 UTC) — docs(reader): CIERRE de T6 — Ronda 2 validada y puerta de merge aprobada (encargo «Cierre + merge de T6») en `feat/t6-page-state-machine-wiring`.** Motivo: el usuario pasó en su dispositivo la validación Ronda 2 de la rama (build probada `MihonFix-0.21.3-build-ce3db2d-arm64.apk`, run 45698019408, firma ESTABLE) y la PUERTA DE MERGE (test de zoom) el 26/11: modos paginados L2R/R2L/vertical × pellizco + doble toque en el visor EXPERIMENTAL, todo correcto (6/6). **Fuente de evidencia: el dispositivo del usuario (su reporte en el chat) — sin captura ni logcat adjuntos; se etiqueta honestamente como tal.** Hecho en el/los commit(s) de docs del cierre (T6-C1, emitidos por partes por el límite de tamaño de la API; mismo encargo, un solo cambio de tareas): sección «Cierre de T6» en `docs/INFORME_VISOR_T1-T7.md` (resultado de la puerta de zoom + mapa P1+P2), nueva sección «Mihon Fix» en `CHANGELOG.md` (fecha real, hashes y runs), esta entrada, y estado ANEXADO en línea a las filas T6 de `docs/PROBLEMAS.md` (Fallo B → cerrada; Fallo A ya cerrado como feature ausente). **F4, Fallo C y Fallo D NO se tocan — siguen abiertos.** Conciliación de docs con lo ya mergeado en `main` (PRs #8–#12): la emisión de docs trae el REGISTRO y PROBLEMAS.md en versión superset (todas las entradas y filas de ambos lados preservadas) para que el merge del PR no pierda nada. Evidencia CI de la serie T6 ya en el registro: rojo POR COMPORTAMIENTO `d75b6e4` (run 45695265725, 3/205) → verde `e3ade9c` (run 45696649989, 205 tests); CI verde de rama `c2de25f` (run 45647679860, 197 tests). Paso siguiente (encargo): PR `feat/t6-page-state-machine-wiring` → `main` y merge POR COMMIT DE MERGE (sin squash, sin rebase, sin borrar la rama), solo con la CI de rama verde. `sin build` (solo docs; la build instalable saldrá del merge en `main`) · Estado: cierre de T6 en marcha — merge condicionado a CI verde.
+
+## 2026-11-27
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 00:42 | `feat/p7-webview-fallback-all-failures` | `682889285` | ❌ failure | rojo P7 POR COMPORTAMIENTO: extracción WebViewFallbackPolicy + 9 tests W1–W5 (run 45918320778; compile OK, Spotless OK) |
+| 02:25 | `feat/p7-webview-fallback-all-failures` | `a2765b7b2` | 🚫 cancelled | docs: docs/ESTADO.md — diagnóstico solo lectura PROMPT-D (roja esperada por los tests) |
+| 02:29 | `feat/p7-webview-fallback-all-failures` | `408e7dc9a` | 🚫 cancelled | W1 — cualquier 4xx/5xx dispara (convergencia cancelada por pushes seguidos) |
+| 02:29 | `feat/p7-webview-fallback-all-failures` | `689a5375c` | 🚫 cancelled | W2 — rama IOException dispara; error original se propaga |
+| 02:29 | `feat/p7-webview-fallback-all-failures` | `9c2713a55` | 🚫 cancelled | W3 — sin conectividad no dispara |
+| 02:30 | `feat/p7-webview-fallback-all-failures` | `792149002` | 🚫 cancelled | W4 — cooldown configurable, guardas intactas |
+| 02:30 | `feat/p7-webview-fallback-all-failures` | `b0ca58414` | ❌ failure | W5 — informe por host (falla por ktlint: firma larga en WebViewInterceptor) |
+| 02:35 | `feat/p7-webview-fallback-all-failures` | `716030095` | ❌ failure | style: ktlint W2 hook (falla por compilación: final + import IOException) |
+| 02:40 | `feat/p7-webview-fallback-all-failures` | `dcba12e2b` | ✅ success | fix: compilación — VERDE TOTAL: 18/18 WebViewFallbackPolicyTest, APK firma ESTABLE (run 45929735205, INSTALAR-dcba12e2b) |
+| — | `feat/p7-webview-fallback-all-failures` | docs | pendiente | T-6: informe + CHANGELOG + esta entrada; PR abierto SIN MERGE |
+
+**Decisión registrada (PROMPT 7, 2026-11-27):** el gatillo del fallback WebView pasa a
+«todos los fallos» = cualquier 4xx/5xx + rama de excepción (IOException etc.), sobre el modelo
+de tres capas (1 OkHttp → 2 WebView automático → 3 triaje manual del usuario con informes de
+fuentes problemáticas). «Mejor» = más capaz (JS, UA real, cookies, anti-bot), no más rápido;
+coste acotado por guardas. Con la exención técnica W3 (sin conectividad total no se dispara;
+vetable por el usuario hasta la puerta de merge). W3 NO vetado hasta la fecha.
+
+**Puerta de merge P7:** validación EN DISPOSITIVO del usuario sobre fuentes con fallos reales
+(checklist W1/W2/W4 observable en `docs/INFORME_MOTOR_WEB_REFORZADO.md`) + OK explícito.
+Sin él, NO merge. Build para instalar: artefacto `INSTALAR-dcba12e2b…`,
+`MihonFix-0.21.3-build-dcba12e-20261127-0245-arm64.apk`, firma ESTABLE.

@@ -10,6 +10,44 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix — P7: motor web secundario, gatillo «todos los fallos» (W1–W5)] - 2026-11-27
+
+> Rama `feat/p7-webview-fallback-all-failures`, PR abierto SIN MERGE (puerta: validación en
+> dispositivo del usuario). Ciclo red-green por comportamiento: rojo `682889285`
+> (run 45918320778, 9 FAILED legítimos) → verde final `dcba12e2b`
+> (run 45929735205, 18/18 WebViewFallbackPolicyTest PASSED, APK firma ESTABLE).
+
+### Added
+- **W1 gatillo ampliado (`408e7dc9a`):** cualquier código HTTP de error (400–599) dispara el
+  intento WebView; los que ya disparaban (403/503) siguen igual. Decisión del usuario: modelo
+  de tres capas (OkHttp → WebView automático → triaje manual); «mejor» = más capaz, no más
+  rápido; el coste lo acotan las guardas.
+- **W2 rama de excepción (`689a5375c`):** IOException/SocketTimeout/etc. del primer intento
+  OkHttp también reciben el segundo intento WebView (hooks protegidos en `WebViewInterceptor`).
+  Si el WebView no produce respuesta, la excepción ORIGINAL se propaga — nunca se tragan errores.
+- **W3 exención técnica, vetable (`9c2713a55`):** sin conectividad total (modo avión / sin red)
+  no se dispara el WebView (no puede funcionar; ahorra batería). Vetable por el usuario hasta
+  la puerta de merge.
+- **W4 cooldown configurable (`792149002`):** preferencia
+  `webview_fallback_cooldown_minutes` (default conservador 10 min = baseline auditada).
+  Guardas intactas: 1 reintento WebView por petición, cerradura por host, piscina caliente 2 min.
+  Test de no-amplificación: N peticiones fallidas a un host caído → ≤1 WebView por petición.
+- **W5 informe por host (`b0ca58414`):** registro por host de «fallback usado / resultado»
+  (intentos/éxitos/fallos, último código o tipo de error) vía
+  `WebViewFallbackPolicy.usageReport()` + línea de log por intento, alimentando los informes
+  de fuentes problemáticas.
+
+### Changed
+- **Extracción `WebViewFallbackPolicy` (rojo `682889285`):** las reglas de disparo y el
+  cooldown por host salen del interceptor a una capa pura (JVM-testeable), verbatim del estado
+  auditado; el interceptor solo cablea. Principio «motor pequeño propio»: el motor OkHttp solo
+  se envuelve.
+
+### Other
+- Docs del ciclo: `docs/ESTADO.md` (diagnóstico PROMPT-D, `a2765b7b2`),
+  `docs/INFORME_MOTOR_WEB_REFORZADO.md` y esta sección. Runs: roja 45918320778; verde final
+  45929735205 (Spotless + 18 tests + APK ESTABLE). PR abierto, sin merge.
+
 ## [Mihon Fix — T6: máquina de estados de página cableada + fix del drift del visor continuo (P1+P2)] - 2026-11-26
 
 > Rama `feat/t6-page-state-machine-wiring` (cableado T6a + ciclo correctivo R1–R4), merge a `main` por commit de merge. Validación: Ronda 2 en dispositivo del usuario (build `…ce3db2d`) y puerta de merge de zoom aprobada el 2026-11-26 — modos paginados L2R/R2L/vertical × pellizco + doble toque en EXPERIMENTAL: 6/6 OK (evidencia = dispositivo del usuario).
