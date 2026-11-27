@@ -1,8 +1,8 @@
 package mihon.domain.migration.usecases
 
-import kotlin.time.Instant
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.track.model.Track
+import kotlin.time.Instant
 
 /**
  * P0 correctivo (PROMPT 10, T-10.1..T-10.5): pure migration decisions extracted from
