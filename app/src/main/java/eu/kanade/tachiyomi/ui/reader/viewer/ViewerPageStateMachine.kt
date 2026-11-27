@@ -64,6 +64,9 @@ class ViewerPageStateMachine {
     companion object {
         const val MAX_RELOAD_ATTEMPTS = 2
 
+        /** P1-8 (T-10.13): a held stream may be re-uploaded at most this many times. */
+        const val MAX_REUPLOAD_ATTEMPTS = 2
+
         fun classify(error: Throwable?): FailureReason = when {
             error == null -> FailureReason.UNKNOWN
             error is java.util.concurrent.CancellationException -> FailureReason.CANCELLED
@@ -88,7 +91,10 @@ class ViewerPageStateMachine {
             null -> RetryDecision.RELOAD_FROM_LOADER
             FailureReason.HTTP, FailureReason.NETWORK, FailureReason.UNKNOWN ->
                 if (attempt < MAX_RELOAD_ATTEMPTS) RetryDecision.RELOAD_FROM_LOADER else RetryDecision.DO_NOT_RETRY
-            FailureReason.DECODE, FailureReason.STORAGE -> RetryDecision.REUPLOAD
+            // P1-8 (T-10.13): REUPLOAD is capped — an unfixable image (corrupt data, broken
+            // storage stream) must reach DO_NOT_RETRY, not loop on the same stream forever.
+            FailureReason.DECODE, FailureReason.STORAGE ->
+                if (attempt < MAX_REUPLOAD_ATTEMPTS) RetryDecision.REUPLOAD else RetryDecision.DO_NOT_RETRY
             FailureReason.CANCELLED -> RetryDecision.DO_NOT_RETRY
         }
     }
