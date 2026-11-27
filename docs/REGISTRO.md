@@ -819,3 +819,27 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-27 (T-F — Fallo F, PROMPT 27: imágenes largas comprimidas en EXPERIMENTAL)
+
+Motivo: tras el merge de T-E el usuario reporta tiras largas «comprimidas a ilegible» en
+el visor EXPERIMENTAL paginado (HQ sin problema). Diagnóstico: la colocación
+(`pageToTileQuads`) ajustaba la página ENTERA al viewport; el muestreo por teselas de
+T-E es nativo y no es la causa. Fix: `LongStripFitPolicy` — página alta a fit-ancho con
+ventana y pan, pase de página solo en el borde; página normal bit a bit (E3); teselas
+intactas (F3). Informe: `docs/INFORME_FALLO_F.md`.
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 16:00 | `fix/fallo-f-calidad` | `010d28c` | ❌ failure (run 46029848758) | test rojo F1/F2/F3 — falla POR FORMATO (ktlint), no cuenta |
+| 16:09 | `fix/fallo-f-calidad` | `ea3cc04` | ❌ failure (run 46030898628) | formato corregido; falla por nombre de test con ':' ilegal — no cuenta |
+| 16:21 | `fix/fallo-f-calidad` | `10458ff` | ❌ failure (run 46032621668) | nombre corregido; falla la expectativa F1 del pan (signo) — corregida en la serie |
+| 16:28 | `evidence/f-red` | `7d15af7` | ❌ failure (run 46033850235) | rojo POR COMPORTAMIENTO (rama de evidencia): `compileDebugUnitTestKotlin` FAILED, `LongStripFitPolicy` inexistente |
+| 16:29 | `fix/fallo-f-calidad` | `a74870b` | ❌ failure (run 46033944514) | clamp simétrico de la policy no recorre la página completa — corregido a rango asimétrico (`7c3119e`) |
+| 16:43 | `fix/fallo-f-calidad` | `d027834` | ❌ failure (run 46035775303) | el commit del wiring no arrastró el test con la nueva expectativa — corregido en `833e642` |
+| 16:52 | `fix/fallo-f-calidad` | `833e642` | ✅ success (run 46036928747) | verde F1+F2+F3: Spotless & Unit Tests con los 9 tests de la policy + wiring del pan a fit (`d027834`); build `INSTALAR-833e642` — firma verificada al cerrar |
+| 17:00 | `fix/fallo-f-calidad` | docs (este commit) | (run en curso al redactar) | docs(fallo-f): informe + PROBLEMAS (nota Fallo E + fila Fallo F) + esta entrada |
+
+Estado: **pendiente confirmar** — espera validación del usuario en dispositivo
+(checklist en el informe). PR al cerrar el encargo; merge solo por orden explícita del
+usuario.
