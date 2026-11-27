@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Mihon</string>
+    <string name="app_name" translatable="false">Mihon Fix</string>
 
     <!-- Generic strings -->
     <string name="on">On</string>
@@ -65,6 +65,8 @@
     <string name="update_errors_action_repair">Repair links</string>
     <string name="update_errors_empty">No update errors</string>
     <string name="update_errors_view_log">View log (.txt)</string>
+    <string name="update_errors_retry">Retry titles with errors</string>
+    <string name="update_errors_retry_running">Retrying…</string>
     <string name="repair_links_title">Repair links</string>
     <string name="repair_links_simulation_title">Simulation Mode</string>
     <string name="repair_links_simulation_desc">Finds exact title matches in the same source first; if none, retries with a fuzzy deep search. Both kinds are auto-migrated, with the match confidence shown. If the title has no trace left in its own source (or the extension is gone), the other installed sources are searched — those matches need your confirmation, one by one.</string>

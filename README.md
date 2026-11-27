@@ -1,6 +1,6 @@
-> ### MihonFix — fork personal de Mihon · **versión final consolidada (17/11/2026)**
+> ### MihonFix — fork personal de Mihon · **versión final consolidada (17/11/2026)** · repo: `kayb28/mihonfixfix`
 >
-> Este fork (`kayb28/mihon`) extiende [mihonapp/mihon](https://github.com/mihonapp/mihon) (base v0.21.3) con: **reparador de enlaces** robusto (resolvedor secundario, motor web de respaldo vía WebView, pasada en calma anti-ráfaga), **migración asistida con guards** (validación de metadatos 2-de-4, criterio de capítulos, veto por autor — validada 12/12 en dispositivo), **gestión de fuentes** con clasificación propia y biblioteca agrupada por fuente, **selector único de visor** STOCK/HQ/EXPERIMENTAL y extensiones embebidas (MHScans, Emperor Scan). `applicationId` **`app.mihonfix`** — puede convivir instalada junto a la app oficial; sin Firebase ni telemetría. Desde el **17/11/2026** todo el trabajo del fork vive consolidado en `main` (versionCode 40); el índice cronológico completo de las 171 builds de CI está en [`docs/REGISTRO.md`](docs/REGISTRO.md).
+> Este fork (`kayb28/mihonfix`) extiende [mihonapp/mihon](https://github.com/mihonapp/mihon) (base v0.21.3) con: **reparador de enlaces** robusto (resolvedor secundario, motor web de respaldo vía WebView, pasada en calma anti-ráfaga), **migración asistida con guards** (validación de metadatos 2-de-4, criterio de capítulos, veto por autor — validada 12/12 en dispositivo), **gestión de fuentes** con clasificación propia y biblioteca agrupada por fuente, **selector único de visor** STOCK/HQ/EXPERIMENTAL y extensiones embebidas (MHScans, Emperor Scan). `applicationId` **`app.mihonfix`** — puede convivir instalada junto a la app oficial; sin Firebase ni telemetría. Desde el **17/11/2026** todo el trabajo del fork vive consolidado en `main` (versionCode 40); el índice cronológico completo de las 171 builds de CI está en [`docs/REGISTRO.md`](docs/REGISTRO.md).
 >
 > | Documento | Contenido |
 > |---|---|
@@ -15,11 +15,21 @@
 
 <div align="center">
 
-<a href="https://mihon.app">
-    <img src="./.github/assets/logo.png" alt="Mihon logo" title="Mihon logo" width="80"/>
-</a>
+<img src="./.github/assets/logo.png" alt="Mihon Fix logo" title="Mihon Fix logo" width="80"/>
 
-# Mihon [App](#)
+# MIHON FIX
+
+### Fork personal de Mihon — `kayb28/mihonfixfix`
+
+*Aplicación lectora del fork (applicationId `app.mihonfix`), extendida sobre
+[mihonapp/mihon](https://github.com/mihonapp/mihon) v0.21.3 (AGPL-3.0).*
+
+---
+
+> **Atribución:** este fork deriva de Mihon (upstream) y conserva su licencia AGPL-3.0.
+> El README original de upstream sigue íntegro a continuación como referencia.
+
+# Mihon [App](#) *(README de upstream, conservado)*
 
 ### Full-featured reader
 Discover and read manga, webtoons, comics, and more – easier than ever on your Android device.
