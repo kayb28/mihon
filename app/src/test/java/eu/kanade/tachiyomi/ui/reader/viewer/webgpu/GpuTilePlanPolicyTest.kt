@@ -63,7 +63,7 @@ class GpuTilePlanPolicyTest {
         for (height in intArrayOf(50000, 50001, 16385, 24576, 8193)) {
             val tiles = GpuTilePlanPolicy.planTiles(width = 800, height = height, maxDimension = 8192)
             var expectedY = 0
-            tiles.forEach { t ->
+            for (t in tiles) {
                 t.sourceY shouldBe expectedY
                 t.height shouldBeGreaterThanZero()
                 expectedY += t.height
