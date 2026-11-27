@@ -777,3 +777,45 @@ docs/INFORME_BOTON_REINTENTAR.md. Checklist de dispositivo en el informe.
 defecto (D7). STOP no activado: no se tocaron extensiones ni se inyectó source ID (match
 por host exacto aísla por fuente). Informe: docs/INFORME_DOMINIO_EDITABLE.md. UI Compose
 se valida en checklist de dispositivo (regla del encargo).
+
+## 2026-11-27 (CONSOLIDACIÓN FINAL — orden explícita del usuario: "Consolidalo")
+
+Los 5 PRs del bloque PROMPT 9 + ADD-2 quedaron **MERGEADOS en main** por la orden
+explícita del usuario (la regla «solo abrir PRs» quedó levantada por esa orden):
+
+| Orden | PR | Contenido | Resolución previa (CI verde) | Merge SHA |
+|---|---|---|---|---|
+| 1 | #19 | T-D1 consolidación documental | — (limpio) | `8d7f056d3` |
+| 2 | #16 | T-REB rename + identidad visual | `034c6b0e7` (REGISTRO) | `f6638e8be` |
+| 3 | #15 | T-E teselado GPU Fallo E | `1b5dd0909` (REGISTRO+CHANGELOG) | `5145d3cb0` |
+| 4 | #17 | T-B botón Reintentar | `7aa48f289` (REGISTRO) | `efa411fa6` |
+| 5 | #18 | T-P8 Editar dominio por fuente | `7a63cb8f1` (REGISTRO) | `2f4e0b8dc` |
+
+Conflicts: solo apéndices de docs (REGISTRO/CHANGELOG) — regla aplicada: TODAS las
+entradas conservadas, main primero. Cero conflictos de código (las ramas eran disjuntas).
+
+**Build consolidada final (main `2f4e0b8dc`):**
+- Runs: 46018000401 / 46018002350 — **success** (tests + Build APK).
+- Artefacto `INSTALAR-2f4e0b8dcd7cea6bd42e7e98e4eac84062cc7fb1`.
+- APK interno: `MihonFix-0.21.3-build-2f4e0b8-20261127-1448-arm64.apk`.
+- sha256: `eaf9aeb26af19eaa6937c6059d67f3827aa884b14fffd0a02027f525a6948add`.
+- Tamaño: 35 245 426 bytes.
+- Firma verificada con `scripts/verify_apk_signature.py` (argv): cert
+  `DE7889F34D731EF961794F0837B78B86D025387F20E036F357C94742D1296AD0` — **ESTABLE
+  (instala encima)**, idéntico al certificado de TODAS las builds previas del fork.
+
+**Contenido de esta única versión final:** rename `kayb28/mihonfix` + app «Mihon Fix» +
+icono tinta/ámbar (T-REB); teselado GPU del visor WebGPU — Fallo E resuelto (T-E);
+botón Reintentar en errores de biblioteca con pass única por pulsación (T-B);
+«Editar dominio» por fuente con reglas from_host→to_host en OkHttp y fallback WebView
+(P8); docs consolidados (Fallo C cerrado, Fallo E cerrado por el fix T-E, ADOPCIONES,
+V1-V8, W3, 1b=C+). Falta para el cierre completo: validación de dispositivo del usuario
+con esta build única y el logo SVG definitivo (cuando el usuario lo aporte).
+
+**Checklist de dispositivo sobre la build consolidada (reemplaza los checklists por
+tarea):** 1) instalar encima de cualquier build previa (firma ESTABLE); 2) icono/nombre
+nuevos en el launcher; 3) página webtoon larguísima (≥50000 px) sin crash en el visor
+WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote; nada de
+«toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
+esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
+comportamiento intacto; extensión con mirror propio → no interferir.
