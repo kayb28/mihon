@@ -114,7 +114,10 @@ class MigrateMangaUseCase(
             // Update track
             // P0-4 (T-10.4): a null from migrateTrack is not a silent drop — the ORIGINAL
             // track survives untouched and one warning line records it.
-            getTracks.await(current.id)
+            // R6 (D-B, auditoría pre-merge PR #23): explicit map (no mapNotNull); tracks
+            // migrate BEFORE the destructive updateManga, and the outcomes decide whether
+            // replace is effective at all.
+            val trackOutcomes = getTracks.await(current.id)
                 .map { track ->
                     val updatedTrack = track.copy(mangaId = target.id)
 
@@ -126,15 +129,31 @@ class MigrateMangaUseCase(
                     val migrated = service?.migrateTrack(updatedTrack, target, targetSource) ?: updatedTrack
                     MigrationGuardPolicy.trackMigrationPlan(track, migrated)
                 }
-                .forEach { outcome ->
-                    when (outcome) {
-                        is MigrationGuardPolicy.TrackOutcome.Upsert -> upsertTrack.await(outcome.track)
-                        is MigrationGuardPolicy.TrackOutcome.KeptUnmigrated -> logcat(LogPriority.WARN) {
-                            "Track ${outcome.track.id} (${outcome.track.title}) could not be migrated " +
-                                "to '${target.title}' (${target.id}) — kept on the original manga"
-                        }
+            trackOutcomes.forEach { outcome ->
+                when (outcome) {
+                    is MigrationGuardPolicy.TrackOutcome.Upsert -> upsertTrack.await(outcome.track)
+                    is MigrationGuardPolicy.TrackOutcome.KeptUnmigrated -> logcat(LogPriority.WARN) {
+                        "Track ${outcome.track.id} (${outcome.track.title}) could not be migrated " +
+                            "to '${target.title}' (${target.id}) — kept on the original manga"
                     }
                 }
+            }
+
+            // R6 (D-B): replace is only effective when EVERY track migrated. One failed
+            // track aborts BEFORE the destructive step: the row is not replaced, the
+            // original source stays, and the thrown motivo makes the caller mark the
+            // migration for review (bulk list / link repairer surface the message).
+            val replaceEfectivo = MigrationGuardPolicy.effectiveReplace(replace, trackOutcomes)
+            if (replace && !replaceEfectivo) {
+                val motivos = trackOutcomes
+                    .filterIsInstance<MigrationGuardPolicy.TrackOutcome.KeptUnmigrated>()
+                    .joinToString("; ") { "'${it.track.title}' (track ${it.track.id})" }
+                throw IllegalStateException(
+                    "Migration of '${current.title}' (${current.id}) to '${target.title}' " +
+                        "(${target.id}) left unmigrated track(s): $motivos — row NOT replaced, " +
+                        "marked for review",
+                )
+            }
 
             // Delete downloaded
             if (MigrationFlag.REMOVE_DOWNLOAD in flags && currentSource != null) {
