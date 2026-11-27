@@ -38,26 +38,30 @@ class WebViewFallbackPolicy(
     /**
      * Whether a failed request (an HTTP error status code or a network exception) is allowed
      * to attempt the WebView fallback for [host] right now.
+     *
+     * P1-1 (T-10.6): [hasConnectivity] is LAZY — the probe only runs once method and the
+     * failure criteria already pass, so a stream of healthy 200 responses never pays the
+     * ConnectivityManager IPC.
      */
     fun shouldAttempt(
         host: String,
         method: String,
         statusCode: Int? = null,
         cause: Throwable? = null,
-        hasConnectivity: Boolean = true,
+        hasConnectivity: () -> Boolean = { true },
     ): Boolean {
         if (method !in SUPPORTED_METHODS) return false
-        // W3 (technical exemption, user-vetoable until the merge gate): with no connectivity
-        // at all (airplane mode / no network) a WebView cannot load anything either, so the
-        // attempt is skipped to save battery. If the user vetoes W3 this check goes away and
-        // every failure triggers again.
-        if (!hasConnectivity) return false
         // W2: a network failure (IOException and its subtypes) is as much a "first try
         // failed" as an HTTP error code — it gets the WebView second try too. Anything that
         // is not an HTTP error and not a network exception (2xx/3xx codes, non-I/O bugs)
         // never triggers.
         val failure = (statusCode != null && statusCode in FALLBACK_CODES) || cause is IOException
         if (!failure) return false
+        // W3 (technical exemption, user-vetoable until the merge gate): with no connectivity
+        // at all (airplane mode / no network) a WebView cannot load anything either, so the
+        // attempt is skipped to save battery. If the user vetoes W3 this check goes away and
+        // every failure triggers again. Lazy (T-10.6): only evaluated on real failures.
+        if (!hasConnectivity()) return false
         val lastFailure = cooldowns[host] ?: return true
         return clock() - lastFailure > cooldownMs
     }

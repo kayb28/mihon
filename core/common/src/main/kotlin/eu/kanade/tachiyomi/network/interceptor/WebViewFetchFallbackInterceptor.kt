@@ -125,7 +125,8 @@ class WebViewFetchFallbackInterceptor(
             host = request.url.host,
             method = request.method,
             statusCode = response.code,
-            hasConnectivity = hasConnectivity(),
+            // P1-1 (T-10.6): lazy — the ConnectivityManager IPC only fires for real failures
+            hasConnectivity = ::hasConnectivity,
         )
     }
 
@@ -139,7 +140,7 @@ class WebViewFetchFallbackInterceptor(
             host = request.url.host,
             method = request.method,
             cause = cause,
-            hasConnectivity = hasConnectivity(),
+            hasConnectivity = ::hasConnectivity,
         )
     }
 
