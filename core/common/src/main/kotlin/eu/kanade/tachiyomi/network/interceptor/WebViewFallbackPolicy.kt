@@ -46,6 +46,11 @@ class WebViewFallbackPolicy(
         hasConnectivity: Boolean = true,
     ): Boolean {
         if (method !in SUPPORTED_METHODS) return false
+        // W3 (technical exemption, user-vetoable until the merge gate): with no connectivity
+        // at all (airplane mode / no network) a WebView cannot load anything either, so the
+        // attempt is skipped to save battery. If the user vetoes W3 this check goes away and
+        // every failure triggers again.
+        if (!hasConnectivity) return false
         // W2: a network failure (IOException and its subtypes) is as much a "first try
         // failed" as an HTTP error code — it gets the WebView second try too. Anything that
         // is not an HTTP error and not a network exception (2xx/3xx codes, non-I/O bugs)

@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.network.interceptor
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -118,6 +120,7 @@ class WebViewFetchFallbackInterceptor(
             host = request.url.host,
             method = request.method,
             statusCode = response.code,
+            hasConnectivity = hasConnectivity(),
         )
     }
 
@@ -130,6 +133,7 @@ class WebViewFetchFallbackInterceptor(
             host = request.url.host,
             method = request.method,
             cause = cause,
+            hasConnectivity = hasConnectivity(),
         )
     }
 
@@ -186,6 +190,19 @@ class WebViewFetchFallbackInterceptor(
         }
 
         return fallback
+    }
+
+    /**
+     * W3: total-connectivity probe. Without ANY network (airplane mode / radio off) a
+     * WebView load cannot succeed either, so the fallback is not even attempted. This is a
+     * plain "is there a network" check — a captive portal or a down site still reads as
+     * connected and keeps the fallback enabled.
+     */
+    private fun hasConnectivity(): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+        val network = manager.activeNetwork ?: return false
+        val caps = manager.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun onFallbackSuccess() {
