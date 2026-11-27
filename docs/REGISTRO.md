@@ -37,7 +37,7 @@ Diario operativo de la rama `feature/webgpu-clean`: **todo** cambio queda anotad
 | 20:45 | `feat/t6-page-state-machine-wiring` | `ce3db2d` | ✅ success | docs(reader): R3 — hardening record, P1/P2 contract, widened round-2 drift check |
 | 20:55 | `feat/t6-page-state-machine-wiring` | `12703d3` | ✅ success | docs(reader): attach the round-2 build evidence (ce3db2d) |
 
-_2026-11-25: 33 runs, 15 exitosas. Incluye las runs «Build & Test» de `main` (03:50, doble verde en 152027f) y la serie red-green de la rama T6. Fuente: GitHub Actions, API `/repos/kayb28/mihon/actions/runs`._
+_2026-11-25: 33 runs, 15 exitosas. Incluye las runs «Build & Test» de `main` (03:50, doble verde en 152027f) y la serie red-green de la rama T6. Fuente: GitHub Actions, API `/repos/kayb28/mihonfix/actions/runs`._
 
 ### 2026-11-24
 
@@ -101,7 +101,7 @@ _Sin actividad: 0 commits y 0 runs de CI (verificado igual que los días 20–23
 
 ### Nota de reconstrucción (2026-11-26)
 
-> Las secciones de este índice desde el 2026-11-18 hasta el 2026-11-25 fueron **reconstruidas a posteriori** el 2026-11-26 a partir de dos fuentes: el historial git del repositorio (`git log --all` con fechas ISO) y la API de GitHub Actions (`/repos/kayb28/mihon/actions/runs`, consultada por página). Horas en UTC tal como las guarda GitHub. Cada resultado (success/failure/cancelled) es la conclusión real de la run citada. Las entradas narrativas de los días 19, 24 y 25 que ya existían más abajo en este documento se escribieron en su momento y NO se tocaron; esta reconstrucción cubre únicamente el índice cronológico de builds, que se cortaba en el 2026-11-17. Nada de lo listado arriba fue validado en dispositivo salvo lo que el propio REGISTRO marca como «confirmado».
+> Las secciones de este índice desde el 2026-11-18 hasta el 2026-11-25 fueron **reconstruidas a posteriori** el 2026-11-26 a partir de dos fuentes: el historial git del repositorio (`git log --all` con fechas ISO) y la API de GitHub Actions (`/repos/kayb28/mihonfix/actions/runs`, consultada por página). Horas en UTC tal como las guarda GitHub. Cada resultado (success/failure/cancelled) es la conclusión real de la run citada. Las entradas narrativas de los días 19, 24 y 25 que ya existían más abajo en este documento se escribieron en su momento y NO se tocaron; esta reconstrucción cubre únicamente el índice cronológico de builds, que se cortaba en el 2026-11-17. Nada de lo listado arriba fue validado en dispositivo salvo lo que el propio REGISTRO marca como «confirmado».
 
 ## 2026-11-17
 
@@ -455,7 +455,7 @@ _2026-10-29: 3 runs, 3 exitosas._
 
 - **02:56 — LOTE LOCAL PUBLICADO: push de feature, CI verde, main reconciliado y build `d324ddbf` entregada.** El token clásico del usuario (scopes `repo` + `workflow`) desbloqueó todo: push de `feature/webgpu-clean` `0ecb90ffa..d324ddbf6` (14 commits: reconciliación, pasada en calma, propagación de cancelación, limpieza de errores al migrar y docs) a las 02:48Z; **CI «Build APK» verde en 6 min** (run 43143969010, success 02:55Z); **fast-forward de `main` `5d95ba550..d324ddbf6`** — las dos ramas quedaron idénticas y la advertencia de no instalar builds de `main` queda sin efecto; la CI de `main` quedó en marcha sobre el mismo commit (run 43144694338). APK arm64 entregado: **`MihonFix-0.21.3-build-d324ddbf-arm64.apk`** (35,2 MB, sha256 `e366838ae965de45…`). Entrada de CHANGELOG de la build añadida. **Build `d324ddbf`** · Estado: **pendiente confirmar del usuario** (probar: actualización masiva sin ráfaga de errores falsos; títulos migrados fuera del reparador que desaparecen de la lista).
 
-- **02:46 — tercer intento de publicación con el token nuevo del usuario: 403 otra vez.** El token fine-grained recién entregado vuelve a ser de solo lectura efectiva: la API reporta `push: true` / `admin: true` (eso refleja el rol de dueño del repo, no el permiso del token), pero la prueba controlada — push de una ref temporal SIN commits nuevos y SIN cambios de workflow — devuelve 403 «Permission to kayb28/mihon.git denied to kayb28». Lecturas OK: Actions y Contents 200. Remoto intacto (feature `0ecb90ffa`, main `5d95ba550`); el lote local de 10 commits sigue esperando. **Lo que falta configurar en el token (fine-grained, github_pat_…): Permissions → Repository permissions → «Contents: Read and write» (es lo que gobierna el push) y «Workflows: Read and write» (nuestros commits tocan `.github/workflows/build_apk.yml`)**; Actions: Read-only basta para vigilar la CI. Alternativa simple: token clásico con scopes `repo` + `workflow`. `sin build` · Estado: **resuelto a las 02:48** — el usuario generó un token clásico con `repo`+`workflow` y la publicación salió (ver entrada 02:56).
+- **02:46 — tercer intento de publicación con el token nuevo del usuario: 403 otra vez.** El token fine-grained recién entregado vuelve a ser de solo lectura efectiva: la API reporta `push: true` / `admin: true` (eso refleja el rol de dueño del repo, no el permiso del token), pero la prueba controlada — push de una ref temporal SIN commits nuevos y SIN cambios de workflow — devuelve 403 «Permission to kayb28/mihonfix.git denied to kayb28». Lecturas OK: Actions y Contents 200. Remoto intacto (feature `0ecb90ffa`, main `5d95ba550`); el lote local de 10 commits sigue esperando. **Lo que falta configurar en el token (fine-grained, github_pat_…): Permissions → Repository permissions → «Contents: Read and write» (es lo que gobierna el push) y «Workflows: Read and write» (nuestros commits tocan `.github/workflows/build_apk.yml`)**; Actions: Read-only basta para vigilar la CI. Alternativa simple: token clásico con scopes `repo` + `workflow`. `sin build` · Estado: **resuelto a las 02:48** — el usuario generó un token clásico con `repo`+`workflow` y la publicación salió (ver entrada 02:56).
 
 - **02:30 — fix(repair/migration): los títulos ya migrados dejan de aparecer en el reparador y en errores de actualización (`3ba9da5cc`).** Motivo: queja del usuario — «los títulos con errores se quedaban allí sin importar si actualizaba la biblioteca, apareciendo incluso títulos que ya había migrado». Auditoría del flujo: la sincronización reactiva de `d650a1ad3` cubre los títulos que sanan (actualización con éxito limpia el error y el reparador los quita en vivo), pero quedaba un caso descubierto — **migrar por fuera del reparador** (búsqueda global → migrar o la lista de migración): `MigrateMangaUseCase` no tocaba el almacén de errores, así que el error BROKEN_LINK del manga viejo persistía hasta la siguiente pasada completa de biblioteca, y tanto el reparador (`RepairLinksViewModel.startSimulation`) como la pantalla de errores (`UpdateErrorsViewModel`) listaban títulos sin comprobar que sigan en la biblioteca. Triple arreglo: (1) `MigrateMangaUseCase` limpia el error del manga viejo al migrar con reemplazo (cubre todas las vías de migración de una vez); (2) `startSimulation` filtra `favorite`, un error persistido de un manga fuera de la biblioteca jamás se muestra como candidato; (3) `UpdateErrorsViewModel` mismo filtro para la pantalla de errores. Con `replace = false` el error se conserva a propósito (el título sigue en biblioteca y su enlace sigue roto). `sin build` — **pendiente publicar** (push bloqueado por token) · Estado: pendiente CI verde + confirmar del usuario.
   - **02:37 — verificación forense (pickaxe en todas las ramas) a petición del usuario**: ningún agente había resuelto antes el caso «migrado por fuera del reparador». `removeErrorsForManga` solo existía en `UpdateMangaFromRemote` (éxito de actualización, `d650a1ad3`) y en la migración hecha desde el propio reparador (`d650a1ad3`/puertos anteriores); ningún commit anterior tocó `MigrateMangaUseCase` para limpiar errores, y ningún commit anterior metió filtro `favorite` en el reparador ni en la pantalla de errores — `3ba9da5cc` es el primero. Lo que el usuario recordaba como resuelto es la mitad sí cubierta: títulos sanados salen en vivo (sincronización `d650a1ad3`, en su build instalada) y los falsos «enlaces rotos» se redujeron con la confirmación por racha (`8a9d518c4`). El commit `888a63116` del agente paralelo («errores no silenciados») era señales tipadas y no tragarse excepciones — sin relación con migrados, y su arquitectura se descartó en el merge.
@@ -469,7 +469,7 @@ _2026-10-29: 3 runs, 3 exitosas._
 - **~00:50 — intento de abrir el PR `feature/webgpu-clean` → `main` (encargo heredado del agente anterior).** El token PAT fine-grained del repo no tiene permiso «Pull requests: write» (403 al crear). El build de referencia está verde (`d650a1ad3`, run 43126235497) y no se tocó `main`. Texto del PR preparado y entregado por el chat; el PR queda pendiente de creación manual (compare en GitHub) o de ampliar el permiso del token. `sin build` · Estado: **pendiente** — el usuario abre el PR o renueva el token.
 - **00:58 — segundo intento de PR con el token renovado por el usuario: 403 otra vez.** El bloque de permisos de la API reportaba admin/push, pero el token sigue sin el permiso «Pull requests: read and write» efectivo. El PR deja de ser necesario: la reconciliación se ejecuta por git directo según el plan ya anotado. `sin build` · Estado: cerrado (innecesario tras el merge).
 - **01:00 — reconciliación de ramas ejecutada: merge `main` → `feature/webgpu-clean` (`eae7fe6a2`).** Motivo: cerrar la divergencia del 11/11 por el plan anotado — base feature (línea probada) y portar de main solo lo extra. Resolución de los 5 conflictos: se conservó feature en los 5 (workflow CI con firma estable y gating de extensiones — main ya aportaba acciones pineadas/triggers en la zona común; acumulador + confirmación 404/410 de `UpdateErrorStore`; resolvedor secundario con `syncItemsWithErrors`/`migrateOne`). De main se descartaron las señales tipadas del reparador (arquitectura paralela sin sincronía con el almacén de errores) y su `addErrors` (patrón acumulador que causó el bug 100+50=150); se conservaron las señales de autor/géneros de `TitleMatcher` como parámetros opcionales al final (default null, sin efecto en las llamadas actuales — requirió reordenar la firma que el auto-merge había dejado incompatible con los llamadores de 3 argumentos). **Build `eae7fe6a2`** · Estado: **sin build — commit listo en local, publicación bloqueada por el token** (ver entrada siguiente). Funcionalmente equivalente a `d650a1ad3` (no cambia comportamiento, solo concilia historiales).
-- **01:05 — intento de publicar: push denegado (403) en feature y en main.** El token tampoco tiene «Contents: read and write»: probado con la creación de una ref temporal sin commits nuevos ni cambios de workflow — 403 «Permission to kayb28/mihon.git denied to kayb28». El remoto quedó intacto (feature en `0ecb90ffa`, main en `5d95ba550`); el merge `eae7fe6a2` y su registro esperan en local. Para publicar hace falta un token con **Contents: read and write** + **Workflows: read and write** (los commits de firma estable tocan CI); «Pull requests: read and write» solo si aún se quiere el PR. Alternativa clásica: PAT con scopes `repo` + `workflow`. `sin build` · Estado: **bloqueado por token** — pendiente renovación.
+- **01:05 — intento de publicar: push denegado (403) en feature y en main.** El token tampoco tiene «Contents: read and write»: probado con la creación de una ref temporal sin commits nuevos ni cambios de workflow — 403 «Permission to kayb28/mihonfix.git denied to kayb28». El remoto quedó intacto (feature en `0ecb90ffa`, main en `5d95ba550`); el merge `eae7fe6a2` y su registro esperan en local. Para publicar hace falta un token con **Contents: read and write** + **Workflows: read and write** (los commits de firma estable tocan CI); «Pull requests: read and write» solo si aún se quiere el PR. Alternativa clásica: PAT con scopes `repo` + `workflow`. `sin build` · Estado: **bloqueado por token** — pendiente renovación.
 - **01:30 — fix(library): mecanismo anti-errores-de-ráfaga en la actualización masiva (`0cfd8b194`).** Motivo: el log que trajo el usuario (310 «errores»: MangaOni 236×502 + 65×526 + 6×522, Shadow Manga 2×429, LeerCapitulo 1×timeout) es exactamente el caso pendiente — en la pasada masiva marcan error y en la individual se actualizan sin problemas. Diagnóstico: los 502/522/526 son episodios del origen tras Cloudflare (no bloqueos al cliente; por eso el motor web de respaldo no interviene — su gatillo es 403/503) y los reintentos de `d650a1ad3` ocurrían dentro del calor de la ráfaga (3 intentos, esperas de 3-9 s). Mecanismo nuevo en `LibraryUpdateWorker`: pacing suave (250 ms) en colas grandes, corte de cola al detectar origen caído (3 fallos 5xx consecutivos), **segunda pasada en calma** (secuencial por fuente, pausa 500 ms, 2 intentos con 8 s entre ellos, presupuesto de 20 min por fuente) — solo lo que también falle en calma se registra como error — y conservación del error previo en lo no intentado (`retainErrors` en `UpdateErrorStore`). `sin build` — **pendiente publicar** (push bloqueado por token) · Estado: pendiente CI verde + confirmar del usuario.
 
 ## 2026-11-11
@@ -552,7 +552,7 @@ _2026-10-29: 3 runs, 3 exitosas._
   - **PR #8 → `b5a1323`** (docs: coherencia post-auditoría del bloque reparador; F1/F2/F3 de la auditoría del reparador: AGENTS.md actualizado a la realidad del 26/11, NOTE de TitleMatcherTest corregido, índice de builds 18–25/11 reconstruido). Su run de CI sobre main fue cancelada por concurrencia (45726323898/45726323953) al llegar el merge siguiente un minuto después — comportamiento normal del grupo de concurrencia; la run del tip fusionado inmediatamente posterior es la que manda.
   - **PR #9 → `00f465d`** (fix(reparador): tests B1–B4 del reparador de enlaces, F5: 35 tests nuevos — caracterización B1+B2 del almacén y clasificación, políticas puras B4 `RepairOutcomePolicy` y B3 `CalmPassPolicy`; desfase B1 «racha pegajosa» reportado y conservado).
   - CI de `main` en `00f465d`: runs 45726397373 (Build & Test) y 45726397560 (Build APK) — resultado anotado abajo al completarse.
-- **Auditoría de referencia (solo lectura) del bloque reparador leída y triangulada** (la que motivó ambos PRs): L1–L13 verificables contra este registro; F7 resuelto durante el cierre — los «hallazgos 3.1/3.2/3.3» que cita el PR #1 viven en el CUERPO del propio PR #1 (https://github.com/kayb28/mihon/pull/1), redactados desde un informe conversacional que nunca fue archivo del repo; por eso la búsqueda por nombre en `docs/` no los encontraba. La enumeración real de `docs/` al 26/11: CAMBIOS_FORK, HISTORIA, INFORME_AUDITORIA_MIGRACION_GUARDS, INFORME_VISOR_T1-T7, PROBLEMAS, REGISTRO, SOURCE_MANAGEMENT_RESEARCH, TRASPASO, WEBGPU_MIGRATION_PROGRESS.
+- **Auditoría de referencia (solo lectura) del bloque reparador leída y triangulada** (la que motivó ambos PRs): L1–L13 verificables contra este registro; F7 resuelto durante el cierre — los «hallazgos 3.1/3.2/3.3» que cita el PR #1 viven en el CUERPO del propio PR #1 (https://github.com/kayb28/mihonfix/pull/1), redactados desde un informe conversacional que nunca fue archivo del repo; por eso la búsqueda por nombre en `docs/` no los encontraba. La enumeración real de `docs/` al 26/11: CAMBIOS_FORK, HISTORIA, INFORME_AUDITORIA_MIGRACION_GUARDS, INFORME_VISOR_T1-T7, PROBLEMAS, REGISTRO, SOURCE_MANAGEMENT_RESEARCH, TRASPASO, WEBGPU_MIGRATION_PROGRESS.
 - **(02:40 UTC) — diagnóstico (solo lectura) + docs: Fallo C «conflicto de paquete al instalar la última build» y registro del Fallo D «DecodeException: Truncated WebP».** Rama `docs/registro-fallos-c-d` cortada de `main` (`00f465d`), cero cambios de código. Diagnóstico del Fallo C (el usuario reporta que la última build no se instaló encima y conserva la anterior):
   - **Artefactos cribados (5 APK arm64)**: main actual `00f465d` (artefacto 15075007192, run 45726397560), main previo `152027f` (14990286893, run 45542702890), `fix/reparador-enlaces-tests` `4c5f151` (15072813824, run 45722806907), `docs/coherencia-post-auditoria-reparador` `509c1c6` (15066458878, run 45710521222) y la release `v0.21.3-fork.1` (asset 766012672). Todos descargados vía API y verificados con `scripts/verify_apk_signature.py`.
   - **Firma**: los 5 dan certificado ESTABLE `DE7889F3…D1296AD0` (CN=MihonFix) → **hipótesis «firma debug por fallback de secretos» DESCARTADA**; además el log del job 139598249002 (Build Release APK, run 45726397560) contiene «Keystore secret found. Configuring release signing.» (línea 263) y nunca «Falling back to debug signing», igual en el job unminified 139598249176.
@@ -565,7 +565,7 @@ _2026-10-29: 3 runs, 3 exitosas._
 - **(04:38–04:47 UTC) — merges a `main` con instrucción explícita del usuario: PR #10 y PR #11, en ese orden.** Pre-vuelo: PR #10 `mergeable: True/clean` en su punta `03d09fd` (tres commits correctores del encargo: B1 cerrado por decisión del usuario `0eaa894`, informe B1–B4 regenerado `e138a66`, CHANGELOG `03d09fd` — CI del push verde, run 45755881105). Ejecutado con commit de merge y SIN borrar ramas:
   - **PR #10 → `3ac7f98`** (docs: cierre post-merge de la auditoría del reparador, F6 + correcciones del encargo). Su CI sobre main (45756725042/45756725263, creadas 04:40:43) fue cancelada por concurrencia al llegar el merge del PR #11 dos minutos después — comportamiento normal del grupo de concurrencia; manda la run de la punta final.
   - **PR #11 → `127dfd5`** (docs: registro de Fallo C y Fallo D). **Conflicto real** de `docs/PROBLEMAS.md` y `docs/REGISTRO.md` entre ambos PRs, resuelto EN el commit de merge conservando TODAS las filas/entradas de ambos lados (PROBLEMAS: 1 original + 3 del bloque reparador + Fallo C/D; REGISTRO: entrada de merges 00:05 + entrada Fallo C/D 02:40, ambas íntegras). Sin rebase, sin force push, ramas intactas.
-  - **CI de `main` en `127dfd5`: DOBLE VERDE** — Build & Test [45756884878](https://github.com/kayb28/mihon/actions/runs/45756884878) y Build APK [45756884870](https://github.com/kayb28/mihon/actions/runs/45756884870) (creadas 04:42:17, success verificadas por API). `sin build` nueva de APK instalable (solo docs en ambos merges).
+  - **CI de `main` en `127dfd5`: DOBLE VERDE** — Build & Test [45756884878](https://github.com/kayb28/mihonfix/actions/runs/45756884878) y Build APK [45756884870](https://github.com/kayb28/mihonfix/actions/runs/45756884870) (creadas 04:42:17, success verificadas por API). `sin build` nueva de APK instalable (solo docs en ambos merges).
   - Errata del cuerpo del PR #9 corregida por edición de descripción (sin commit): «7 solo esta rama» → «8 solo esta rama» — el conteo real es 8 commits (f4f30bc, 9b8be0d, fb47012, 8898fd5, 6b78336, 5eb655f, 03fe724, 4c5f151), verificado por API antes de editar.
 - **(04:55–04:58 UTC) — nomenclatura de builds + convención «Qué build instalar» (regla del usuario).** Rama `ci/nomenclatura-builds` cortada de `main` (`3d3b602`), DOS commits (uno de workflow, uno de docs):
   - **`b0889e2` (workflow, UN commit):** `build_apk.yml` — el job «Build Release APK» renombra el APK arm64 a `MihonFix-0.21.3-build-<sha7>-<yyyymmdd-hhmm UTC>-arm64.apk` antes de subir y su artefacto pasa a `INSTALAR-<sha>`; el job «Build Unminified APK (No R8)» gana prefijo `NO-INSTALAR-` en el artefacto y sufijo `-nor8` en los APK interiores. `build.yml` (Build & Test): artefacto `NO-INSTALAR-arm64-v8a-<sha>` con `.apk` interior `-test`. El rename es el ÚNICO cambio de superficie: firma, contenido y `scripts/verify_apk_signature.py` intactos (el verificador toma la ruta como argumento).
@@ -600,6 +600,148 @@ vetable por el usuario hasta la puerta de merge). W3 NO vetado hasta la fecha.
 (checklist W1/W2/W4 observable en `docs/INFORME_MOTOR_WEB_REFORZADO.md`) + OK explícito.
 Sin él, NO merge. Build para instalar: artefacto `INSTALAR-dcba12e2b…`,
 `MihonFix-0.21.3-build-dcba12e-20261127-0245-arm64.apk`, firma ESTABLE.
+### (2026-11-27, T-D1 — PROMPT 9) Consolidación documental — decisiones del usuario
+
+**Cierre de Fallo C (PROBLEMAS.md):** confirmación del usuario (2026-11-27): la
+instalación encima ya está resuelta desde hace tiempo; la causa fue un error del usuario
+al elegir el archivo/APK, no un defecto del fork. Fila cerrada; el diagnóstico forense
+previo se conserva en la propia fila como historia.
+
+**Apertura de Fallo E (PROBLEMAS.md):** ValidationException del visor EXPERIMENTAL
+WebGPU — contenido compuesto en una única textura 800×50000 supera el límite de GPU
+(16384×16384; algunas GPU 8192). Reporte del usuario 2026-11-26/27; disposición = T-E
+(rama `fix/fallo-e-textura`): consultar `device.limits.maxTextureDimension2D` y trocear
+en teselas ordenadas sin escalar. Cierre solo con validación en dispositivo.
+
+**F4 (dos filas abiertas del Reparador):** ambas anotadas con «cierre previsto con la
+validación de dispositivo de P7 (W1/W2/W4) — mismas rutas WebView». Siguen ABIERTAS.
+
+**Decisión W3 (PROMPT 7):** sin veto del usuario hasta el 2026-11-27 → la exención «sin
+conectividad no dispara el fallback» se queda tal cual. Registrada como definitiva salvo
+orden contraria.
+
+**Decisión 1b (auditoría del reparador) = C+:** el informe perdido
+`INFORME_AUDITORIA_REPARADOR_2026-11-26.md` NO se reconstruye y NO se re-audita al
+reparador (decisión del usuario, 2026-11-27). Nota honesta: el informe murió con el
+primer chat. Sus conclusiones viven en evidencia activa: PRs #8–#13, los 35 tests B1–B4
+(`fix/reparador-enlaces-tests`, run verde), `docs/INFORME_REPARADOR_ENLACES_B1-B4.md` y
+las políticas `RepairOutcomePolicy`/`CalmPassPolicy` (tests JVM desde `00f465d`).
+
+**Desviaciones V1–V8 (auditoría del reparador) — decisiones del usuario (2026-11-27):**
+- V1, V4, V6, V7, V8 — RATIFICADAS por el usuario.
+- V2 — corregida dentro de T-D1 (AGENTS.md §2: nombre de APK con timestamp).
+- V3 — corregida con la única excepción autorizada a workflows: commit `ci:` en
+  `docs/consolidacion-2026-11-27` que antepone `NO-INSTALAR-` a los artefactos
+  `test-report-` y `mapping-` de `build.yml` (sin cambio de lógica).
+- V5 — aceptada como limitación conocida (nota en esta entrada; se revisa en el rebase
+  v0.21.4).
+- (Recomendación del auditor: V1–V7 ratificar, V8 nota de proceso — el usuario ratificó
+  V1/V4/V6/V7/V8 y resolvió V2/V3/V5 como arriba; nada queda pendiente de firma.)
+
+**docs/ADOPCIONES_UPSTREAM.md (nuevo):** tabla de 6 filas verificadas (rebase v0.21.4;
+PR #3786 WebP; caché upstream; pins CI setup-java v6.3.0 / setup-gradle v6.4.1 /
+ubuntu-26.04; port de extensiones embebidas MHScans/Emperor Scan al API nuevo; recetas
+comunidad #4309/#3017/#4305/#3882/#4188/#4220/#4272/#4106/#4147/#4310/#4301/#4246/
+#565+#3661) + nota «pendiente de aportaciones del usuario».
+
+**AGENTS.md §3:** tabla de ramas refrescada a la realidad del 2026-11-27 (main punta
+`bd4aa16e`, merge PR #14 de P7; T6 mergeada vía PR #13; ramas vivas P8/T-D1/T-E/T-B).
+
+
+## 2026-11-27 (T-REB — PROMPT 9-ADD-2)
+
+**R0 — rename del repositorio:** `kayb28/mihon` → `kayb28/mihonfix` vía API (PATCH
+/repos/kayb28/mihon {"name":"mihonfix"}). Evidencia: respuesta API `full_name:
+kayb28/mihonfix`; la URL antigua responde **301** → https://github.com/kayb28/mihonfix
+(verificado con curl); la nueva responde 200. `origin` local actualizado a
+https://github.com/kayb28/mihonfix. Todo lo posterior usa el nombre nuevo.
+
+**R1 — identidad visual de la app:** `app_name` → «Mihon Fix» (i18n base,
+translatable=false). Icono adaptativo: fondo `#12141A` (tinta) en
+`ic_launcher_background.xml`; el glifo del foreground pasa a ámbar `#E8B54A` para seguir
+siendo legible sobre tinta (mismos trazados vectoriales — SIN rediseño). NO se tocó
+`applicationId` (app.mihonfix), versionName/versionCode ni firma. **Pendiente del
+usuario:** el ADD-2 menciona un logo SVG aportado por el usuario que NO llegó a subirse
+al sandbox (upload/ solo contiene los prompts y el token); cuando lo aporte se sustituye
+el foreground/monochrome por su SVG tal cual (sin rediseñar) — registrado como pendiente.
+
+**R2 — README:** banner «MIHON FIX» (logo + tipografía gruesa + ámbar sobre tinta),
+título del fork, atribución a Mihon/AGPL explícita y el README de upstream conservado
+íntegro debajo.
+
+**R3 — docs:** referencias al repo actualizadas al nombre nuevo en README (3),
+REGISTRO (7), HISTORIA (título) y AGENTS (cabecera). Ya no queda «pendiente de rename».
+
+Checklist de dispositivo (usuario): icono y nombre nuevos en el launcher; instalación
+encima de la build previa sin desinstalar; firma intacta (verify_apk_signature.py).
+
+
+## 2026-11-27 (T-E — PROMPT 9)
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 05:37 | `fix/fallo-e-textura` | `40382a0e5` | ❌ (comportamiento) | rojo T-E: GpuTilePlanPolicy esqueleto no-op + 10 tests E1-E3 (run 45946738209; Spotless & Unit Tests failure POR TESTS, luego cancelado por el push siguiente; la única queja de formato era la indentación del test) |
+| 05:44 | `fix/fallo-e-textura` | `353313c81` | 🟡 | verde E1: plan de teselas ordenado, ≤ límite, sin huecos/solapes, sin escalado (run 45946758382; jobs de build fallan solo por la indentación del test aún sin corregir) |
+| 06:40 | `fix/fallo-e-textura` | `7a87c2c0d` | ✅ | style: ktlint indentación del test (spotless fix; no cuenta como rojo/verde) |
+| 06:41 | `fix/fallo-e-textura` | `0ecafd2cf` | 🟡→ | verde E2: wiring — device.limits.maxTextureDimension2D real, una textura por tesela, uploadTilePixels copia banda exacta, un quad por tesela en continuo Y paginado (zoom/pan), destroy/stop cierran todas (run 45952813399 en curso) |
+| 06:47 | `fix/fallo-e-textura` | `53c7c69d1` | 🟡→ | verde E3: tileQuad extraído a la policy (una implementación) + tests de regresión (single-tile = quad de página bit a bit; partición exacta 2 teselas; degenerado) (run 45952895809 en curso) |
+
+**Notas T-E:** el wiring GPU no es ejecutable en JVM (regla del encargo): E2 se valida por
+E1+E3 en JVM + checklist de dispositivo. Condición STOP descartada con evidencia: el crash
+del usuario es ValidationException de CreateTexture por dimensión > límite, solo visor
+EXPERIMENTAL (STOCK/HQ no usan WebGPU). Alcance: solo archivos del visor WebGPU.
+Informe: docs/INFORME_FALLO_E_TEXTURA.md.
+
+## 2026-11-27 (cierre de ronda — fixes de CI de las series P8/T-B)
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 07:0x | `feat/p8-domain-override` | `56c727ffd` | 🔧 | tests D4 alineados con la firma validate(input, currentHost) + import shouldHaveSize |
+| 07:1x | `feat/p5-reintentar-titulos-error` | `a2c9d38a2`/`ffb22f78f`/`4163e7da8` | 🔧 | spotless: testTag tras LocalContext; UpdateMangaFromRemote en su sección; KDoc duplicado |
+| 07:1x | `feat/p8-domain-override` | `63efa81e2` | ✅ (por reproducir) | fix de 3 comportamientos detectados por CI (run 45954918862: 69 tests, 3 failed) y reproducidos LOCALMENTE con okhttp 4.12 real: D4 fallback https:// aceptaba 'ftp://x'/'file:///x' como hosts 'ftp'/'file' (ahora solo host pelado); D6 onRewrite nunca invocado (ahora emite la línea); D7 guard bloqueaba old→new cuando new tenía regla (aplicación única corregida) |
+| 07:2x | `feat/p5-reintentar-titulos-error` | `410c286f9` | 🔧 | compile fix tests: beginPass es nullable (aserción !!) |
+| 07:2x | `feat/p8-domain-override` | `80b025349` | 🔧 | compile fix: stringResource se resuelve en el cuerpo @Composable, no dentro del onClick |
+
+**Estado al cierre de esta ronda (07:2x UTC):** PRs abiertos #15 (T-E), #16 (T-REB),
+#17 (T-B), #18 (P8), #19 (T-D1). CI verde confirmada: docs/consolidacion-2026-11-27
+(df424a5ee, run 45954074642) y fix/fallo-e-textura rojo/verdes previos. Pendiente de
+verificar en la próxima ronda: los runs de las puntas 410c286f9 (T-B) y 80b025349 (P8)
+— todos los fallos previos quedaron explicados y corregidos (3 de comportamiento P8
+con repro local; el resto formato/compile). NADA se ha mergeado (regla del encargo).
+
+## 2026-11-27 (cierre final del bloque PROMPT 9 + ADD-2 — las 5 ramas en verde)
+
+| Rama | Punta verde | Run(s) | APK INSTALAR (nombre interno) | sha256 | Tamaño | Firma |
+|---|---|---|---|---|---|---|
+| `docs/consolidacion-2026-11-27` (T-D1, PR #19) | `79801c168` | 45997565980 / 45997555071 success | — (encargo documental; sin build nueva) | — | — | — |
+| `fix/fallo-e-textura` (T-E, PR #15) | `abe9ef63e` | 46006906160 / 46006895783 success | `MihonFix-0.21.3-build-abe9ef6-20261127-1332-arm64.apk` | `b471de78f863e4bcd37a21802887d250fb8fbceba6bbe26e4c3b1685e879a48b` | 35 225 030 B | ESTABLE (DE7889F3…D1296AD0) |
+| `feat/p5-reintentar-titulos-error` (T-B, PR #17) | `4b0bcb255` | 46000831712 success | `MihonFix-0.21.3-build-4b0bcb2-20261127-1247-arm64.apk` | `1c3d467103dfeabb3794cd15ee233fca6fb63028fe25e30380c0630bde92c3a9` | 35 226 070 B | ESTABLE |
+| `feat/p8-domain-override` (P8, PR #18) | `2ac269fea` | 45997432722 / 45997423227 success | `MihonFix-0.21.3-build-2ac269f-20261127-1223-arm64.apk` | `45b1c4d19a88bd38a5762f4deeec4f66789a8280a3711a444bd418783ff7563c` | 35 244 398 B | ESTABLE |
+| `docs/rebrand-mihonfix` (T-REB, PR #16) | `f0eb0538a` | 45998427087 / 45998418470 success | `MihonFix-0.21.3-build-de705a9-20261127-0647-arm64.apk` | `475c457f7599e4ff182016e83624205adbb2309a13a2a3c3776523704136dcaf` | 35 225 022 B | ESTABLE |
+
+**Camino a verde de T-E (lección registrada):** spotless ×3 (KDoc duplicado, KDocs
+huérfanos sobre la función equivocada, sección helpers vacía) → compile ×2
+(`device.limits` no existe: `GPUAdapter.getLimits()`; tests: Tile sin width, helper infix
+que rompía `expectedY += t.height`) → **250 tests, 1 fallo**: la aritmética del test E1
+@8192 estaba mal desde el rojo (decía 8 teselas resto 2656; lo correcto, verificado con
+código: 50000 = 6×8192 + 848 → 7 teselas). Corregido → verde completo. El @16384 ya era
+correcto (3×16384 + 848 = 4).
+
+**Camino a verde de T-B:** extensiones `targets`/`isWholeLibrary` a nivel superior,
+nombre de test sin `;`, `beginPass(emptySet())!!`, paréntesis en `!= null shouldBe true`,
+líneas en blanco → verde con los 8 tests 5.1–5.5 pasando.
+
+**Camino a verde de P8:** `@Inject` en DomainOverrideStore (Metro MissingBinding),
+`stringResource` fuera del onClick, y los 3 fixes de comportamiento con repro local
+okhttp (D4 contrabando de esquemas, D6 log no emitido, D7 guard demasiado agresivo) →
+verde con los 15 tests D1–D7 pasando.
+
+**Estado:** 5 PRs abiertos (#15–#19), todos con CI verde en su punta, NINGUNO mergeado
+(regla del encargo). Los informes por tarea viven en docs/INFORME_*.md (FALLO_E_TEXTURA,
+BOTON_REINTENTAR, DOMINIO_EDITABLE, T-D1_CONSOLIDACION en su rama, T-REB_RENAME en su
+rama). Pendiente del usuario: checklist de dispositivo por tarea + logo SVG del rebrand
++ orden explícita de merge.
+
 
 ## 2026-11-27 (T-B — PROMPT 9)
 
