@@ -115,6 +115,7 @@ class WebViewFetchFallbackInterceptor(
 
     override fun shouldIntercept(response: Response): Boolean {
         if (!preferences.webviewFallbackEnabled.get()) return false
+        syncCooldown()
         val request = response.request
         return policy.shouldAttempt(
             host = request.url.host,
@@ -129,6 +130,7 @@ class WebViewFetchFallbackInterceptor(
     // WebView attempt also fails, WebViewInterceptor rethrows the ORIGINAL exception.
     override fun shouldInterceptException(request: Request, cause: IOException): Boolean {
         if (!preferences.webviewFallbackEnabled.get()) return false
+        syncCooldown()
         return policy.shouldAttempt(
             host = request.url.host,
             method = request.method,
@@ -190,6 +192,17 @@ class WebViewFetchFallbackInterceptor(
         }
 
         return fallback
+    }
+
+    /**
+     * W4: the per-host cooldown is user-configurable (minutes, conservative 10-minute
+     * default). Preferences are cached, so reading this per decision is cheap.
+     */
+    private fun syncCooldown() {
+        val minutes = preferences.webviewFallbackCooldownMinutes.get()
+        if (minutes > 0) {
+            policy.cooldownMs = minutes * 60_000L
+        }
     }
 
     /**

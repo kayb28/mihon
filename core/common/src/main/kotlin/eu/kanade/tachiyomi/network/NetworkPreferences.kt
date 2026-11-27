@@ -31,6 +31,16 @@ class NetworkPreferences(
         true,
     )
 
+    /**
+     * W4: per-host cooldown after a failed WebView attempt, in minutes. Conservative
+     * default of 10 minutes (the audited baseline); raise it if a problematic host keeps
+     * spawning WebView attempts, lower it when iterating on a source that is being fixed.
+     */
+    val webviewFallbackCooldownMinutes: Preference<Int> = preferenceStore.getInt(
+        "webview_fallback_cooldown_minutes",
+        10,
+    )
+
     val defaultUserAgent: Preference<String> = preferenceStore.getString(
         "default_user_agent",
         "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36",
