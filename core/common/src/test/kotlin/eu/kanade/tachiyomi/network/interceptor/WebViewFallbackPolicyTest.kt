@@ -140,14 +140,22 @@ class WebViewFallbackPolicyTest {
         val c = ControlledClock()
         val p = policy(c)
         var probes = 0
-        val countingProbe = { probes++; true }
+        val countingProbe = {
+            probes++
+            true
+        }
         for (code in listOf(200, 204, 301, 304)) {
             p.shouldAttempt("host.example", "GET", statusCode = code, hasConnectivity = countingProbe) shouldBe false
         }
         for (method in listOf("DELETE", "HEAD", "PUT")) {
             p.shouldAttempt("host.example", method, statusCode = 403, hasConnectivity = countingProbe) shouldBe false
         }
-        p.shouldAttempt("host.example", "GET", cause = IllegalStateException("bug"), hasConnectivity = countingProbe) shouldBe false
+        p.shouldAttempt(
+            "host.example",
+            "GET",
+            cause = IllegalStateException("bug"),
+            hasConnectivity = countingProbe,
+        ) shouldBe false
         probes shouldBe 0 // regression: the probe used to run on EVERY response
     }
 
@@ -156,7 +164,10 @@ class WebViewFallbackPolicyTest {
         val c = ControlledClock()
         val p = policy(c)
         var probes = 0
-        val countingProbe = { probes++; true }
+        val countingProbe = {
+            probes++
+            true
+        }
         p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = countingProbe) shouldBe true
         probes shouldBe 1
     }
@@ -282,7 +293,9 @@ class WebViewFallbackPolicyTest {
     @Test
     fun `T-10-11 the tracker evicts the LEAST recently used hosts`() {
         val p = WebViewFallbackPolicy()
-        repeat(WebViewFallbackPolicy.MAX_HOST_ENTRIES) { i -> p.recordResult("host-$i.example", success = true, statusCode = 403) }
+        repeat(WebViewFallbackPolicy.MAX_HOST_ENTRIES) { i ->
+            p.recordResult("host-$i.example", success = true, statusCode = 403)
+        }
         // the oldest host is still there; one more host evicts it
         p.usageReport().first { it.host == "host-0.example" }
         p.recordResult("host-new.example", success = true, statusCode = 403)
