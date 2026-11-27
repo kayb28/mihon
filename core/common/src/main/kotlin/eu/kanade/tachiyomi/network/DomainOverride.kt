@@ -68,7 +68,7 @@ data class DomainOverrideRule(
                 ?: return Invalid.Rejected()
             if (url.scheme != "https" && url.scheme != "http") return Invalid.Rejected()
             val host = url.host.lowercase()
-            if (host == currentHost.lowercase() || host == "www.${'$'}{currentHost.lowercase()}") {
+            if (host == currentHost.lowercase() || host == "www." + currentHost.lowercase()) {
                 return Invalid.SameHost(host)
             }
             return Valid(toHost = host)
