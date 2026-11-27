@@ -30,6 +30,39 @@ object GpuTilePlanPolicy {
      * content. Frames that fit return a single tile covering everything (E3: normal
      * pages keep today's one-texture plan). Degenerate frames return an empty list.
      */
+    /**
+     * E3: the NDC quad for one tile of a page whose full-frame quad is
+     * ([pageScaleX], [pageScaleY], [pageOffsetX], [pageOffsetY]). Single-tile pages
+     * (sourceX=0, sourceY=0, width=frameWidth, height=frameHeight) return the page's
+     * own quad bit-for-bit — the pre-tiling behavior, so normal pages are unchanged.
+     */
+    fun tileQuad(
+        frameWidth: Int,
+        frameHeight: Int,
+        tile: Tile,
+        pageScaleX: Float,
+        pageScaleY: Float,
+        pageOffsetX: Float,
+        pageOffsetY: Float,
+    ): Quad {
+        val cx = (tile.sourceX + tile.width / 2f) / frameWidth * 2f - 1f
+        val cy = 1f - (tile.sourceY + tile.height / 2f) / frameHeight * 2f
+        return Quad(
+            scaleX = pageScaleX * tile.width / frameWidth,
+            scaleY = pageScaleY * tile.height / frameHeight,
+            offsetX = pageOffsetX + pageScaleX * cx,
+            offsetY = pageOffsetY + pageScaleY * cy,
+        )
+    }
+
+    /** One drawable quad's NDC transform (half-extents + center), matching the WGSL Params. */
+    data class Quad(
+        val scaleX: Float,
+        val scaleY: Float,
+        val offsetX: Float,
+        val offsetY: Float,
+    )
+
     fun planTiles(width: Int, height: Int, maxDimension: Int): List<Tile> {
         if (width <= 0 || height <= 0 || maxDimension <= 0) return emptyList()
         val tiles = ArrayList<Tile>()

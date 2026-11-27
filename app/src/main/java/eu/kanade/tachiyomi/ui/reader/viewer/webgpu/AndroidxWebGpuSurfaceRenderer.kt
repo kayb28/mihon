@@ -769,20 +769,29 @@ class AndroidxWebGpuSurfaceRenderer : GpuImageBackend<AndroidxWebGpuSurfaceRende
         val quads = ArrayList<TileQuad>(placed.size)
         placed@ for (draw in placed) {
             if (draw.image.destroyed) continue
-            val frameW = draw.image.width.toFloat()
-            val frameH = draw.image.height.toFloat()
             draw.image.tiles.forEach { tile ->
                 if (quads.size >= maxQuads) break@placed
-                // Tile center relative to the frame center, in [-1, 1] of each axis.
-                val cx = (tile.sourceX + tile.width / 2f) / frameW * 2f - 1f
-                val cy = 1f - (tile.sourceY + tile.height / 2f) / frameH * 2f
+                val quad = GpuTilePlanPolicy.tileQuad(
+                    frameWidth = draw.image.width,
+                    frameHeight = draw.image.height,
+                    tile = GpuTilePlanPolicy.Tile(
+                        sourceX = tile.sourceX,
+                        sourceY = tile.sourceY,
+                        width = tile.width,
+                        height = tile.height,
+                    ),
+                    pageScaleX = draw.scaleX,
+                    pageScaleY = draw.scaleY,
+                    pageOffsetX = draw.offsetX,
+                    pageOffsetY = draw.offsetY,
+                )
                 quads.add(
                     TileQuad(
                         texture = tile.texture,
-                        scaleX = draw.scaleX * tile.width / frameW,
-                        scaleY = draw.scaleY * tile.height / frameH,
-                        offsetX = draw.offsetX + draw.scaleX * cx,
-                        offsetY = draw.offsetY + draw.scaleY * cy,
+                        scaleX = quad.scaleX,
+                        scaleY = quad.scaleY,
+                        offsetX = quad.offsetX,
+                        offsetY = quad.offsetY,
                     ),
                 )
             }
