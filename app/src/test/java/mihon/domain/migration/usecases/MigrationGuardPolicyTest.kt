@@ -2,8 +2,8 @@ package mihon.domain.migration.usecases
 
 import kotlinx.serialization.json.JsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.chapter.model.Chapter
@@ -75,8 +75,24 @@ class MigrationGuardPolicyTest {
     fun `T-10-2 replace keeps the current favoriteAt`() {
         val cur = Instant.parse("2024-01-01T00:00:00Z")
         val now = Instant.parse("2026-11-28T00:00:00Z")
-        assertEquals(cur, MigrationGuardPolicy.resolveFavoriteAt(replace = true, currentFavoriteAt = cur, targetFavoriteAt = null, now = now))
-        assertEquals(now, MigrationGuardPolicy.resolveFavoriteAt(replace = true, currentFavoriteAt = null, targetFavoriteAt = null, now = now))
+        assertEquals(
+            cur,
+            MigrationGuardPolicy.resolveFavoriteAt(
+                replace = true,
+                currentFavoriteAt = cur,
+                targetFavoriteAt = null,
+                now = now,
+            ),
+        )
+        assertEquals(
+            now,
+            MigrationGuardPolicy.resolveFavoriteAt(
+                replace = true,
+                currentFavoriteAt = null,
+                targetFavoriteAt = null,
+                now = now,
+            ),
+        )
     }
 
     @Test
@@ -85,9 +101,33 @@ class MigrationGuardPolicyTest {
         val tgt = Instant.parse("2025-06-01T00:00:00Z")
         val now = Instant.parse("2026-11-28T00:00:00Z")
         // regression: the target's own date survived; falling through to now() re-dated it
-        assertEquals(tgt, MigrationGuardPolicy.resolveFavoriteAt(replace = false, currentFavoriteAt = null, targetFavoriteAt = tgt, now = now))
-        assertEquals(cur, MigrationGuardPolicy.resolveFavoriteAt(replace = false, currentFavoriteAt = cur, targetFavoriteAt = tgt, now = now))
-        assertEquals(now, MigrationGuardPolicy.resolveFavoriteAt(replace = false, currentFavoriteAt = null, targetFavoriteAt = null, now = now))
+        assertEquals(
+            tgt,
+            MigrationGuardPolicy.resolveFavoriteAt(
+                replace = false,
+                currentFavoriteAt = null,
+                targetFavoriteAt = tgt,
+                now = now,
+            ),
+        )
+        assertEquals(
+            cur,
+            MigrationGuardPolicy.resolveFavoriteAt(
+                replace = false,
+                currentFavoriteAt = cur,
+                targetFavoriteAt = tgt,
+                now = now,
+            ),
+        )
+        assertEquals(
+            now,
+            MigrationGuardPolicy.resolveFavoriteAt(
+                replace = false,
+                currentFavoriteAt = null,
+                targetFavoriteAt = null,
+                now = now,
+            ),
+        )
     }
 
     // -------------------------------------------------------------- T-10.1 (P0-2)
