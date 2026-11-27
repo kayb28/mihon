@@ -31,11 +31,11 @@ class GpuTilePlanPolicyTest {
     fun `E1 tall content splits into ordered tiles within the limit at 8192`() {
         // The reported case: 800x50000 on a GPU capped at 8192.
         val tiles = GpuTilePlanPolicy.planTiles(width = 800, height = 50000, maxDimension = 8192)
-        // 50000 = 7 * 8192 = 57344 covered, remainder 2656 -> 8 tiles
-        tiles shouldHaveSize 8
-        // first 7 bands are full-height, the 8th carries the remainder
+        // 50000 = 6 * 8192 = 49152 covered, remainder 848 -> 7 tiles (computed, not guessed)
+        tiles shouldHaveSize 7
+        // first 6 bands are full-height, the 7th carries the remainder
         tiles.dropLast(1).forEach { it.height shouldBe 8192 }
-        tiles[7].height shouldBe 2656
+        tiles[6].height shouldBe 848
         tiles.forEachIndexed { i, t -> t.sourceY shouldBe i * 8192 }
         // every tile respects the GPU ceiling
         tiles.forEach { it.height shouldBeAtMost 8192 }
