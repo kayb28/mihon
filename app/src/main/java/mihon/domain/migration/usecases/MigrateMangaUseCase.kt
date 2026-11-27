@@ -128,14 +128,31 @@ class MigrateMangaUseCase(
 
             // Delete downloaded
             if (MigrationFlag.REMOVE_DOWNLOAD in flags && currentSource != null) {
-                // Not awaited, so a slow storage delete doesn't hold up the migration
-                scope.launch { downloadManager.deleteManga(current, currentSource) }
+                // Not awaited, so a slow storage delete doesn't hold up the migration.
+                // P0-1 (T-10.3): this runs fire-and-forget on AppScope — an uncaught
+                // IOException would hit the scope's handler, so it is contained here.
+                scope.launch {
+                    runCatching { downloadManager.deleteManga(current, currentSource) }
+                        .onFailure { e ->
+                            logcat(LogPriority.WARN, e) {
+                                "Could not delete downloads of '${current.title}' (${current.id}) after migration"
+                            }
+                        }
+                }
             }
 
             // Update custom cover (recheck if custom cover exists)
             if (MigrationFlag.CUSTOM_COVER in flags && current.hasCustomCover()) {
-                coverCache.getCustomCoverFile(current.id).inputStream().use {
-                    coverCache.setCustomCoverToCache(target, it)
+                // P0-1 (T-10.3): a missing/corrupt cover file (FileNotFoundException from
+                // inputStream()) must not fail the whole migration — the cover is cosmetic.
+                runCatching {
+                    coverCache.getCustomCoverFile(current.id).inputStream().use {
+                        coverCache.setCustomCoverToCache(target, it)
+                    }
+                }.onFailure { e ->
+                    logcat(LogPriority.WARN, e) {
+                        "Could not carry the custom cover of '${current.title}' (${current.id}) over to the target"
+                    }
                 }
             }
 
