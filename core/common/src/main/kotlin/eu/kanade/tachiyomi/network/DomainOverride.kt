@@ -62,9 +62,15 @@ data class DomainOverrideRule(
          */
         fun validate(input: String, currentHost: String): Validation {
             val trimmed = input.trim()
+            // Only a bare host ("new.example") gets the https:// prefix; anything with a
+            // scheme ("ftp://…", "file://…") must parse AS IS or be rejected — prefixing
+            // would smuggle non-http schemes in as bogus hosts (okhttp parses
+            // "https://ftp://x" as host "ftp").
+            val looksBare = trimmed.substringBefore('/').substringBefore('?').substringBefore('#').let {
+                !it.contains(':') && it.isNotEmpty()
+            }
             val url = runCatching { trimmed.toHttpUrl() }.getOrNull()
-                // tolerate a bare host ("new.example") by assuming https, like browsers do
-                ?: runCatching { "https://$trimmed".toHttpUrl() }.getOrNull()
+                ?: runCatching { "https://$trimmed".toHttpUrl().takeIf { looksBare } }.getOrNull()
                 ?: return Invalid.Rejected()
             if (url.scheme != "https" && url.scheme != "http") return Invalid.Rejected()
             val host = url.host.lowercase()
@@ -105,13 +111,18 @@ class DomainOverrideHelper(private val store: DomainOverrideStore) {
         url: okhttp3.HttpUrl,
         onRewrite: (String) -> Unit = {},
     ): okhttp3.HttpUrl? {
-        val target = store.targetFor(url.host) ?: return null
-        // D7: never fight the extension's own preference. If the request already points
-        // at a rule's target host (the extension moved itself via its baseUrl/mirror
-        // preference), the fork rule stays out of the way. This also guarantees the
-        // rewrite is applied exactly once — no ping-pong between chained rules.
-        if (store.targetFor(target) != null) return null
-        return url.newBuilder().host(target).build()
+        val from = url.host
+        val target = store.targetFor(from) ?: return null
+        // D7, single application: this call fires only because `from` IS the source of
+        // a rule; the rewrite lands on `target` and is never re-evaluated here, so
+        // chained rules cannot ping-pong (old->new fires; new->back only applies to
+        // requests the extension itself sends to new). The extension's own preference
+        // always wins: a request already pointing at a managed host the extension chose
+        // is one whose host is a rule source only when the extension wants the move.
+        val rewritten = url.newBuilder().host(target).build()
+        // D6: one log line per actual rewrite, feeding the problem-source reports.
+        onRewrite("domain override $from -> $target")
+        return rewritten
     }
 
     /**
