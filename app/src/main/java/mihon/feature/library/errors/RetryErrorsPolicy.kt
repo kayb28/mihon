@@ -9,7 +9,6 @@ package mihon.feature.library.errors
  * 5.5 by construction: the policy is inert (no store calls), so the calm pass (B3),
  * RepairOutcomePolicy and CalmPass are untouched.
  */
- */
 object RetryErrorsPolicy {
 
     /** The store seams this feature is allowed to use (audited facts, T-B). */
