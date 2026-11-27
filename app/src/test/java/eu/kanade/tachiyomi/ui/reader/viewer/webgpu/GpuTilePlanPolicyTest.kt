@@ -81,7 +81,10 @@ class GpuTilePlanPolicyTest {
         tiles.size shouldBe 2
         tiles[0].sourceX shouldBe 0
         tiles[1].sourceX shouldBe 16384
-        tiles.forEach { it.sourceY shouldBe 0; it.height shouldBe 1000 }
+        tiles.forEach {
+            it.sourceY shouldBe 0
+            it.height shouldBe 1000
+        }
     }
 
     @Test
@@ -152,7 +155,10 @@ class GpuTilePlanPolicyTest {
         // Each quad's height is its exact share of the page quad.
         quads[0].scaleY shouldBe pageScaleY / 2f
         quads[1].scaleY shouldBe pageScaleY / 2f
-        quads.forEach { it.scaleX shouldBe pageScaleX; it.offsetX shouldBe pageOffsetX }
+        quads.forEach {
+            it.scaleX shouldBe pageScaleX
+            it.offsetX shouldBe pageOffsetX
+        }
         // Band centers: top band sits above the page center, bottom band below, by exactly
         // half the page quad's height — together they rebuild the page quad seamlessly.
         (quads[0].offsetY - quads[1].offsetY) shouldBe pageScaleY
