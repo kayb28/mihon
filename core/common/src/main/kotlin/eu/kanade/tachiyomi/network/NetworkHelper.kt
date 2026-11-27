@@ -5,6 +5,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
+import eu.kanade.tachiyomi.network.interceptor.DomainOverrideInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import eu.kanade.tachiyomi.network.interceptor.WebViewFetchFallbackInterceptor
@@ -23,9 +24,14 @@ class NetworkHelper(
     @AppCoroutineScope private val scope: CoroutineScope,
     private val context: Context,
     private val preferences: NetworkPreferences,
+    private val domainOverrideStore: DomainOverrideStore,
 ) {
 
     val cookieJar = AndroidCookieJar()
+
+    // D3: the ONE domain-override helper, shared by the OkHttp interceptor and the
+    // WebView fallback path (both callers get the same rules and the same rewrite).
+    private val domainOverride = DomainOverrideHelper(domainOverrideStore)
 
     private fun clientBuilder(): OkHttpClient.Builder = run {
         val builder = OkHttpClient.Builder()
@@ -41,6 +47,7 @@ class NetworkHelper(
             )
             .addInterceptor(UncaughtExceptionInterceptor())
             .addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
+            .addInterceptor(DomainOverrideInterceptor(domainOverride))
 
         if (preferences.verboseLogging.get()) {
             val httpLoggingInterceptor = HttpLoggingInterceptor().apply {
@@ -76,7 +83,14 @@ class NetworkHelper(
                 CloudflareInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider),
             )
             .addInterceptor(
-                WebViewFetchFallbackInterceptor(context, cookieJar, scope, ::defaultUserAgentProvider, preferences),
+                WebViewFetchFallbackInterceptor(
+                    context,
+                    cookieJar,
+                    scope,
+                    ::defaultUserAgentProvider,
+                    preferences,
+                    domainOverride,
+                ),
             )
             .build()
     }

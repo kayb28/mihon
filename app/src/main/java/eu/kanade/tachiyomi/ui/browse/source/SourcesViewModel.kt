@@ -14,6 +14,7 @@ import eu.kanade.domain.source.interactor.ToggleSourcePin
 import eu.kanade.presentation.browse.SourceUiModel
 import eu.kanade.tachiyomi.data.source.SourceHealthRecord
 import eu.kanade.tachiyomi.data.source.SourceHealthStore
+import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.WhileSubscribed
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.Pin
 import tachiyomi.domain.source.model.Source
@@ -46,7 +49,25 @@ class SourcesViewModel(
     private val toggleSourcePin: ToggleSourcePin,
     private val sourceManager: SourceManager,
     private val sourceHealthStore: SourceHealthStore,
+    // D6 (PROMPT 8): storage of the per-source domain override rules
+    private val domainOverrideStore: eu.kanade.tachiyomi.network.DomainOverrideStore,
 ) : ViewModel() {
+
+    /** D6: the active rule for a host, formatted for display (from -> to) or null. */
+    fun activeDomainRule(host: String): String? =
+        domainOverrideStore.targetFor(host)?.let { to -> "$host -> $to" }
+
+    /** D6: save (create/edit) the rule for [fromHost]. */
+    fun saveDomainRule(fromHost: String, toHost: String) {
+        domainOverrideStore.upsert(
+            eu.kanade.tachiyomi.network.DomainOverrideRule(fromHost = fromHost, toHost = toHost),
+        )
+    }
+
+    /** D6: delete the rule for [fromHost] if present. */
+    fun deleteDomainRule(fromHost: String) {
+        domainOverrideStore.delete(fromHost)
+    }
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
@@ -115,6 +136,28 @@ class SourcesViewModel(
 
     fun closeDialog() {
         dialog.update { null }
+    }
+
+    // D6 (PROMPT 8): the "Editar dominio" dialog state for a source whose site moved.
+    // The request host comes from the installed source's baseUrl (HttpSource), resolved
+    // asynchronously because SourceManager.get is a suspend call.
+    data class EditDomainState(val source: Source, val host: String?)
+
+    private val editDomain = MutableStateFlow<EditDomainState?>(null)
+    val editDomainState: StateFlow<EditDomainState?> = editDomain.asStateFlow()
+
+    fun showEditDomainDialog(source: Source) {
+        dialog.update { null }
+        editDomain.update { EditDomainState(source, host = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val installed = sourceManager.get(source.id)
+            val host = (installed as? HttpSource)?.baseUrl?.toHttpUrlOrNull()?.host
+            editDomain.update { it?.copy(host = host) }
+        }
+    }
+
+    fun closeEditDomainDialog() {
+        editDomain.update { null }
     }
 
     fun checkSource(source: Source) {

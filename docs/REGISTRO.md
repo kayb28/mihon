@@ -757,3 +757,23 @@ rama). Pendiente del usuario: checklist de dispositivo por tarea + logo SVG del 
 pantalla — replaceForManga no hizo falta. No se usa LibraryUpdateWorker (fuera de
 alcance: sería por fuente/categoría). Informe:
 docs/INFORME_BOTON_REINTENTAR.md. Checklist de dispositivo en el informe.
+
+
+## 2026-11-27 (P8/T-P8 — PROMPT 8 + 9, tras merge de P7/PR #14)
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 04:5x | `feat/p8-domain-override` | `f26138745` | ❌ (comportamiento) | rojo P8: esqueletos no-op + tests D1-D6 (run 45944738289; Spotless OK, tests fallan por comportamiento) |
+| 05:0x | `feat/p8-domain-override` | `1f95fc975` | ✅ | verde D1: almacén de reglas JSON en PreferenceStore, CRUD, match exacto case-insensitive |
+| 05:0x | `feat/p8-domain-override` | `61ba02ec5` | ✅ | verde D2: rewriteUrl solo host (newBuilder().host), path/query/fragment intactos; rewriteRequest misma instancia si no hay regla (D5 por construcción) |
+| 05:1x | `feat/p8-domain-override` | `c5310d5b3` | ✅ | verde D3: DomainOverrideInterceptor (OkHttp) + attemptFallback comparten la MISMA instancia del helper inyectada desde NetworkHelper |
+| 05:1x | `feat/p8-domain-override` | `3b6809265`+`882e1a080` | ✅ | verde D4: validate() (URL inválida/esquema/from==to → motivo visible; host pelado asume https) + fix compile del template |
+| 05:2x | `feat/p8-domain-override` | `8e253de46` | ✅ | verde D6: acción «Editar dominio» en SourceOptionsDialog + diálogo Compose + strings base/es + host resuelto del baseUrl instalado; log por reescritura ya en el interceptor |
+| 05:2x-06:4x | `feat/p8-domain-override` | `9d1516734`..`85bf635b5` | 🔧 | fixes de estilo/imports exigidos por Spotless (no cuentan como rojo/verde); incluye `0553e9a4e` que devuelve el renderer a main (se coló por árbol sucio durante T-E, wiring vive en fix/fallo-e-textura) |
+| 07:3x | `feat/p8-domain-override` | `e482741cc` | ❌ (comportamiento) | rojo D7: preferencia de extensión manda |
+| 07:4x | `feat/p8-domain-override` | `5e3074eaa` | ✅ | verde D7: petición ya en host destino de regla → no-op; aplicación única (old→new para aunque exista new→back) |
+
+**Notas P8:** prioridad efectiva: preferencia de extensión → regla del fork → host por
+defecto (D7). STOP no activado: no se tocaron extensiones ni se inyectó source ID (match
+por host exacto aísla por fuente). Informe: docs/INFORME_DOMINIO_EDITABLE.md. UI Compose
+se valida en checklist de dispositivo (regla del encargo).

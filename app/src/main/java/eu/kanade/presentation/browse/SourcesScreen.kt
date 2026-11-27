@@ -6,20 +6,30 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.browse.components.BaseSourceItem
 import eu.kanade.tachiyomi.data.source.SourceHealthRecord
 import eu.kanade.tachiyomi.data.source.SourceHealthStatus
+import eu.kanade.tachiyomi.network.DomainOverrideRule
 import eu.kanade.tachiyomi.ui.browse.source.SourcesViewModel
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceViewModel.Listing
 import eu.kanade.tachiyomi.util.system.LocaleHelper
@@ -174,6 +184,8 @@ fun SourceOptionsDialog(
     onClickCheckHealth: () -> Unit,
     onClickUpdateLibrary: () -> Unit,
     onDismiss: () -> Unit,
+    // D6 (PROMPT 8): per-source "Editar dominio" action; null for local sources
+    onClickEditDomain: (() -> Unit)? = null,
 ) {
     AlertDialog(
         title = {
@@ -234,6 +246,15 @@ fun SourceOptionsDialog(
                             .fillMaxWidth()
                             .padding(vertical = 16.dp),
                     )
+                    onClickEditDomain?.let { onClick ->
+                        Text(
+                            text = stringResource(MR.strings.source_action_edit_domain),
+                            modifier = Modifier
+                                .clickable(onClick = onClick)
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                        )
+                    }
                 }
                 val textId = if (Pin.Pinned in source.pin) MR.strings.action_unpin else MR.strings.action_pin
                 Text(
@@ -256,6 +277,86 @@ fun SourceOptionsDialog(
         },
         onDismissRequest = onDismiss,
         confirmButton = {},
+    )
+}
+
+/**
+ * D6 (PROMPT 8): "Editar dominio" dialog for a source whose site moved domains. The user
+ * pastes the new site URL; input is validated by DomainOverrideRule.validate (D4) and the
+ * rule is stored from_host -> to_host, so both the OkHttp and the WebView paths follow the
+ * move. Deleting the rule returns the source to its original host.
+ */
+@Composable
+fun SourceEditDomainDialog(
+    currentHost: String,
+    activeRule: String?,
+    onDismissRequest: () -> Unit,
+    onSave: (String) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val state = rememberTextFieldState()
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(text = stringResource(MR.strings.source_action_edit_domain))
+        },
+        text = {
+            Column {
+                if (activeRule != null) {
+                    Text(
+                        text = activeRule,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    state = state,
+                    label = {
+                        Text(text = stringResource(MR.strings.source_action_edit_domain_hint))
+                    },
+                    supportingText = {
+                        Text(text = error ?: stringResource(MR.strings.source_action_edit_domain_hint))
+                    },
+                    isError = error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                )
+            }
+        },
+        confirmButton = {
+            // Resolve the messages in the composable context; the click handler only picks.
+            val invalidMsg = stringResource(MR.strings.source_action_edit_domain_invalid)
+            val sameHostMsg = stringResource(MR.strings.source_action_edit_domain_same_host)
+            TextButton(
+                onClick = {
+                    when (
+                        val verdict = DomainOverrideRule.validate(
+                            state.text.toString(),
+                            currentHost = currentHost,
+                        )
+                    ) {
+                        is DomainOverrideRule.Valid -> onSave(verdict.toHost)
+                        is DomainOverrideRule.Invalid.Rejected -> error = invalidMsg
+                        is DomainOverrideRule.Invalid.SameHost -> error = sameHostMsg
+                    }
+                },
+            ) {
+                Text(text = stringResource(MR.strings.action_save))
+            }
+        },
+        dismissButton = {
+            if (activeRule != null) {
+                TextButton(onClick = onDelete) {
+                    Text(text = stringResource(MR.strings.action_delete))
+                }
+            }
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(MR.strings.action_cancel))
+            }
+        },
     )
 }
 

@@ -68,6 +68,12 @@ fun Screen.sourcesTab(): TabContent {
                 SourceOptionsDialog(
                     source = source,
                     healthRecord = state.healthRecords.firstOrNull { it.sourceId == source.id },
+                    // D6 (PROMPT 8): per-source "Editar dominio"; stub/local sources excluded
+                    onClickEditDomain = if (source.isStub) {
+                        null
+                    } else {
+                        { viewModel.showEditDomainDialog(source) }
+                    },
                     onClickPin = {
                         viewModel.togglePin(source)
                         viewModel.closeDialog()
@@ -87,6 +93,24 @@ fun Screen.sourcesTab(): TabContent {
                         viewModel.closeDialog()
                     },
                     onDismiss = viewModel::closeDialog,
+                )
+            }
+
+            // D6 (PROMPT 8): Editar dominio dialog (host resolved from the installed source)
+            val editDomainState by viewModel.editDomainState.collectAsStateWithLifecycle()
+            editDomainState?.host?.let { host ->
+                eu.kanade.presentation.browse.SourceEditDomainDialog(
+                    currentHost = host,
+                    activeRule = viewModel.activeDomainRule(host),
+                    onDismissRequest = viewModel::closeEditDomainDialog,
+                    onSave = { toHost ->
+                        viewModel.saveDomainRule(host, toHost)
+                        viewModel.closeEditDomainDialog()
+                    },
+                    onDelete = {
+                        viewModel.deleteDomainRule(host)
+                        viewModel.closeEditDomainDialog()
+                    },
                 )
             }
 
