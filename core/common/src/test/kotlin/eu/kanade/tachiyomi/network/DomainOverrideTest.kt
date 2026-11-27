@@ -151,6 +151,34 @@ class DomainOverrideTest {
         records.size shouldBe before
     }
 
+    // ---------------------------------------------------------------- D7
+
+    @Test
+    fun `D7 a request already on a rule target host is left alone (extension preference wins)`() {
+        val s = store()
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "new.example"))
+        val h = DomainOverrideHelper(s)
+        // The extension's own mirror/baseUrl preference already points at new.example:
+        // the fork rule must NOT touch that request (no ping-pong, no override of the
+        // extension's choice).
+        h.rewriteUrl("https://new.example/page".toHttpUrl()) shouldBe null
+        // And the rule still fires for requests to the old host.
+        h.rewriteUrl("https://old.example/page".toHttpUrl()) shouldNotBe null
+    }
+
+    @Test
+    fun `D7 chained targets do not loop`() {
+        val s = store()
+        // A rule old->new and another new->back: a request to old must land on new and
+        // STOP there (single application), never bounce back.
+        s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "new.example"))
+        s.upsert(DomainOverrideRule(fromHost = "new.example", toHost = "back.example"))
+        val h = DomainOverrideHelper(s)
+        val out = h.rewriteUrl("https://old.example/x".toHttpUrl())
+        out shouldNotBe null
+        out!!.host shouldBe "new.example"
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private fun helperWith(vararg rules: Pair<String, String>): DomainOverrideHelper {
