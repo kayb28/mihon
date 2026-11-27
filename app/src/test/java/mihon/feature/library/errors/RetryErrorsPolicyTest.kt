@@ -41,7 +41,7 @@ class RetryErrorsPolicyTest {
     @Test
     fun `5_2 one press retries exactly the snapshot of error ids at press time`() {
         val snapshot = setOf(10L, 20L, 30L)
-        val pass = RetryErrorsPolicy.beginPass(snapshot)
+        val pass = RetryErrorsPolicy.beginPass(snapshot)!!
         pass.targetIds shouldContainExactly snapshot
         // A NEW error appearing mid-pass (id 40) is NOT part of this pass: the pass
         // scope was fixed at press time.
@@ -61,7 +61,7 @@ class RetryErrorsPolicyTest {
 
     @Test
     fun `5_3 successes leave the list, failures stay with their fresh error`() {
-        val pass = RetryErrorsPolicy.beginPass(setOf(1L, 2L, 3L))
+        val pass = RetryErrorsPolicy.beginPass(setOf(1L, 2L, 3L))!!
         // manga 1 and 2 updated fine, manga 3 failed again with a new message.
         val after = RetryErrorsPolicy.applyResults(
             pass = pass,
@@ -80,7 +80,7 @@ class RetryErrorsPolicyTest {
 
     @Test
     fun `5_4 the button is disabled while a pass runs; one batch per press`() {
-        val pass = RetryErrorsPolicy.beginPass(setOf(5L))
+        val pass = RetryErrorsPolicy.beginPass(setOf(5L))!!
         // While the pass is in flight the button must be disabled...
         RetryErrorsPolicy.buttonEnabled(pass = pass) shouldBe false
         // ...and a second press must NOT start a second batch.
@@ -93,7 +93,7 @@ class RetryErrorsPolicyTest {
 
     @Test
     fun `5_4 all-success ends in the empty state`() {
-        val pass = RetryErrorsPolicy.beginPass(setOf(7L, 8L))
+        val pass = RetryErrorsPolicy.beginPass(setOf(7L, 8L))!!
         val after = RetryErrorsPolicy.applyResults(
             pass = pass,
             results = mapOf(7L to null, 8L to null),
