@@ -83,6 +83,9 @@ class WebViewFetchFallbackInterceptor(
     private val appScope: CoroutineScope,
     private val userAgentProvider: () -> String,
     private val preferences: NetworkPreferences,
+    // D3: the ONE domain-override helper instance, shared with the OkHttp path (PROMPT 8
+    // audited fact: both paths share the network layer — one implementation, two callers).
+    private val domainOverride: DomainOverrideHelper,
 ) : WebViewInterceptor(context, appScope, userAgentProvider) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -172,6 +175,9 @@ class WebViewFetchFallbackInterceptor(
         bodyJson: JSONObject,
         failureStatusCode: Int?,
     ): Response? {
+        // D3: the WebView fetch follows the same domain move as the OkHttp path — the
+        // helper is the single implementation, so both callers rewrite identically.
+        val request = domainOverride.rewriteRequest(request)
         val host = request.url.host
         val lock = hostLocks.computeIfAbsent(host) { ReentrantReadWriteLock() }
         var fallback: Response? = null
