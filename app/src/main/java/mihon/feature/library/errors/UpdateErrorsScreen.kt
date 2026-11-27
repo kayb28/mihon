@@ -14,11 +14,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +67,24 @@ class UpdateErrorsScreen : Screen() {
                     title = stringResource(MR.strings.update_errors_title),
                     navigateUp = navigator::pop,
                     actions = {
+                        // T-B (PROMPT 9): «Reintentar títulos con error» — visible only with
+                        // errors, disabled while a pass runs (one batch per press).
+                        val retryPass by viewModel.retryPass.collectAsStateWithLifecycle()
+                        if (RetryErrorsPolicy.buttonVisible(state.totalBrokenLinks + state.totalTemporary)) {
+                            TextButton(
+                                onClick = viewModel::retryErrorMangas,
+                                enabled = RetryErrorsPolicy.buttonEnabled(retryPass),
+                                modifier = Modifier.testTag("update_errors_retry_button"),
+                            ) {
+                                Text(
+                                    text = if (retryPass?.running == true) {
+                                        stringResource(MR.strings.update_errors_retry_running)
+                                    } else {
+                                        stringResource(MR.strings.update_errors_retry)
+                                    },
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 val errorFile = File(context.cacheDir, "mihon_update_errors.txt")
