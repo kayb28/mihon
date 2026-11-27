@@ -269,4 +269,34 @@ class WebViewFallbackPolicyTest {
     }
 
     // endregion
+
+    // region T-10.11 (P1-6) — per-host maps are LRU-bounded, they never grow without limit
+
+    @Test
+    fun `T-10-11 the tracker never exceeds the host cap`() {
+        val p = WebViewFallbackPolicy()
+        repeat(200) { i -> p.recordResult("host-$i.example", success = true, statusCode = 403) }
+        (p.usageReport().size <= WebViewFallbackPolicy.MAX_HOST_ENTRIES) shouldBe true
+    }
+
+    @Test
+    fun `T-10-11 the tracker evicts the LEAST recently used hosts`() {
+        val p = WebViewFallbackPolicy()
+        repeat(WebViewFallbackPolicy.MAX_HOST_ENTRIES) { i -> p.recordResult("host-$i.example", success = true, statusCode = 403) }
+        // the oldest host is still there; one more host evicts it
+        p.usageReport().first { it.host == "host-0.example" }
+        p.recordResult("host-new.example", success = true, statusCode = 403)
+        p.usageReport().none { it.host == "host-0.example" } shouldBe true
+        p.usageReport().any { it.host == "host-new.example" } shouldBe true
+    }
+
+    @Test
+    fun `T-10-11 the cooldown map is bounded too`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        repeat(200) { i -> p.recordResult("host-$i.example", success = false, statusCode = 500) }
+        p.usageReport().size shouldBe WebViewFallbackPolicy.MAX_HOST_ENTRIES
+    }
+
+    // endregion
 }
