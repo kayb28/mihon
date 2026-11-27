@@ -38,6 +38,7 @@ fun Screen.sourcesTab(): TabContent {
     val updateAlreadyRunningText = stringResource(MR.strings.update_already_running)
     val sourceCheckCompleteText = stringResource(MR.strings.source_health_check_complete)
     val sourceCheckFailedText = stringResource(MR.strings.source_health_check_failed)
+    val editDomainUnavailableText = stringResource(MR.strings.source_action_edit_domain_unavailable)
 
     return TabContent(
         titleRes = MR.strings.label_sources,
@@ -137,6 +138,10 @@ fun Screen.sourcesTab(): TabContent {
                         }
                         SourcesViewModel.Event.SourceCheckFailed -> {
                             launch { snackbarHostState.showSnackbar(sourceCheckFailedText) }
+                        }
+                        // P8-fix3: host no resoluble — el diálogo ya se cerró solo; avisamos.
+                        SourcesViewModel.Event.EditDomainUnavailable -> {
+                            launch { snackbarHostState.showSnackbar(editDomainUnavailableText) }
                         }
                     }
                 }

@@ -981,6 +981,7 @@
     <string name="source_action_edit_domain_same_host">Ese ya es el dominio de esta fuente</string>
     <string name="source_action_edit_domain_saved">Regla guardada: %1$s → %2$s</string>
     <string name="source_action_edit_domain_removed">Regla de dominio eliminada</string>
+    <string name="source_action_edit_domain_unavailable">No se pudo resolver el dominio de esta fuente</string>
     <string name="source_health_unknown">Estado desconocido</string>
     <string name="source_health_available">Disponible en la última comprobación</string>
     <string name="source_health_network_error">Error de red en la última comprobación</string>
