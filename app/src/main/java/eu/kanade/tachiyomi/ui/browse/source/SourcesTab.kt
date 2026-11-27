@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.FilterList
 import mihon.icons.materialsymbols.rounded.TravelExplore
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -106,10 +107,20 @@ fun Screen.sourcesTab(): TabContent {
                     onSave = { toHost ->
                         viewModel.saveDomainRule(host, toHost)
                         viewModel.closeEditDomainDialog()
+                        // P8-fix1 (auditoría PR #18): confirmación visible — el string existía
+                        // pero nunca se mostraba. Mismo patrón que onClickUpdateLibrary arriba.
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                context.stringResource(MR.strings.source_action_edit_domain_saved, host, toHost),
+                            )
+                        }
                     },
                     onDelete = {
                         viewModel.deleteDomainRule(host)
                         viewModel.closeEditDomainDialog()
+                        scope.launch {
+                            snackbarHostState.showSnackbar(context.stringResource(MR.strings.source_action_edit_domain_removed))
+                        }
                     },
                 )
             }
