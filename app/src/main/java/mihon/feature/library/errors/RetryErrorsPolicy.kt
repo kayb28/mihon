@@ -5,9 +5,10 @@ package mihon.feature.library.errors
  * The Compose wiring lives in UpdateErrorsScreen/ViewModel; this object plans what one
  * press does: retry exactly the error IDs snapshotted at press time, one batch, disabled
  * while it runs, refreshed from the store when it ends.
- *
- * RED SKELETON: every function returns the "button does not exist" state; the red tests
- * fail on BEHAVIOR (visibility, scope, guard, results, seams).
+
+ * 5.5 by construction: the policy is inert (no store calls), so the calm pass (B3),
+ * RepairOutcomePolicy and CalmPass are untouched.
+ */
  */
 object RetryErrorsPolicy {
 
@@ -49,12 +50,18 @@ object RetryErrorsPolicy {
     )
 
     /** 5.3: fold per-manga results — success rows already left via the store; failures stay. */
-    fun applyResults(pass: Pass, results: Map<Long, FreshError?>): PassOutcome =
-        PassOutcome(needsStoreRefresh = false, remainingIds = emptySet(), isEmptyState = false)
+    fun applyResults(pass: Pass, results: Map<Long, FreshError?>): PassOutcome {
+        val remaining = results.filterValues { it != null }.keys.toSet()
+        return PassOutcome(
+            needsStoreRefresh = true,
+            remainingIds = remaining,
+            isEmptyState = remaining.isEmpty(),
+        )
+    }
 
     /** 5.4: the button is enabled only when no pass is running. */
-    fun buttonEnabled(pass: Pass?): Boolean = false
+    fun buttonEnabled(pass: Pass?): Boolean = pass?.running != true
 
     /** 5.4: a finished pass frees the button for the next press. */
-    fun completePass(pass: Pass): Pass? = null
+    fun completePass(pass: Pass): Pass? = pass.copy(running = false)
 }
