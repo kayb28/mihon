@@ -1090,3 +1090,8 @@ Same as v0.19.6
 [v0.16.2]: https://github.com/mihonapp/mihon/compare/v0.16.1...v0.16.2
 [v0.16.1]: https://github.com/mihonapp/mihon/compare/v0.16.0...v0.16.1
 [v0.16.0]: https://github.com/mihonapp/mihon/compare/a9c7cbf...v0.16.0
+### Other
+- Rename del repositorio: `kayb28/mihon` → `kayb28/mihonfix` + identidad visual
+  «MihonFix»: app_name «Mihon Fix», icono adaptativo con fondo tinta `#12141A` y glifo
+  ámbar `#E8B54A` (mismos trazados, sin rediseño), banner README. Sin cambios de
+  applicationId/versión/firma (rama `docs/rebrand-mihonfix`, T-REB del PROMPT 9-ADD-2).

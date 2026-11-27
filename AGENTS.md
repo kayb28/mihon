@@ -1,6 +1,6 @@
 # AGENTS.md — guía para agentes en este repositorio
 
-_Fork de Mihon («MihonFix»). Última actualización de esta guía: 2026-11-26._
+_Fork de Mihon («MihonFix», repo kayb28/mihonfix). Última actualización de esta guía: 2026-11-27._
 _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGISTRO.md`)._
 
 ## 1. Qué es este proyecto
