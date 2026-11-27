@@ -98,7 +98,7 @@ class WebViewFallbackPolicyTest {
     fun `W3 an HTTP error without connectivity does not trigger`() {
         val c = ControlledClock()
         val p = policy(c)
-        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = false) shouldBe false
+        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = { false }) shouldBe false
     }
 
     @Test
@@ -109,7 +109,7 @@ class WebViewFallbackPolicyTest {
             "host.example",
             "GET",
             cause = IOException("airplane mode"),
-            hasConnectivity = false,
+            hasConnectivity = { false },
         ) shouldBe false
     }
 
@@ -117,7 +117,37 @@ class WebViewFallbackPolicyTest {
     fun `W3 with connectivity the attempt is still allowed`() {
         val c = ControlledClock()
         val p = policy(c)
-        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = true) shouldBe true
+        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = { true }) shouldBe true
+    }
+
+    // endregion
+
+    // region T-10.6 (P1-1) — the connectivity probe is LAZY: no IPC on the happy path
+
+    @Test
+    fun `T-10-6 a success or redirect response never queries connectivity`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        var probes = 0
+        val countingProbe = { probes++; true }
+        for (code in listOf(200, 204, 301, 304)) {
+            p.shouldAttempt("host.example", "GET", statusCode = code, hasConnectivity = countingProbe) shouldBe false
+        }
+        for (method in listOf("DELETE", "HEAD", "PUT")) {
+            p.shouldAttempt("host.example", method, statusCode = 403, hasConnectivity = countingProbe) shouldBe false
+        }
+        p.shouldAttempt("host.example", "GET", cause = IllegalStateException("bug"), hasConnectivity = countingProbe) shouldBe false
+        probes shouldBe 0 // regression: the probe used to run on EVERY response
+    }
+
+    @Test
+    fun `T-10-6 a real failure still consults connectivity`() {
+        val c = ControlledClock()
+        val p = policy(c)
+        var probes = 0
+        val countingProbe = { probes++; true }
+        p.shouldAttempt("host.example", "GET", statusCode = 403, hasConnectivity = countingProbe) shouldBe true
+        probes shouldBe 1
     }
 
     // endregion
