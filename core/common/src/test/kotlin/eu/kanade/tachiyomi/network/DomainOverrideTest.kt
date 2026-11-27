@@ -85,7 +85,7 @@ class DomainOverrideTest {
         s.targetFor("www.old.example") shouldBe "www.new.example"
         s.targetFor("old.example") shouldBe "new.example"
         // exactly two entries: no "www.www…" or repeated variants
-        s.rules() shouldHaveSize 2
+        s.rules().size shouldBe 2
     }
 
     @Test
@@ -95,7 +95,7 @@ class DomainOverrideTest {
         s.upsert(DomainOverrideRule(fromHost = "old.example", toHost = "newer.example"))
         s.targetFor("old.example") shouldBe "newer.example"
         s.targetFor("www.old.example") shouldBe "www.newer.example"
-        s.rules() shouldHaveSize 2
+        s.rules().size shouldBe 2
     }
 
     @Test
