@@ -75,7 +75,7 @@ _La fuente de la verdad para estado y CI es GitHub (convenciones en `docs/REGIST
 - `fix/viewer-refactor-t1-t7` — T1–T7, squash `c8d2f52` en `main`.
 - `ci/branch-checks` — job «Spotless & Unit Tests» por push (C6/C7), mergeada `ca86c55`.
 
-## 4. Qué está verificado y qué no (corte: 2026-11-26)
+## 4. Qué está verificado y qué no (corte: 2026-11-28)
 
 Verificado:
 - PR #1 **mergeeado en `main`** el 2026-11-17 18:16 UTC, incluido el fix de compilación
@@ -100,6 +100,9 @@ No verificado o pendiente:
   su teléfono.
 - Cableado del lector T6a + fixes R1–R4 (`feat/t6-page-state-machine-wiring`): CI verde
   y 205 tests, pero **pendiente de validación en dispositivo** (checklist Ronda 2).
+- Correctivo de auditoría P0/P1 (`fix/p10-auditoria-p0p1`, PROMPT 10): CI verde en el PR;
+  P0 migración (replace=true) y fallback WebView (T-10.7/8/9) **pendientes de validación
+  en dispositivo**; T-10.15 (P1-10) PARCIAL sin parche — ver `docs/INFORME_VERIFICACION_P0P1.md`.
 
 ## 5. Reglas obligatorias
 
@@ -149,7 +152,7 @@ Desde `ef0ece3` (06/11/2026) cada build se instala encima de la anterior en el t
 
 ### 3. versionCode nunca baja
 
-- `versionCode` (hoy 39) debe ser siempre **≥** al de cualquier build que el usuario tenga instalada. Al subir `versionName`, no reducir `versionCode`.
+- `versionCode` (hoy **40**, corregido el 2026-11-28 — la build consolidada ya es 40) debe ser siempre **≥** al de cualquier build que el usuario tenga instalada. Al subir `versionName`, no reducir `versionCode`.
 
 ### Verificación antes de entregar una build
 

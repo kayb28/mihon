@@ -819,3 +819,34 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-28 (fix/p10-auditoria-p0p1 — PROMPT 10: correctivo de auditoría P0/P1)
+
+Motivo: auditoría de los 10 ficheros de las Tandas 1–3 (red, migración, visor). Puerta
+T-10.0 primero: veredictos V1–V5 en `docs/INFORME_VERIFICACION_P0P1.md` — V2 NO-CONFIRMADO
+(sin parche), V3 PARCIAL sin parche (T-10.15 no implementado), V4 confirma app-level
+(T-10.12 = KDoc), V5 PARCIAL → guard dentro del use case. Base real `main`=`c196c91`
+(la punta `bd4aa16e` citada no existe en el repo). P2 omitidas (opcionales, no bloquean).
+
+| Tarea | Hallazgo | Cambio | Commit |
+|---|---|---|---|
+| T-10.0 | — | informe de veredictos, solo docs | `docs(p10.0)` |
+| T-10.1 | P0-2 | guard: target sin capítulos aborta antes del paso destructivo (política pura `MigrationGuardPolicy`) | test rojo → `fix(p10.1)` verde |
+| T-10.2 | P0-3 | `resolveFavoriteAt`: sin replace, la fecha del target sobrevive | test rojo → `fix(p10.2)` verde |
+| T-10.3 | P0-1 | portada y borrado de descargas en `runCatching` con log; paso destructivo último | `fix(p10.3)` |
+| T-10.4 | P0-4 | plan de tracks: null conserva el track original con aviso; re-point plano intacto | test rojo → `fix(p10.4)` verde |
+| T-10.5 | P0-5 | `maxChapterRead` solo con números reconocidos | test rojo → `fix(p10.5)` verde |
+| T-10.6 | P1-1 | sonda de conectividad LAZY (lambda) — 200/redirects/métodos no la consultan | test rojo → `fix(p10.6)` verde |
+| T-10.7 | P1-2 | cliente WebView fresco en cada fetch (engine reutilizado no retiene sesión) | `fix(p10.7)` (inspección) |
+| T-10.8 | P1-3 | `postDelayed(NAV_MAX_WAIT)` guardado en Engine, cancelado en startFetch y destroy() | `fix(p10.8)` (inspección) |
+| T-10.9 | P1-4 | abortos de desafío con clave de sesión en la ruta legacy; iframes no abortan | `fix(p10.9)` (inspección) |
+| T-10.10 | P1-5 | FALLBACK_CODES = {403,405,406,409,425,429} + 5xx | test rojo → `fix(p10.10)` verde |
+| T-10.11 | P1-6 | `LruHostRegistry` tope 128 en hostLocks/activations/cooldowns/tracker | test rojo → `fix(p10.11)` verde |
+| T-10.12 | P1-7 | KDoc: una reescritura por call, redirects no re-entran (app-level, V4) | `docs(p10.12)` |
+| T-10.13 | P1-8 | REUPLOAD con tope MAX_REUPLOAD_ATTEMPTS (2) | test rojo → `fix(p10.13)` verde |
+| T-10.14 | P1-9 | `resetAttempts` + manualRetry con presupuesto nuevo | test rojo → `fix(p10.14)` verde |
+| T-10.15 | P1-10 | PARCIAL (V3) — sin parche; validación en dispositivo | registrado en el informe |
+| docs | — | CHANGELOG sección P10 + AGENTS §4 corte 2026-11-28 y §7.3 versionCode 40 + esta entrada | `docs(p10)` |
+
+Estado: **pendiente confirmar** — CI del PR como árbitro; P0 migración (replace=true),
+T-10.7/8/9 y T-10.15 requieren validación en dispositivo antes de pasar a `confirmado`.
