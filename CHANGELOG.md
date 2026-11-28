@@ -10,6 +10,28 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix — PROMPT 12 T-C: reintento sin efecto — alcance = lista visible + resumen con recuento] - 2026-11-28
+
+> Rama `fix/t-c-reintento-sin-efecto`, PR #25 abierto SIN MERGE. Bug de campo del usuario en
+> build 2f4e0b8dc: el botón «Reintentar títulos con error» no producía efecto visible. Ciclo
+> red→green: rojo por comportamiento en `evidence/t-c-red` (`c76e8a63`, run 46165687939,
+> 3 FAILED: tc_2 ×2 + tc_3; NUNCA se mergea) → verde final `8c09c6b26` (doble verde CI,
+> runs 46162628408 / 46162623501).
+
+### Fixed
+- **Alcance del lote = la lista en pantalla (`passScope` = store ∩ visible):** el snapshot
+  crudo de `getErrorMangaIds()` incluía títulos que ya no están en la lista (no favoritos o
+  borrados de la biblioteca); reintentarlos no produce cambio visible y la pulsación parecía
+  inerte. Ahora se reintenta exactamente el conjunto mostrado.
+- **Aviso con recuento al terminar el lote:** snackbar «N reintentados: M bien, K siguen
+  fallando» (`update_errors_retry_summary`, base + es) — antes no existía ningún resultado.
+- Los éxitos siguen saliendo de la lista al instante (auto-limpieza del store intacta) y la
+  doble pulsación sigue sin lanzar un segundo lote (T-B 5.4, test tc_5).
+
+### Other
+- `RepairLinksScreen` auditada por el diagnóstico: su menú está cableado; sin acciones de
+  recarga sueltas. No se tocó.
+
 ## [Mihon Fix — P7: motor web secundario, gatillo «todos los fallos» (W1–W5)] - 2026-11-27
 
 > Rama `feat/p7-webview-fallback-all-failures`, PR abierto SIN MERGE (puerta: validación en
