@@ -819,3 +819,40 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-28 (T-C — PROMPT 12)
+
+**T-C — bug de campo: el botón «Reintentar títulos con error» recibe la pulsación pero no
+se observa ningún efecto** (usuario en build 2f4e0b8dc). Rama `fix/t-c-reintento-sin-efecto`
+(cortada de `main` @ `c196c915e`), PR #25 abierto SIN MERGE.
+
+**Diagnóstico (verificado contra el código antes de tocar nada):**
+- `UpdateErrorStore.getErrorMangaIds()` devuelve TODOS los ids del store, pero la lista que
+  muestra la pantalla solo incluye favoritos (`takeIf { it.favorite }` en
+  `UpdateErrorsViewModel`). El store acumula errores de títulos ya no favoritos o borrados
+  de la biblioteca; para esos ids `getManga.await()` responde null y el lote los salta con
+  `continue`. Resultado: el lote corre sobre títulos invisibles, la lista no cambia y la
+  pulsación parece inerte (en lotes pequeños el «Reintentando…» va y vuelve sin efecto visible).
+- También faltaba por completo el aviso final con recuento («N reintentados…»).
+- `RepairLinksScreen` auditada: su menú (`executeRepair`, `startSimulation`, `retrySearch`,
+  `repairSingle`) está cableado; SIN acciones de recarga sueltas. No se tocó.
+
+**Ciclo red→green (rojo→verde por comportamiento en CI real):**
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 15:37 | `fix/t-c-reintento-sin-efecto` | `1811938ed` | ⚪ cancelled→failure (rerun) | rojo T-C: tests tc_2 (scope = lista visible) + tc_3 (resumen N/M/K). El re-run (46161382107) falla POR COMPILACIÓN del propio test (`scope.targets` sobre un Set) — por eso se preparó la evidencia de abajo |
+| 15:44 | `fix/t-c-reintento-sin-efecto` | `ae96f53e2` | ❌ failure | verde T-C (impl + wiring + snackbar + strings base/es). Run 46161537098: compile — `stringResource` (composable) dentro de `LaunchedEffect` |
+| 15:49 | `fix/t-c-reintento-sin-efecto` | `00554d987` | ❌ failure | fix composable context. Run 46162173792: compile — `targets()` es extensión de `Pass`, no de `Set` (bug del test rojo) |
+| 15:53 | `fix/t-c-reintento-sin-efecto` | `8c09c6b26` | ✅ success doble | VERDE FINAL: Build & Test 46162628408 + Build APK 46162623501 (Spotless & Unit Tests + tests OK) |
+| 16:31 | `evidence/t-c-red` | `c76e8a63` | ❌ failure POR COMPORTAMIENTO | rama de evidencia (NUNCA se mergea): mismo esqueleto rojo que `1811938ed` sin el bug de compilación del test → run 46165687939 «Spotless & Unit Tests» con 3 FAILED: tc_2 ×2 y tc_3. Es el rojo legítimo que reproduce «pulsar no produce efecto visible» |
+
+**Comportamiento verde (merge gate de T-C):** (1) «Reintentando…» durante todo el lote
+(T-B ya lo traía; ahora el lote solo cubre la lista visible); (2) scope = store ∩ visible,
+exactamente la lista en pantalla; (3) al terminar, snackbar «N reintentados: M bien,
+K siguen fallando» (`update_errors_retry_summary`, base+es); (4) éxitos salen al instante
+(auto-limpieza del store intacta); (5) doble pulsación no lanza doble lote (`beginPass`
+devuelve null — test tc_5).
+
+**Estado: pendiente confirmar** (validación en dispositivo del usuario con la build de la
+punta verde). Merge SOLO con orden explícita del usuario.

@@ -59,6 +59,19 @@ class UpdateErrorsViewModel(
     private val _retryPass = MutableStateFlow<RetryErrorsPolicy.Pass?>(null)
     val retryPass: StateFlow<RetryErrorsPolicy.Pass?> = _retryPass.asStateFlow()
 
+    // T-C (PROMPT 12): end-of-pass notice «N reintentados: M bien, K siguen fallando».
+    private val _lastSummary = MutableStateFlow<RetryErrorsPolicy.PassSummary?>(null)
+    val lastSummary: StateFlow<RetryErrorsPolicy.PassSummary?> = _lastSummary.asStateFlow()
+
+    /** T-C (3): the screen acknowledges the notice so it does not re-show on rotation. */
+    fun onSummaryShown() {
+        _lastSummary.value = null
+    }
+
+    // T-C (2): ids currently shown on screen (favorites only). The pass must retry
+    // exactly this set, not the raw store snapshot.
+    private var visibleIds: Set<Long> = emptySet()
+
     fun retryButtonVisible(): Boolean =
         RetryErrorsPolicy.buttonVisible(updateErrorStore.getErrorMangaIds().size)
 
@@ -66,18 +79,28 @@ class UpdateErrorsViewModel(
         RetryErrorsPolicy.buttonEnabled(_retryPass.value)
 
     fun retryErrorMangas() {
-        val pass = RetryErrorsPolicy.beginPass(updateErrorStore.getErrorMangaIds(), _retryPass.value)
-            ?: return // a pass is already running: one batch per press
+        // T-C (2): scope = exactly the visible list; T-C (5): null when a pass already
+        // runs — one batch per press even if the button is hammered.
+        val pass = RetryErrorsPolicy.beginPass(
+            RetryErrorsPolicy.passScope(updateErrorStore.getErrorMangaIds(), visibleIds),
+            _retryPass.value,
+        ) ?: return
         _retryPass.value = pass
         viewModelScope.launch(Dispatchers.IO) {
+            val results = mutableMapOf<Long, RetryErrorsPolicy.FreshError?>()
             try {
                 for (mangaId in pass.targetIds) {
                     val manga = getManga.await(mangaId) ?: continue
                     // Success self-cleans the manga's errors inside UpdateMangaFromRemote;
                     // a failure leaves a fresh error in the store (errorsFlow refreshes UI).
-                    runCatching { updateMangaFromRemote(manga = manga, manualFetch = true) }
+                    val outcome = runCatching { updateMangaFromRemote(manga = manga, manualFetch = true) }
+                    results[mangaId] = outcome.exceptionOrNull()?.let {
+                        RetryErrorsPolicy.FreshError(message = it.message ?: "Error")
+                    }
                 }
             } finally {
+                // T-C (3): the notice counts every attempted manga, success or failure.
+                _lastSummary.value = RetryErrorsPolicy.summarize(pass, results)
                 _retryPass.value = RetryErrorsPolicy.completePass(pass)
             }
         }
@@ -87,6 +110,7 @@ class UpdateErrorsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             updateErrorStore.errorsFlow.collectLatest { errors ->
                 if (errors.isEmpty()) {
+                    visibleIds = emptySet()
                     _state.update { UpdateErrorsState(isLoading = false) }
                     return@collectLatest
                 }
@@ -94,6 +118,9 @@ class UpdateErrorsViewModel(
                 val mangaMap = errors.mapNotNull { err ->
                     getManga.await(err.mangaId)?.takeIf { it.favorite }?.let { err.mangaId to it }
                 }.toMap()
+
+                // T-C (2): keep the visible list in sync — the retry pass is scoped to it.
+                visibleIds = mangaMap.keys
 
                 val broken = mutableListOf<ErrorMangaItem>()
                 val temporary = mutableListOf<ErrorMangaItem>()

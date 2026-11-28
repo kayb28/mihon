@@ -13,10 +13,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -56,12 +60,32 @@ class UpdateErrorsScreen : Screen() {
         val viewModel = metroViewModel<UpdateErrorsViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
 
+        // T-C (3): end-of-pass notice «N reintentados: M bien, K siguen fallando».
+        val snackbarHostState = remember { SnackbarHostState() }
+        val summary by viewModel.lastSummary.collectAsStateWithLifecycle()
+        // stringResource is @Composable: resolve the text here, show it in the effect.
+        val summaryText = summary?.let {
+            stringResource(
+                MR.strings.update_errors_retry_summary,
+                it.retried,
+                it.ok,
+                it.stillFailing,
+            )
+        }
+        LaunchedEffect(summaryText) {
+            summaryText?.let {
+                snackbarHostState.showSnackbar(it)
+                viewModel.onSummaryShown()
+            }
+        }
+
         if (state.isLoading) {
             LoadingScreen()
             return
         }
 
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 AppBar(
                     title = stringResource(MR.strings.update_errors_title),
