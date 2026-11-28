@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.data.library
 
 import tachiyomi.core.common.preference.TriState
-import tachiyomi.domain.manga.model.applyFilter
 
 /**
  * T-D (PROMPT 12): the «Actualizar biblioteca según filtros» scope. It mirrors the library
@@ -9,8 +8,8 @@ import tachiyomi.domain.manga.model.applyFilter
  * update-error, TriState semantics) and deliberately does NOT depend on categories — many
  * titles have none. The library list is favorites-only by construction (getLibraryManga).
  *
- * GREEN state (T-D): the scope applies the filters with the screen's TriState semantics;
- * an empty match yields an empty list so the caller can show a clear message.
+ * RED state (evidence/t-d-red): same skeleton the original red commit 351073326 carried,
+ * minus its test compile bug — the red must fail on BEHAVIOR.
  */
 data class LibraryUpdateFilters(
     val downloaded: TriState = TriState.DISABLED,
@@ -36,20 +35,10 @@ object LibraryUpdateScope {
         val isCompleted: Boolean,
     )
 
-    /** GREEN T-D: exact same TriState semantics as the library screen (applyFilter). */
+    /** RED T-D (evidence/t-d-red): ignores the filters — the bug the tests reproduce. */
     fun ids(
         library: List<Entry>,
         filters: LibraryUpdateFilters,
         errorMangaIds: Set<Long> = emptySet(),
-    ): List<Long> = library.asSequence()
-        .filter { entry ->
-            applyFilter(filters.downloaded) { entry.isDownloaded } &&
-                applyFilter(filters.unread) { entry.unreadCount > 0 } &&
-                applyFilter(filters.started) { entry.hasStarted } &&
-                applyFilter(filters.bookmarked) { entry.hasBookmarks } &&
-                applyFilter(filters.completed) { entry.isCompleted } &&
-                applyFilter(filters.updateError) { entry.id in errorMangaIds }
-        }
-        .map { it.id }
-        .toList()
+    ): List<Long> = library.map { it.id }
 }
