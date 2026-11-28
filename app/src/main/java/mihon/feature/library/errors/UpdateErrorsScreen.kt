@@ -63,16 +63,18 @@ class UpdateErrorsScreen : Screen() {
         // T-C (3): end-of-pass notice «N reintentados: M bien, K siguen fallando».
         val snackbarHostState = remember { SnackbarHostState() }
         val summary by viewModel.lastSummary.collectAsStateWithLifecycle()
-        LaunchedEffect(summary) {
-            summary?.let {
-                snackbarHostState.showSnackbar(
-                    stringResource(
-                        MR.strings.update_errors_retry_summary,
-                        it.retried,
-                        it.ok,
-                        it.stillFailing,
-                    ),
-                )
+        // stringResource is @Composable: resolve the text here, show it in the effect.
+        val summaryText = summary?.let {
+            stringResource(
+                MR.strings.update_errors_retry_summary,
+                it.retried,
+                it.ok,
+                it.stillFailing,
+            )
+        }
+        LaunchedEffect(summaryText) {
+            summaryText?.let {
+                snackbarHostState.showSnackbar(it)
                 viewModel.onSummaryShown()
             }
         }
