@@ -26,7 +26,7 @@ class LibraryUpdateProgressPolicyTest {
     }
 
     @Test
-    fun `td_4 current is clamped into 0..total`() {
+    fun `td_4 current is clamped into the 0-to-total range`() {
         LibraryUpdateProgressPolicy.countLabel(current = -1, total = 10).current shouldBe 0
         LibraryUpdateProgressPolicy.countLabel(current = 11, total = 10).current shouldBe 10
     }
