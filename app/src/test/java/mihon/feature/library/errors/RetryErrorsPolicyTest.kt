@@ -120,8 +120,8 @@ class RetryErrorsPolicyTest {
             visibleIds = setOf(1L, 2L),
         )
         scope shouldContainExactly setOf(1L, 2L)
-        scope.targets(3L) shouldBe false // no favorito: fuera del lote
-        scope.targets(99L) shouldBe false // borrado de la biblioteca: fuera del lote
+        (3L in scope) shouldBe false // no favorito: fuera del lote
+        (99L in scope) shouldBe false // borrado de la biblioteca: fuera del lote
     }
 
     @Test
