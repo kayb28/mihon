@@ -112,6 +112,28 @@ data object LibraryTab : Tab {
             started
         }
 
+        // T-D (PROMPT 12): «Actualizar biblioteca según filtros» — the scope is the titles
+        // matching the active library filters (no categories). Empty scope: clear message,
+        // no empty pass scheduled.
+        val onClickUpdateByFilters: suspend () -> Unit = {
+            val ids = viewModel.filteredUpdateMangaIds()
+            val started = ids.isNotEmpty() && LibraryUpdateWorker.startNow(context.workManager, ids)
+            scope.launch {
+                val msgRes = when {
+                    ids.isEmpty() -> MR.strings.update_filtered_empty
+                    started -> MR.strings.updating_library_filtered
+                    else -> MR.strings.update_already_running
+                }
+                snackbarHostState.showSnackbar(
+                    if (msgRes == MR.strings.updating_library_filtered) {
+                        context.stringResource(msgRes, ids.size)
+                    } else {
+                        context.stringResource(msgRes)
+                    },
+                )
+            }
+        }
+
         Scaffold(
             topBar = { scrollBehavior ->
                 val title = state.getToolbarTitle(
@@ -129,6 +151,7 @@ data object LibraryTab : Tab {
                     onClickFilter = viewModel::showSettingsDialog,
                     onClickRefresh = { scope.launch { onClickRefresh(state.activeCategory) } },
                     onClickGlobalUpdate = { scope.launch { onClickRefresh(null) } },
+                    onClickUpdateByFilters = { scope.launch { onClickUpdateByFilters() } },
                     onClickOpenRandomManga = {
                         scope.launch {
                             val randomItem = viewModel.getRandomLibraryItemForCurrentCategory()

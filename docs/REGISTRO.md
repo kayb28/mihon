@@ -819,3 +819,41 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-28 (T-D — PROMPT 12)
+
+**T-D — encargo: «Actualizar biblioteca según filtros» + recuento en la notificación de
+actualización.** Rama `feat/t-d-actualizar-segun-filtros` (cortada de `main` @
+`c196c915e`), PR #26 abierto SIN MERGE.
+
+**Diseño (respetando el contrato actual de LibraryUpdateWorker/LibraryUpdateNotifier):**
+- `LibraryUpdateScope` (policy pura, tests JVM): alcance por los filtros de biblioteca
+  aplicados — downloaded / unread / started / bookmarked / completed / update-error con la
+  MISMA semántica TriState de la pantalla (`applyFilter`) — SIN depender de categorías
+  (muchos títulos no las tienen). El alcance consume solo datos del título (`Entry`).
+- `LibraryUpdateWorker.startNow(workManager, mangaIds)`: nueva sobrecarga con lote
+  explícito (`KEY_MANGA_IDS`); pasada marcada como parcial (`isFullPass = false`, coherente
+  con el store de errores). Las rutas por categoría/fuente/biblioteca completa quedan intactas.
+- `LibraryViewModel.filteredUpdateMangaIds()`: calcula el alcance con las preferencias
+  vigentes (incluye la regla de la pantalla «solo descargados» → filtro downloaded «is»).
+  Alcance vacío → snackbar «Ningún título cumple los filtros activos: no hay nada que
+  actualizar» y NO se programa ninguna pasada (sin trabajo vacío).
+- `LibraryUpdateProgressPolicy` + notificador: el progreso muestra «X de Y títulos»
+  (`notification_updating_progress_count`, base + es) además del porcentaje.
+- Nueva acción de menú en la biblioteca: `action_update_filtered` («Actualizar biblioteca
+  según filtros»), junto a «Actualizar biblioteca». Sin rediseño.
+
+**Ciclo red→green (rojo→verde por comportamiento en CI real):**
+
+| Hora (UTC) | Rama | Commit | Resultado | Contenido |
+|---|---|---|---|---|
+| 15:55 | `feat/t-d-actualizar-segun-filtros` | `351073326` | ⚪ cancelled→failure (rerun) | rojo T-D: tests td_1–td_4 (filtrado sin categorías + recuento). El re-run (46161920866) falla POR COMPILACIÓN del propio test (nombre con `..`, ilegal en JUnit — precedente C1) |
+| 16:01 | `feat/t-d-actualizar-segun-filtros` | `f252df737` | ❌ failure | verde T-D (impl + worker + notificador + UI + strings). Run 46162099450: spotless (orden de imports) |
+| 16:03 | `feat/t-d-actualizar-segun-filtros` | `debc4d5cb` | ❌ failure | fix imports. Run 46162625368: compile — nombre de test con `..` |
+| 16:05 | `feat/t-d-actualizar-segun-filtros` | `fe0f5bb41` | ❌ failure POR COMPORTAMIENTO | nombre legal. Run 46163138027: 2 FAILED (td_2 y td_1 downloaded) — bugs de la propia impl: `downloadedOnly` debía forzar el valor del filtro (como en la pantalla) y el test td_2 esperaba mal |
+| 16:09 | `feat/t-d-actualizar-segun-filtros` | `6f8418d04` | ❌ failure | fix semántica downloaded + test corregido. Run 46163651164: spotless (línea > 120) |
+| 16:14 | `feat/t-d-actualizar-segun-filtros` | `087df1c95` | ✅ success doble | VERDE FINAL: Build & Test 46164147578 + Build APK 46164142492 |
+| 16:31 | `evidence/t-d-red` | `efdcb095` | ❌ failure POR COMPORTAMIENTO | rama de evidencia (NUNCA se mergea): mismos esqueletos rojos que `351073326` sin el bug de compilación del test → run 46165724412 con 8+ FAILED (td_1 ×6, td_2, td_4 ×3). Rojo legítimo del filtrado y del recuento |
+
+**Estado: pendiente confirmar** (validación en dispositivo del usuario con la build de la
+punta verde). Merge SOLO con orden explícita del usuario.

@@ -35,6 +35,7 @@ fun LibraryToolbar(
     onClickFilter: () -> Unit,
     onClickRefresh: () -> Unit,
     onClickGlobalUpdate: () -> Unit,
+    onClickUpdateByFilters: () -> Unit,
     onClickOpenRandomManga: () -> Unit,
     searchQuery: String?,
     onSearchQueryChange: (String?) -> Unit,
@@ -54,6 +55,7 @@ fun LibraryToolbar(
         onClickFilter = onClickFilter,
         onClickRefresh = onClickRefresh,
         onClickGlobalUpdate = onClickGlobalUpdate,
+        onClickUpdateByFilters = onClickUpdateByFilters,
         onClickOpenRandomManga = onClickOpenRandomManga,
         scrollBehavior = scrollBehavior,
     )
@@ -68,6 +70,7 @@ private fun LibraryRegularToolbar(
     onClickFilter: () -> Unit,
     onClickRefresh: () -> Unit,
     onClickGlobalUpdate: () -> Unit,
+    onClickUpdateByFilters: () -> Unit,
     onClickOpenRandomManga: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior?,
 ) {
@@ -105,6 +108,11 @@ private fun LibraryRegularToolbar(
                     AppBar.OverflowAction(
                         title = stringResource(MR.strings.action_update_library),
                         onClick = onClickGlobalUpdate,
+                    ),
+                    // T-D (PROMPT 12): update only the titles matching the active library filters.
+                    AppBar.OverflowAction(
+                        title = stringResource(MR.strings.action_update_filtered),
+                        onClick = onClickUpdateByFilters,
                     ),
                     AppBar.OverflowAction(
                         title = stringResource(MR.strings.action_update_category),
