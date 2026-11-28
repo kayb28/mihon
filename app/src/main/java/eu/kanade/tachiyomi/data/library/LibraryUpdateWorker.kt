@@ -142,8 +142,10 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
         val categoryId = inputData.getLong(KEY_CATEGORY, -1L)
         val sourceId = inputData.getLong(KEY_SOURCE_ID, -1L)
-        isFullPass = categoryId == -1L && sourceId == -1L
-        addMangaToQueue(categoryId, sourceId)
+        val mangaIds = inputData.getLongArray(KEY_MANGA_IDS)?.toList()
+        // T-D (PROMPT 12): a filtered pass is a partial pass — not a full library one.
+        isFullPass = mangaIds == null && categoryId == -1L && sourceId == -1L
+        addMangaToQueue(categoryId, sourceId, mangaIds)
 
         return withContext(Dispatchers.IO) {
             try {
@@ -179,11 +181,16 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
      * Adds list of manga to be updated.
      *
      * @param categoryId the ID of the category to update, or -1 if no category specified.
+     * @param mangaIds explicit scope from the «Actualizar biblioteca según filtros» action
+     * (T-D, PROMPT 12): exactly these titles, no category or filter recomputation here.
      */
-    private suspend fun addMangaToQueue(categoryId: Long, sourceId: Long) {
+    private suspend fun addMangaToQueue(categoryId: Long, sourceId: Long, mangaIds: List<Long>? = null) {
         val libraryManga = getLibraryManga.await()
 
-        val listToUpdate = if (sourceId != -1L) {
+        val listToUpdate = if (mangaIds != null) {
+            // T-D: the scope was computed in the UI against the active library filters.
+            libraryManga.filter { it.id in mangaIds }
+        } else if (sourceId != -1L) {
             libraryManga.filter { it.manga.source == sourceId }
         } else if (categoryId != -1L) {
             libraryManga.filter { categoryId in it.categories }
@@ -813,6 +820,9 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
         /** Optional source ID for a source-only library update. */
         private const val KEY_SOURCE_ID = "source_id"
 
+        /** T-D (PROMPT 12): explicit title scope for the «Actualizar según filtros» action. */
+        private const val KEY_MANGA_IDS = "manga_ids"
+
         fun setupTask(
             context: Context,
             prefInterval: Int? = null,
@@ -882,6 +892,33 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
                 KEY_CATEGORY to category?.id,
                 KEY_SOURCE_ID to sourceId,
             )
+            val request = OneTimeWorkRequestBuilder<LibraryUpdateWorker>()
+                .addTag(TAG)
+                .addTag(WORK_NAME_MANUAL)
+                .setInputData(inputData)
+                .build()
+            workManager.enqueueUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, request)
+
+            return true
+        }
+
+        /**
+         * T-D (PROMPT 12): manual update scoped to an explicit title list — the result of
+         * the active library filters computed in the UI (no category dependence). The
+         * caller must not schedule an empty scope; the notifer's count makes the pass
+         * auditable («X de Y títulos»).
+         */
+        suspend fun startNow(
+            workManager: WorkManager,
+            mangaIds: List<Long>,
+        ): Boolean {
+            if (mangaIds.isEmpty()) return false
+            if (workManager.isRunning(TAG)) {
+                // Already running either as a scheduled or manual job
+                return false
+            }
+
+            val inputData = workDataOf(KEY_MANGA_IDS to mangaIds.toLongArray())
             val request = OneTimeWorkRequestBuilder<LibraryUpdateWorker>()
                 .addTag(TAG)
                 .addTag(WORK_NAME_MANUAL)

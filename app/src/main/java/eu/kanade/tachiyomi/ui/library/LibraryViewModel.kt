@@ -20,6 +20,8 @@ import eu.kanade.domain.manga.interactor.UpdateManga
 import eu.kanade.presentation.library.components.LibraryToolbarTitle
 import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.data.library.LibraryUpdateFilters
+import eu.kanade.tachiyomi.data.library.LibraryUpdateScope
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.track.TrackerManager
@@ -687,6 +689,40 @@ class LibraryViewModel(
     fun getRandomLibraryItemForCurrentCategory(): LibraryItem? {
         val state = state.value
         return state.getItemsForCategoryId(state.activeCategory?.id).randomOrNull()
+    }
+
+    /**
+     * T-D (PROMPT 12): ids of the favorites that match the CURRENT library filters
+     * (downloaded / unread / started / bookmarked / completed / update-error, TriState
+     * semantics — the same ones the library screen applies). Deliberately independent of
+     * categories: many titles have none. An empty result means the caller must show a
+     * clear message instead of scheduling an empty pass.
+     */
+    suspend fun filteredUpdateMangaIds(): List<Long> {
+        val libraryManga = getLibraryManga.await()
+        if (libraryManga.isEmpty()) return emptyList()
+        val downloadCounts = downloadManager.getDownloadCounts(libraryManga.map { it.manga })
+        val filters = LibraryUpdateFilters(
+            downloadedOnly = preferences.downloadedOnly.get(),
+            downloaded = libraryPreferences.filterDownloaded.get(),
+            unread = libraryPreferences.filterUnread.get(),
+            started = libraryPreferences.filterStarted.get(),
+            bookmarked = libraryPreferences.filterBookmarked.get(),
+            completed = libraryPreferences.filterCompleted.get(),
+            updateError = libraryPreferences.filterUpdateError.get(),
+        )
+        val errorMangaIds = updateErrorStore.getErrors().mapTo(HashSet()) { it.mangaId }
+        val entries = libraryManga.map { lm ->
+            LibraryUpdateScope.Entry(
+                id = lm.id,
+                isDownloaded = lm.manga.isLocal() || (downloadCounts[lm.id] ?: 0) > 0,
+                unreadCount = lm.unreadCount,
+                hasStarted = lm.hasStarted,
+                hasBookmarks = lm.hasBookmarks,
+                isCompleted = lm.manga.status == SManga.COMPLETED.toLong(),
+            )
+        }
+        return LibraryUpdateScope.ids(entries, filters, errorMangaIds)
     }
 
     fun showSettingsDialog() {

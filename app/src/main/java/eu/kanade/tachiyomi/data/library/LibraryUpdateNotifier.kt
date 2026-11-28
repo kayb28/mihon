@@ -113,6 +113,19 @@ class LibraryUpdateNotifier(
                 ),
             )
 
+        // T-D (PROMPT 12): the count («X de Y títulos») next to the percentage, so the
+        // user can validate the scope of the pass.
+        val count = LibraryUpdateProgressPolicy.countLabel(current, total)
+        if (count.shown) {
+            progressNotificationBuilder.setContentText(
+                context.stringResource(
+                    MR.strings.notification_updating_progress_count,
+                    count.current,
+                    count.total,
+                ),
+            )
+        }
+
         if (!securityPreferences.hideNotificationContent.get()) {
             val updatingText = manga.joinToString("\n") { it.title.chop(40) }
             progressNotificationBuilder.setStyle(NotificationCompat.BigTextStyle().bigText(updatingText))

@@ -58,6 +58,7 @@
     <string name="action_download">Descargar</string>
     <string name="action_delete">Borrar</string>
     <string name="action_update_library">Actualizar biblioteca</string>
+    <string name="action_update_filtered">Actualizar biblioteca según filtros</string>
     <string name="action_edit">Editar</string>
     <string name="action_add_category">Añadir categoría</string>
     <string name="action_edit_categories">Editar categorías</string>
@@ -368,6 +369,8 @@
     <string name="action_move_to_top">Mover al principio</string>
     <string name="action_move_to_bottom">Mover al final</string>
     <string name="updating_library">Actualizando biblioteca</string>
+    <string name="updating_library_filtered">Actualizando %1$d títulos según los filtros</string>
+    <string name="update_filtered_empty">Ningún título cumple los filtros activos: no hay nada que actualizar</string>
     <string name="channel_ext_updates">Actualizaciones de extensiones</string>
     <string name="pref_skip_filtered_chapters">Saltar capítulos excluidos por filtros</string>
     <string name="pref_category_reading">Lectura</string>
@@ -746,6 +749,7 @@
     <string name="pref_relative_format">Marcas de tiempo relativas</string>
     <string name="pref_relative_format_summary">«%1$s» en vez de «%2$s»</string>
     <string name="notification_updating_progress">Actualizando biblioteca... (%s)</string>
+    <string name="notification_updating_progress_count">%1$d de %2$d títulos</string>
     <string name="source_settings">Ajustes de la fuente</string>
     <string name="app_settings">Ajustes de la aplicación</string>
     <string name="file_null_uri_error">No has elegido ningún archivo</string>

@@ -5,7 +5,7 @@ package eu.kanade.tachiyomi.data.library
  * («X de Y títulos» / «X títulos») in addition to the percentage, so the user can verify
  * the scope of the update.
  *
- * RED state: countLabel reports shown=false — the count is not displayed yet (bug).
+ * GREEN state (T-D): countLabel decides when and what count the notification shows.
  */
 object LibraryUpdateProgressPolicy {
 
@@ -19,6 +19,13 @@ object LibraryUpdateProgressPolicy {
         val total: Int,
     )
 
-    /** RED T-D: still never shows the count. */
-    fun countLabel(current: Int, total: Int): Count = Count(shown = false, current = current, total = total)
+    /** GREEN T-D: show «X de Y títulos» whenever there is work; current clamped into 0..total. */
+    fun countLabel(current: Int, total: Int): Count {
+        if (total <= 0) return Count(shown = false, current = 0, total = 0)
+        return Count(
+            shown = true,
+            current = current.coerceIn(0, total),
+            total = total,
+        )
+    }
 }

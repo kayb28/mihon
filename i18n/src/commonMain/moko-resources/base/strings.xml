@@ -125,6 +125,7 @@
     <string name="action_remove_bookmark">Unbookmark chapter</string>
     <string name="action_delete">Delete</string>
     <string name="action_update_library">Update library</string>
+    <string name="action_update_filtered">Update library by filters</string>
     <string name="action_enable_all">Enable all</string>
     <string name="action_disable_all">Disable all</string>
     <string name="action_edit">Edit</string>
@@ -933,6 +934,8 @@
 
     <!-- Updates -->
     <string name="updating_library">Updating library</string>
+    <string name="updating_library_filtered">Updating %1$d titles matching the filters</string>
+    <string name="update_filtered_empty">No titles match the active filters: nothing to update</string>
     <string name="update_already_running">An update is already running</string>
     <string name="cant_open_last_read_chapter">Unable to open last read chapter</string>
     <string name="updates_last_update_info">Library last updated: %s</string>
@@ -1002,6 +1005,7 @@
 
     <!-- Library update service notifications -->
     <string name="notification_updating_progress">Updating library… (%s)</string>
+    <string name="notification_updating_progress_count">%1$d of %2$d titles</string>
     <string name="notification_size_warning">Large updates harm sources and may lead to slower updates and also increased battery usage. Tap to learn more.</string>
     <string name="notification_new_chapters">New chapters found</string>
     <string name="notification_chapters_single">Chapter %1$s</string>
