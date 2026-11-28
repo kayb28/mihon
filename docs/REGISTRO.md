@@ -819,3 +819,37 @@ WebGPU; 4) errores de biblioteca → botón Reintentar (una pulsación = un lote
 «toda la biblioteca»); 5) fuente migrada → «Editar dominio» → nueva URL → descargas de
 esa fuente funcionan; entrada inválida → mensaje y sin romper el pipeline; sin regla →
 comportamiento intacto; extensión con mirror propio → no interferir.
+
+## 2026-11-28 — PROMPT 11 · forensics: cadena de custodia de APKs (auditoría, sin cambios de código)
+
+**Qué se hizo:** informe `docs/INFORME_CONTINUIDAD_APK.md` (auditoría forense de TODAS
+las builds del workflow «Build APK»). Método: inventario vía API de los 393 runs del
+workflow (210 exitosos, 518 artefactos vivos con digest y `expires_at`; **ninguno
+expirado** a la fecha — los más viejos, runs 3 y 5 del 29/10, caducan el propio 28/11 y
+se alcanzaron a verificar). Se descargaron y sellaron contra el digest del API **57
+artefactos** (57/57 sellos ✅): las 9 primeras builds (29–30/10), la línea `main`
+completa (34 builds release, 02/11→27/11) y el episodio del 04/11 sobre
+`feature/webgpu-clean` (14 builds). De cada APK arm64: sha256, tamaño, firma (verificador
+propio) y huella DEX (clases + métodos de todos los `classes*.dex`).
+
+**Resultado:** **cero pérdidas de código verificadas.** Todas las bajas del diff
+cronológico tienen explicación verificada: refactors con relevo
+(`WebViewFetchFallbackInterceptor$FetchSession` → `FetchSession` top-level en PR #1,
+6→7 métodos), cambios de firma (`ScoredManga`, `SourceOptionsDialog`), o artefactos de
+R8 (clases-sumidero que cambian de anfitrión: `data/saver/Image`→`coil3/Image`,
+`TrackKt`→`logcat/ThrowablesKt`; inline de `DohProvidersKt;->doh*` en la build final con
+contraste positivo: las 11 URLs DoH y las clases `okhttp3/dnsoverhttps` siguen dentro
+del APK final). Merges de solo-docs dejan huella DEX idéntica (71→72; 264→274 PRs
+#11/#13; 349→351; 357→358). Firma ESTABLE en el 100% de las builds de main desde el
+11/11 (32/32); las 25 previas (29/10–05/11) son de la era pre-`ef0ece3` (esperado).
+Tag `v0.21.3-fork.1`: mismo tamaño exacto (35 208 646) y huella DEX idéntica (`7da94d42…`)
+que el run 188 (`18dc37a`); sha256 distinto solo por empaquetado/firma, ambos ESTABLE.
+APK de `2f4e0b8dc` verificada: sha256 `eaf9aeb26af19eaa…` — coincide con la anotada el
+27/11 en este REGISTRO (triple coincidencia REGISTRO ↔ digest API ↔ bytes).
+
+**Cobertura honesta:** 57 builds con «bytes verificados»; 461 artefactos «solo histórico»
+(digest API anotado, no descargados — prioridad main + episodios calientes del encargo);
+tramo 05–10/11 de `feature/webgpu-clean` observado solo por extremos.
+
+**`sin build`** (forensics: no se tocó código, workflows ni firma) · Estado: **completado**
+(cadena de custodia documentada; sin caducidad perdida a la fecha).
