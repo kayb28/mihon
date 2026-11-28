@@ -10,6 +10,28 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Fixed` - for any bug fixes.
 - `Other` - for technical stuff.
 
+## [Mihon Fix — PROMPT 12 T-D: actualizar biblioteca según filtros + recuento en la notificación] - 2026-11-28
+
+> Rama `feat/t-d-actualizar-segun-filtros`, PR #26 abierto SIN MERGE. Ciclo red→green:
+> rojo por comportamiento en `evidence/t-d-red` (`efdcb095`, run 46165724412, 8+ FAILED;
+> NUNCA se mergea) → verde final `087df1c95` (doble verde CI, runs 46164147578 /
+> 46164142492).
+
+### Added
+- **Acción «Actualizar biblioteca según filtros»** en el menú de la biblioteca: actualiza
+  SOLO los títulos que cumplen los filtros aplicados (downloaded / sin leer / empezados /
+  con marcadores / completados / con error de actualización, semántica TriState idéntica a
+  la pantalla) — sin depender de categorías (muchos títulos no las tienen).
+  Si el filtro no coge ningún título: aviso claro y NO se programa ninguna pasada vacía.
+- **Recuento en la notificación de progreso:** «X de Y títulos» además del porcentaje,
+  para poder validar el alcance de la pasada.
+
+### Other
+- `LibraryUpdateWorker.startNow(mangaIds)`: nueva sobrecarga con lote explícito
+  (`KEY_MANGA_IDS`); pasada parcial (`isFullPass = false`). Las rutas por categoría,
+  fuente y biblioteca completa quedan intactas (contrato respetado).
+- `LibraryUpdateScope` y `LibraryUpdateProgressPolicy`: policies puras con tests JVM.
+
 ## [Mihon Fix — P7: motor web secundario, gatillo «todos los fallos» (W1–W5)] - 2026-11-27
 
 > Rama `feat/p7-webview-fallback-all-failures`, PR abierto SIN MERGE (puerta: validación en
