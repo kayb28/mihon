@@ -19,6 +19,7 @@
     <string name="update_errors_view_log">Ver registro (.txt)</string>
     <string name="update_errors_retry">Reintentar títulos con error</string>
     <string name="update_errors_retry_running">Reintentando…</string>
+    <string name="update_errors_retry_summary">Reintentados %1$d: %2$d bien, %3$d siguen fallando</string>
     <string name="repair_links_title">Reparador de enlaces</string>
     <string name="repair_links_simulation_title">Modo simulación</string>
     <string name="repair_links_simulation_desc">Busca primero coincidencias exactas de título en la misma fuente; si no encuentra, reintenta con una búsqueda profunda difusa. Ambas se auto-migran, mostrando la confianza de la coincidencia. Si el título ya no deja rastro en su propia fuente (o la extensión desapareció), se busca en las demás fuentes instaladas — esas coincidencias se confirman una por una.</string>

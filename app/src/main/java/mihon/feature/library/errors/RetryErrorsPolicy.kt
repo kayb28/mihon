@@ -54,17 +54,41 @@ object RetryErrorsPolicy {
     }
 
     // ---------------------------------------------------- T-C (PROMPT 12)
-    // RED state: these reproduce the reported bug («pulsar no produce efecto visible»),
-    // they are NOT the fix. passScope returns the raw store snapshot (including ids that
-    // are not on screen), and no pass summary exists yet.
+    // GREEN state: the pass is scoped to exactly the list shown on screen, and every
+    // pass ends with a count summary («N reintentados: M bien, K siguen fallando»).
 
-    /** RED T-C: the batch scope — still the raw store snapshot (bug: includes invisible ids). */
-    fun passScope(storeIds: Set<Long>, visibleIds: Set<Long>): Set<Long> = storeIds
+    /**
+     * T-C (2): the batch retries exactly the set visible on screen. The store can hold
+     * errors for titles that are not on the list (non-favorites, titles removed from the
+     * library): retrying those produces no visible effect, so they are excluded — the
+     * scope is the intersection store ∩ visible (the visible list is always a subset of
+     * the store, so this is the visible set itself).
+     */
+    fun passScope(storeIds: Set<Long>, visibleIds: Set<Long>): Set<Long> =
+        visibleIds.filterTo(mutableSetOf()) { it in storeIds }
 
-    /** RED T-C: end-of-pass counts — still missing (zeros placeholder). */
-    data class PassSummary(val retried: Int, val ok: Int, val stillFailing: Int)
+    /** T-C (3): end-of-pass counts for the «N reintentados…» notice. */
+    data class PassSummary(
+        val retried: Int,
+        val ok: Int,
+        val stillFailing: Int,
+    )
 
-    fun summarize(pass: Pass, results: Map<Long, FreshError?>): PassSummary = PassSummary(0, 0, 0)
+    /**
+     * T-C (3+4): fold the per-manga outcomes into the notice counts. Successes (null
+     * FreshError) already left the list via the store's self-clean; failures stay.
+     * Ids in the pass but absent from [results] were skipped (manga not in DB) — they
+     * count as still failing, never as successes.
+     */
+    fun summarize(pass: Pass, results: Map<Long, FreshError?>): PassSummary {
+        val retried = results.keys.size
+        val ok = results.values.count { it == null }
+        return PassSummary(
+            retried = retried,
+            ok = ok,
+            stillFailing = retried - ok,
+        )
+    }
 
     /** 5.4: the button is enabled only when no pass is running. */
     fun buttonEnabled(pass: Pass?): Boolean = pass?.running != true
