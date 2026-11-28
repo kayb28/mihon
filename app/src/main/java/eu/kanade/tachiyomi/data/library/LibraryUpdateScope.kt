@@ -13,7 +13,6 @@ import tachiyomi.domain.manga.model.applyFilter
  * an empty match yields an empty list so the caller can show a clear message.
  */
 data class LibraryUpdateFilters(
-    val downloadedOnly: Boolean = false,
     val downloaded: TriState = TriState.DISABLED,
     val unread: TriState = TriState.DISABLED,
     val started: TriState = TriState.DISABLED,
@@ -44,7 +43,7 @@ object LibraryUpdateScope {
         errorMangaIds: Set<Long> = emptySet(),
     ): List<Long> = library.asSequence()
         .filter { entry ->
-            applyFilter(filters.downloaded) { filters.downloadedOnly || entry.isDownloaded } &&
+            applyFilter(filters.downloaded) { entry.isDownloaded } &&
                 applyFilter(filters.unread) { entry.unreadCount > 0 } &&
                 applyFilter(filters.started) { entry.hasStarted } &&
                 applyFilter(filters.bookmarked) { entry.hasBookmarks } &&

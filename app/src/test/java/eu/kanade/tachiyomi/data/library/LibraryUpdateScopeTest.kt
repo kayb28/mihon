@@ -80,7 +80,7 @@ class LibraryUpdateScopeTest {
         val library = listOf(entry(1, isDownloaded = true), entry(2, isDownloaded = false))
         val result = scope(
             library,
-            filters = LibraryUpdateFilters(downloaded = TriState.ENABLED_IS, downloadedOnly = true),
+            filters = LibraryUpdateFilters(downloaded = TriState.ENABLED_IS),
         )
         result shouldContainExactly listOf(1L)
     }
@@ -113,7 +113,9 @@ class LibraryUpdateScopeTest {
         // en Entry — títulos sin categoría se actualizan igual.
         val library = listOf(entry(1), entry(2, unreadCount = 3), entry(3, unreadCount = 1))
         val result = scope(library, filters = LibraryUpdateFilters(unread = TriState.ENABLED_IS))
-        result shouldContainExactly listOf(1L, 2L, 3L)
+        // El alcance no mira categorías: los que cumplen el filtro entran igual
+        // (entry(1) no tiene capítulos sin leer y queda fuera, como en la pantalla).
+        result shouldContainExactly listOf(2L, 3L)
     }
 
     @Test

@@ -702,9 +702,10 @@ class LibraryViewModel(
         val libraryManga = getLibraryManga.await()
         if (libraryManga.isEmpty()) return emptyList()
         val downloadCounts = downloadManager.getDownloadCounts(libraryManga.map { it.manga })
+        // Same rule as the screen: «solo descargados» forces the downloaded filter to «is».
+        val downloaded = if (preferences.downloadedOnly.get()) TriState.ENABLED_IS else libraryPreferences.filterDownloaded.get()
         val filters = LibraryUpdateFilters(
-            downloadedOnly = preferences.downloadedOnly.get(),
-            downloaded = libraryPreferences.filterDownloaded.get(),
+            downloaded = downloaded,
             unread = libraryPreferences.filterUnread.get(),
             started = libraryPreferences.filterStarted.get(),
             bookmarked = libraryPreferences.filterBookmarked.get(),
