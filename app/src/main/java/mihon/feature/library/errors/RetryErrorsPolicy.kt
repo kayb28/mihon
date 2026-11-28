@@ -53,6 +53,19 @@ object RetryErrorsPolicy {
         )
     }
 
+    // ---------------------------------------------------- T-C (PROMPT 12)
+    // RED state: these reproduce the reported bug («pulsar no produce efecto visible»),
+    // they are NOT the fix. passScope returns the raw store snapshot (including ids that
+    // are not on screen), and no pass summary exists yet.
+
+    /** RED T-C: the batch scope — still the raw store snapshot (bug: includes invisible ids). */
+    fun passScope(storeIds: Set<Long>, visibleIds: Set<Long>): Set<Long> = storeIds
+
+    /** RED T-C: end-of-pass counts — still missing (zeros placeholder). */
+    data class PassSummary(val retried: Int, val ok: Int, val stillFailing: Int)
+
+    fun summarize(pass: Pass, results: Map<Long, FreshError?>): PassSummary = PassSummary(0, 0, 0)
+
     /** 5.4: the button is enabled only when no pass is running. */
     fun buttonEnabled(pass: Pass?): Boolean = pass?.running != true
 

@@ -102,6 +102,64 @@ class RetryErrorsPolicyTest {
         after.isEmptyState shouldBe true
     }
 
+    // ---------------------------------------------------- T-C (PROMPT 12)
+
+    /**
+     * Red T-C: «pulsar no produce efecto visible». El store guarda errores de títulos que
+     * ya NO están en la lista mostrada (la pantalla solo muestra favoritos: el filtro
+     * `takeIf { it.favorite }` de UpdateErrorsViewModel), y hasta T-C el lote reintentaba
+     * el snapshot crudo del store (`getErrorMangaIds()`). Si el store tiene ids invisibles
+     * (no favoritos / borrados), el lote corre sobre títulos que no se ven, la lista no
+     * cambia y el usuario ve una pulsación sin efecto.
+     */
+    @Test
+    fun `tc_2 the pass scope is exactly the visible list, not the raw store`() {
+        // Store: ids 1, 2, 3, 99 — pero en pantalla solo se ven 1 y 2 (favoritos).
+        val scope = RetryErrorsPolicy.passScope(
+            storeIds = setOf(1L, 2L, 3L, 99L),
+            visibleIds = setOf(1L, 2L),
+        )
+        scope shouldContainExactly setOf(1L, 2L)
+        scope.targets(3L) shouldBe false // no favorito: fuera del lote
+        scope.targets(99L) shouldBe false // borrado de la biblioteca: fuera del lote
+    }
+
+    @Test
+    fun `tc_2 a press with only invisible ids produces no batch at all`() {
+        // Store con ids que no están en pantalla: el lote no debe existir (nada visible que reintentar).
+        val scope = RetryErrorsPolicy.passScope(
+            storeIds = setOf(99L, 100L),
+            visibleIds = emptySet(),
+        )
+        scope shouldHaveSize 0
+    }
+
+    /**
+     * Red T-C: «no cambia a Reintentando… ni hay aviso con recuento». Al terminar el lote
+     * la UI debe mostrar «N reintentados: M bien, K siguen fallando».
+     */
+    @Test
+    fun `tc_3 the pass ends with a summary of how many retried, ok and still failing`() {
+        val pass = RetryErrorsPolicy.beginPass(setOf(1L, 2L, 3L))!!
+        val summary = RetryErrorsPolicy.summarize(
+            pass = pass,
+            results = mapOf(
+                1L to null, // ok: salió de la lista
+                2L to RetryErrorsPolicy.FreshError(message = "still broken"),
+                3L to RetryErrorsPolicy.FreshError(message = "timeout"),
+            ),
+        )
+        summary.retried shouldBe 3
+        summary.ok shouldBe 1
+        summary.stillFailing shouldBe 2
+    }
+
+    @Test
+    fun `tc_5 a running pass still blocks a second press (double press does not double the batch)`() {
+        val first = RetryErrorsPolicy.beginPass(setOf(1L))!!
+        RetryErrorsPolicy.beginPass(setOf(1L), pass = first) shouldBe null
+    }
+
     // ---------------------------------------------------------------- 5.5
 
     @Test
